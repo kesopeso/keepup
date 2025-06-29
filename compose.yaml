@@ -1,0 +1,11 @@
+services:
+  keepup.frontend:
+    container_name: keepup.frontend
+    image: node:24-alpine
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    restart: always
+    working_dir: /app
+    command: ["npm", "run", "dev"]
