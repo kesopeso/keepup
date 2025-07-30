@@ -2,10 +2,41 @@ services:
   keepup.frontend:
     container_name: keepup.frontend
     image: node:24-alpine
+    restart: always
     ports:
       - "3000:3000"
     volumes:
       - ./frontend:/app
-    restart: always
     working_dir: /app
     command: ["npm", "run", "dev"]
+
+  keepup.postgres:
+    container_name: keepup.postgres
+    image: postgis/postgis:17-3.5
+    restart: always
+    environment:
+      - POSTGRES_USER=keepup
+      - POSTGRES_PASSWORD=keepup
+      - POSTGRES_DB=keepup
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-U", "keepup", "-d", "keepup"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keepup.postgres.admin:
+    container_name: keepup.postgres.admin
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@keepup.com
+      - PGADMIN_DEFAULT_PASSWORD=keepup
+    volumes:
+      - ./data/pgadmin:/var/lib/pgadmin
+    ports:
+      - "5431:80"
+    depends_on:
+      keepup.postgres:
+        condition: service_healthy
