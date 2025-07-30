@@ -7,6 +7,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import Link from 'next/link';
+import { MapPinIcon, UsersIcon, FastForwardIcon } from 'lucide-react';
 
 export default function Home() {
     return (
@@ -66,25 +67,7 @@ export default function Home() {
                     <div className="grid md:grid-cols-3 gap-6 text-left">
                         <div className="p-6">
                             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                                <svg
-                                    className="w-6 h-6 text-blue-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                                    />
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                                    />
-                                </svg>
+                                <MapPinIcon className="w-6 h-6 text-blue-600" />
                             </div>
                             <h3 className="text-lg font-semibold mb-2">
                                 Real-time Tracking
@@ -97,19 +80,7 @@ export default function Home() {
 
                         <div className="p-6">
                             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                                <svg
-                                    className="w-6 h-6 text-green-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-                                    />
-                                </svg>
+                                <UsersIcon className="w-6 h-6 text-green-600" />
                             </div>
                             <h3 className="text-lg font-semibold mb-2">
                                 Group Sharing
@@ -122,19 +93,7 @@ export default function Home() {
 
                         <div className="p-6">
                             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                                <svg
-                                    className="w-6 h-6 text-purple-600"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    />
-                                </svg>
+                                <FastForwardIcon className="w-6 h-6 text-purple-600" />
                             </div>
                             <h3 className="text-lg font-semibold mb-2">
                                 Trip Replay
