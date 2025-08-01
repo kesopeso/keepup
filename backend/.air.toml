@@ -1,0 +1,11 @@
+root = "."
+tmp_dir = "/tmp"
+
+[build]
+    cmd = "go build -o /tmp/keepup.backend.server ."
+    bin ="/tmp/keepup.backend.server"
+    include_ext = ["go", "tpl", "tmpl", "html"]
+    exclude_dir = ["vendor", "tmp"]
+
+[log]
+    time = true

@@ -16,8 +16,10 @@ ACTION="$1"
 setup_pgadmin_folder() {
     if [ ! -d "./data/pgadmin" ]; then
         echo "📁 Creating data/pgadmin folder with proper permissions..."
-        mkdir -p ./data/pgadmin
-        sudo chown 5050:0 ./data/pgadmin
+        docker run \
+            --rm -u root -v ./data/pgadmin:/var/lib/pgadmin \
+            alpine \
+            chown 5050:0 /var/lib/pgadmin
         echo "✅ data/pgadmin folder created successfully!"
     fi
 }

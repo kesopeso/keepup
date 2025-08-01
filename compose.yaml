@@ -1,7 +1,10 @@
 services:
   keepup.frontend:
     container_name: keepup.frontend
-    image: node:24-alpine
+    image: keepup.frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
     restart: always
     ports:
       - "3000:3000"
@@ -9,6 +12,28 @@ services:
       - ./frontend:/app
     working_dir: /app
     command: ["npm", "run", "dev"]
+
+  keepup.backend:
+    container_name: keepup.backend
+    image: keepup.backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DB_HOST=keepup.postgres
+      - DB_PORT=5432
+      - DB_USER=keepup
+      - DB_PASSWORD=keepup
+      - DB_NAME=keepup
+      - GIN_MODE=debug
+    depends_on:
+      keepup.postgres:
+        condition: service_healthy
 
   keepup.postgres:
     container_name: keepup.postgres
