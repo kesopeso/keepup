@@ -54,6 +54,7 @@ go mod tidy          # Clean up dependencies
 - **Framework**: Next.js 15.3.4 with TypeScript 5.8 and App Router
 - **Styling**: Tailwind CSS v4 with shadcn/ui components
 - **UI Components**: shadcn/ui with Radix UI primitives and Lucide React icons
+- **Authentication**: Client-side auth with localStorage token storage
 - **Fonts**: Geist Sans and Geist Mono from Google Fonts
 
 ### Backend Structure
@@ -68,11 +69,15 @@ go mod tidy          # Clean up dependencies
 ```
 frontend/src/
 ├── app/                 # Next.js App Router pages
+│   ├── auth/           # Authentication pages
+│   │   ├── login/      # Login page
+│   │   └── signup/     # Signup page
+│   ├── dashboard/      # Protected dashboard page
 │   ├── layout.tsx      # Root layout with fonts and metadata
 │   ├── page.tsx        # Landing page
 │   └── globals.css     # Global styles
 ├── components/         # React components
-│   └── ui/            # shadcn/ui components (Button, Card, etc.)
+│   └── ui/            # shadcn/ui components (Button, Card, Input, Label)
 └── lib/               # Utilities and helpers
     └── utils.ts       # Tailwind CSS utility functions
 
@@ -80,7 +85,9 @@ backend/
 ├── main.go            # Main server file with authentication and user management
 ├── migrations/        # Database migration files
 │   ├── 000001_create_users_table.up.sql
-│   └── 000001_create_users_table.down.sql
+│   ├── 000001_create_users_table.down.sql
+│   ├── 000002_add_email_to_users.up.sql
+│   └── 000002_add_email_to_users.down.sql
 ├── go.mod             # Go module dependencies
 ├── .air.toml          # Air configuration for hot reload
 └── Dockerfile.dev     # Development Docker build
@@ -108,17 +115,18 @@ backend/
 - 4-space indentation, single quotes, 80 character line width
 - Trailing commas (ES5), arrow function parentheses always
 
-## Key Features (Based on Landing Page)
-- Real-time location tracking with interactive maps
-- Group trip sharing with password-based invitations
-- Trip replay functionality with playback controls
-- Authentication system (routes to `/auth/signin`)
+## Key Features
+- **Authentication System**: Complete user registration and login with email/password
+- **User Dashboard**: Protected dashboard displaying user information
+- Real-time location tracking with interactive maps (planned)
+- Group trip sharing with password-based invitations (planned)
+- Trip replay functionality with playback controls (planned)
 
 ## API Endpoints
 
 ### Authentication
-- `POST /api/v1/auth/signup` - User registration with username/password
-- `POST /api/v1/auth/login` - User login with JWT token response
+- `POST /api/v1/auth/signup` - User registration with email/password (username defaults to email)
+- `POST /api/v1/auth/login` - User login with email/password, returns JWT tokens
 
 ### Protected Routes (Require Bearer Token)
 - `GET /api/v1/users/me` - Get current authenticated user
@@ -131,9 +139,10 @@ backend/
 ## Security & Authentication
 - **Password Hashing**: bcrypt with automatic salt generation
 - **JWT Tokens**: Short-lived access tokens (15 min) + long-lived refresh tokens (7 days)
-- **Input Validation**: Username format validation and password strength requirements
+- **Input Validation**: Email format validation and password strength requirements (8+ chars)
 - **SQL Injection Protection**: Parameterized queries throughout
 - **Middleware Protection**: JWT middleware for protected routes
+- **Client-side Auth**: Token storage in localStorage with automatic redirects
 
 ## Development Notes
 - Frontend uses Turbopack for faster development builds
@@ -143,7 +152,21 @@ backend/
 - Backend uses Air for hot reload during development
 - Migrations run automatically on backend startup
 - Database schema versioned with golang-migrate
+- Authentication pages built with form validation and error handling
+- Protected routes implement client-side authentication checks
 
 ## Environment Variables
 - `JWT_SECRET` - Secret key for JWT token signing (use strong secret in production)
 - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` - Database connection settings
+
+## Authentication Flow
+1. **Signup**: User registers with email/password → username defaults to email → redirected to dashboard
+2. **Login**: User authenticates with email/password → JWT tokens stored in localStorage → redirected to dashboard
+3. **Protected Routes**: Dashboard checks for access token → displays "Hello `<username>`!" message
+4. **Logout**: Clears tokens from localStorage → redirects to login page
+
+## Available Routes
+- `/` - Landing page with links to auth pages
+- `/auth/signup` - User registration form
+- `/auth/login` - User login form  
+- `/dashboard` - Protected dashboard displaying user info

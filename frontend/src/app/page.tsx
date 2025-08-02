@@ -35,7 +35,7 @@ export default function Home() {
                             </CardHeader>
                             <CardContent>
                                 <Button asChild className="w-full">
-                                    <Link href="/auth/signin">Get Started</Link>
+                                    <Link href="/auth/signup">Get Started</Link>
                                 </Button>
                             </CardContent>
                         </Card>
@@ -56,7 +56,7 @@ export default function Home() {
                                     asChild
                                     className="w-full"
                                 >
-                                    <Link href="/auth/signin">
+                                    <Link href="/auth/login">
                                         Sign In to Join
                                     </Link>
                                 </Button>

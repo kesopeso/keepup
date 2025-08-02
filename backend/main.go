@@ -21,6 +21,7 @@ import (
 
 type User struct {
 	ID          int       `json:"id" db:"id"`
+	Email       string    `json:"email" db:"email"`
 	Username    string    `json:"username" db:"username"`
 	Password    string    `json:"-" db:"password_hash"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
@@ -28,12 +29,12 @@ type User struct {
 }
 
 type SignupRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=50"`
+	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=8"`
 }
 
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
 }
 
@@ -166,14 +167,14 @@ func checkPasswordHash(password, hash string) bool {
 }
 
 // JWT token utilities
-func (s *Server) generateTokens(userID int, username string) (string, string, error) {
+func (s *Server) generateTokens(userID int, email string) (string, string, error) {
 	// Access token (15 minutes)
 	accessClaims := jwt.MapClaims{
-		"user_id":  userID,
-		"username": username,
-		"type":     "access",
-		"exp":      time.Now().Add(15 * time.Minute).Unix(),
-		"iat":      time.Now().Unix(),
+		"user_id": userID,
+		"email":   email,
+		"type":    "access",
+		"exp":     time.Now().Add(15 * time.Minute).Unix(),
+		"iat":     time.Now().Unix(),
 	}
 	
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
@@ -184,11 +185,11 @@ func (s *Server) generateTokens(userID int, username string) (string, string, er
 	
 	// Refresh token (7 days)
 	refreshClaims := jwt.MapClaims{
-		"user_id":  userID,
-		"username": username,
-		"type":     "refresh",
-		"exp":      time.Now().Add(7 * 24 * time.Hour).Unix(),
-		"iat":      time.Now().Unix(),
+		"user_id": userID,
+		"email":   email,
+		"type":    "refresh",
+		"exp":     time.Now().Add(7 * 24 * time.Hour).Unix(),
+		"iat":     time.Now().Unix(),
 	}
 	
 	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
@@ -220,21 +221,24 @@ func (s *Server) validateToken(tokenString string) (*jwt.MapClaims, error) {
 }
 
 // User database operations
-func (s *Server) createUser(username, password string) (*User, error) {
+func (s *Server) createUser(email, password string) (*User, error) {
 	hashedPassword, err := hashPassword(password)
 	if err != nil {
 		return nil, err
 	}
 	
+	// Set username to email by default
+	username := email
+	
 	query := `
-		INSERT INTO users (username, password_hash, created_at, updated_at)
-		VALUES ($1, $2, NOW(), NOW())
-		RETURNING id, username, created_at, updated_at
+		INSERT INTO users (email, username, password_hash, created_at, updated_at)
+		VALUES ($1, $2, $3, NOW(), NOW())
+		RETURNING id, email, username, created_at, updated_at
 	`
 	
 	var user User
-	err = s.db.QueryRow(query, username, hashedPassword).Scan(
-		&user.ID, &user.Username, &user.CreatedAt, &user.UpdatedAt,
+	err = s.db.QueryRow(query, email, username, hashedPassword).Scan(
+		&user.ID, &user.Email, &user.Username, &user.CreatedAt, &user.UpdatedAt,
 	)
 	
 	if err != nil {
@@ -244,16 +248,16 @@ func (s *Server) createUser(username, password string) (*User, error) {
 	return &user, nil
 }
 
-func (s *Server) getUserByUsername(username string) (*User, error) {
+func (s *Server) getUserByEmail(email string) (*User, error) {
 	query := `
-		SELECT id, username, password_hash, created_at, updated_at
+		SELECT id, email, username, password_hash, created_at, updated_at
 		FROM users
-		WHERE username = $1
+		WHERE email = $1
 	`
 	
 	var user User
-	err := s.db.QueryRow(query, username).Scan(
-		&user.ID, &user.Username, &user.Password, &user.CreatedAt, &user.UpdatedAt,
+	err := s.db.QueryRow(query, email).Scan(
+		&user.ID, &user.Email, &user.Username, &user.Password, &user.CreatedAt, &user.UpdatedAt,
 	)
 	
 	if err != nil {
@@ -264,14 +268,10 @@ func (s *Server) getUserByUsername(username string) (*User, error) {
 }
 
 // Input validation utilities
-func isValidUsername(username string) bool {
-	if len(username) < 3 || len(username) > 50 {
-		return false
-	}
-	
-	// Allow alphanumeric characters, underscores, and hyphens
-	matched, _ := regexp.MatchString("^[a-zA-Z0-9_-]+$", username)
-	return matched
+func isValidEmail(email string) bool {
+	// Basic email validation - Gin's email binding provides more thorough validation
+	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+	return emailRegex.MatchString(email) && len(email) <= 255
 }
 
 func isValidPassword(password string) bool {
@@ -290,9 +290,9 @@ func (s *Server) handleSignup(c *gin.Context) {
 	}
 
 	// Additional validation
-	if !isValidUsername(req.Username) {
+	if !isValidEmail(req.Email) {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Username must be 3-50 characters and contain only letters, numbers, underscores, and hyphens",
+			"error": "Please provide a valid email address",
 		})
 		return
 	}
@@ -304,21 +304,21 @@ func (s *Server) handleSignup(c *gin.Context) {
 		return
 	}
 
-	// Check if username already exists
-	existingUser, err := s.getUserByUsername(req.Username)
+	// Check if email already exists
+	existingUser, err := s.getUserByEmail(req.Email)
 	if err == nil && existingUser != nil {
 		c.JSON(http.StatusConflict, gin.H{
-			"error": "Username already exists",
+			"error": "Email already registered",
 		})
 		return
 	}
 
 	// Create user
-	user, err := s.createUser(req.Username, req.Password)
+	user, err := s.createUser(req.Email, req.Password)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
 			c.JSON(http.StatusConflict, gin.H{
-				"error": "Username already exists",
+				"error": "Email already registered",
 			})
 			return
 		}
@@ -331,7 +331,7 @@ func (s *Server) handleSignup(c *gin.Context) {
 	}
 
 	// Generate tokens
-	accessToken, refreshToken, err := s.generateTokens(user.ID, user.Username)
+	accessToken, refreshToken, err := s.generateTokens(user.ID, user.Email)
 	if err != nil {
 		log.Printf("Error generating tokens: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -357,11 +357,11 @@ func (s *Server) handleLogin(c *gin.Context) {
 		return
 	}
 
-	// Get user by username
-	user, err := s.getUserByUsername(req.Username)
+	// Get user by email
+	user, err := s.getUserByEmail(req.Email)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid username or password",
+			"error": "Invalid email or password",
 		})
 		return
 	}
@@ -369,13 +369,13 @@ func (s *Server) handleLogin(c *gin.Context) {
 	// Check password
 	if !checkPasswordHash(req.Password, user.Password) {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid username or password",
+			"error": "Invalid email or password",
 		})
 		return
 	}
 
 	// Generate tokens
-	accessToken, refreshToken, err := s.generateTokens(user.ID, user.Username)
+	accessToken, refreshToken, err := s.generateTokens(user.ID, user.Email)
 	if err != nil {
 		log.Printf("Error generating tokens: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -439,14 +439,14 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 
 		// Store user info in context
 		c.Set("user_id", (*claims)["user_id"])
-		c.Set("username", (*claims)["username"])
+		c.Set("email", (*claims)["email"])
 		c.Next()
 	}
 }
 
 // Protected route handlers
 func (s *Server) handleGetMe(c *gin.Context) {
-	username, exists := c.Get("username")
+	email, exists := c.Get("email")
 	if !exists {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "User information not found in context",
@@ -454,7 +454,7 @@ func (s *Server) handleGetMe(c *gin.Context) {
 		return
 	}
 
-	user, err := s.getUserByUsername(username.(string))
+	user, err := s.getUserByEmail(email.(string))
 	if err != nil {
 		log.Printf("Error getting user: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
