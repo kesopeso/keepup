@@ -58,9 +58,11 @@ go mod tidy          # Clean up dependencies
 
 ### Backend Structure
 - **Framework**: Go 1.24.5 with Gin web framework
-- **Database**: PostgreSQL with lib/pq driver
+- **Database**: PostgreSQL with lib/pq driver and golang-migrate for migrations
+- **Authentication**: JWT tokens with bcrypt password hashing
 - **API**: RESTful API with `/api/v1` prefix
 - **CORS**: Enabled for all origins in development
+- **Hot Reload**: Air for automatic rebuilds during development
 
 ### Code Organization
 ```
@@ -75,13 +77,19 @@ frontend/src/
     └── utils.ts       # Tailwind CSS utility functions
 
 backend/
-├── main.go            # Main server file with all routes (to be refactored)
+├── main.go            # Main server file with authentication and user management
+├── migrations/        # Database migration files
+│   ├── 000001_create_users_table.up.sql
+│   └── 000001_create_users_table.down.sql
 ├── go.mod             # Go module dependencies
-└── Dockerfile         # Multi-stage Docker build
+├── .air.toml          # Air configuration for hot reload
+└── Dockerfile.dev     # Development Docker build
 ```
 
 ### Database
 - **PostgreSQL 17** with PostGIS extension for geospatial operations
+- **Migrations**: golang-migrate/migrate for schema versioning
+- **Schema Tracking**: Automatic `schema_migrations` table for version control
 - Persistent data stored in `./data/postgres/`
 - Development credentials: `keepup/keepup/keepup` (user/password/database)
 
@@ -108,19 +116,34 @@ backend/
 
 ## API Endpoints
 
-The backend provides these basic endpoints:
+### Authentication
+- `POST /api/v1/auth/signup` - User registration with username/password
+- `POST /api/v1/auth/login` - User login with JWT token response
+
+### Protected Routes (Require Bearer Token)
+- `GET /api/v1/users/me` - Get current authenticated user
+
+### General
 - `GET /health` - Health check with database status
 - `GET /api/v1/ping` - Simple ping endpoint
 - `GET /api/v1/trips` - List trips (placeholder)
-- `GET /api/v1/users/me` - Get current user (placeholder)
+
+## Security & Authentication
+- **Password Hashing**: bcrypt with automatic salt generation
+- **JWT Tokens**: Short-lived access tokens (15 min) + long-lived refresh tokens (7 days)
+- **Input Validation**: Username format validation and password strength requirements
+- **SQL Injection Protection**: Parameterized queries throughout
+- **Middleware Protection**: JWT middleware for protected routes
 
 ## Development Notes
 - Frontend uses Turbopack for faster development builds
 - Component library follows shadcn/ui conventions with "new-york" style
 - Icons sourced from Lucide React
 - Database includes geospatial capabilities via PostGIS for location features
-- Backend currently has all code in main.go (ready for refactoring into separate files)
+- Backend uses Air for hot reload during development
+- Migrations run automatically on backend startup
+- Database schema versioned with golang-migrate
 
-## Recent Changes
-- Frontend now has its own Dockerfile.dev
-- Air was added to the backend container setup for HMR
+## Environment Variables
+- `JWT_SECRET` - Secret key for JWT token signing (use strong secret in production)
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` - Database connection settings
