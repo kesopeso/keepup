@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 export default function SignupPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const router = useRouter();
@@ -19,6 +20,13 @@ export default function SignupPage() {
         e.preventDefault();
         setLoading(true);
         setError('');
+
+        // Validate passwords match
+        if (password !== confirmPassword) {
+            setError('Passwords do not match');
+            setLoading(false);
+            return;
+        }
 
         try {
             const response = await fetch('http://localhost:8080/api/v1/auth/signup', {
@@ -92,6 +100,19 @@ export default function SignupPage() {
                             <p className="text-xs text-muted-foreground">
                                 Password must be at least 8 characters long
                             </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="confirmPassword">Confirm Password</Label>
+                            <Input
+                                id="confirmPassword"
+                                type="password"
+                                placeholder="••••••••"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                required
+                                minLength={8}
+                                disabled={loading}
+                            />
                         </div>
                     </CardContent>
                     <CardFooter className="flex flex-col space-y-4">
