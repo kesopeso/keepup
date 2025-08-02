@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +37,23 @@ type SignupRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
+}
+
+type Trip struct {
+	ID          int       `json:"id" db:"id"`
+	Name        string    `json:"name" db:"name"`
+	Description string    `json:"description" db:"description"`
+	Password    string    `json:"-" db:"password"`
+	CreatorID   int       `json:"creator_id" db:"creator_id"`
+	Status      string    `json:"status" db:"status"` // created, active, ended
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+}
+
+type CreateTripRequest struct {
+	Name        string `json:"name" binding:"required,min=1,max=100"`
+	Description string `json:"description" binding:"max=500"`
+	Password    string `json:"password" binding:"required,min=4,max=50"`
 }
 
 type TokenResponse struct {
@@ -267,6 +285,127 @@ func (s *Server) getUserByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
+// Trip database operations
+func (s *Server) createTrip(name, description, password string, creatorID int) (*Trip, error) {
+	hashedPassword, err := hashPassword(password)
+	if err != nil {
+		return nil, err
+	}
+	
+	query := `
+		INSERT INTO trips (name, description, password, creator_id, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 'created', NOW(), NOW())
+		RETURNING id, name, description, creator_id, status, created_at, updated_at
+	`
+	
+	var trip Trip
+	err = s.db.QueryRow(query, name, description, hashedPassword, creatorID).Scan(
+		&trip.ID, &trip.Name, &trip.Description, &trip.CreatorID, &trip.Status, &trip.CreatedAt, &trip.UpdatedAt,
+	)
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	return &trip, nil
+}
+
+func (s *Server) getTripsByUserID(userID int) ([]Trip, error) {
+	query := `
+		SELECT id, name, description, creator_id, status, created_at, updated_at
+		FROM trips
+		WHERE creator_id = $1
+		ORDER BY created_at DESC
+	`
+	
+	rows, err := s.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var trips []Trip
+	for rows.Next() {
+		var trip Trip
+		err := rows.Scan(
+			&trip.ID, &trip.Name, &trip.Description, &trip.CreatorID, &trip.Status, &trip.CreatedAt, &trip.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		trips = append(trips, trip)
+	}
+	
+	return trips, nil
+}
+
+func (s *Server) getTripByID(tripID int) (*Trip, error) {
+	query := `
+		SELECT id, name, description, creator_id, status, created_at, updated_at
+		FROM trips
+		WHERE id = $1
+	`
+	
+	var trip Trip
+	err := s.db.QueryRow(query, tripID).Scan(
+		&trip.ID, &trip.Name, &trip.Description, &trip.CreatorID, &trip.Status, &trip.CreatedAt, &trip.UpdatedAt,
+	)
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	return &trip, nil
+}
+
+func (s *Server) startTrip(tripID, userID int) error {
+	query := `
+		UPDATE trips
+		SET status = 'active', updated_at = NOW()
+		WHERE id = $1 AND creator_id = $2 AND status = 'created'
+	`
+	
+	result, err := s.db.Exec(query, tripID, userID)
+	if err != nil {
+		return err
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	
+	if rowsAffected == 0 {
+		return fmt.Errorf("trip not found, not authorized, or already started")
+	}
+	
+	return nil
+}
+
+func (s *Server) endTrip(tripID, userID int) error {
+	query := `
+		UPDATE trips
+		SET status = 'ended', updated_at = NOW()
+		WHERE id = $1 AND creator_id = $2 AND status = 'active'
+	`
+	
+	result, err := s.db.Exec(query, tripID, userID)
+	if err != nil {
+		return err
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	
+	if rowsAffected == 0 {
+		return fmt.Errorf("trip not found or not authorized")
+	}
+	
+	return nil
+}
+
 // Input validation utilities
 func isValidEmail(email string) bool {
 	// Basic email validation - Gin's email binding provides more thorough validation
@@ -471,6 +610,201 @@ func (s *Server) handleGetMe(c *gin.Context) {
 	})
 }
 
+// Trip handlers
+func (s *Server) handleCreateTrip(c *gin.Context) {
+	var req CreateTripRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid request format",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "User information not found",
+		})
+		return
+	}
+
+	// Convert user_id to int (it comes as float64 from JWT claims)
+	userIDFloat, ok := userID.(float64)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Invalid user ID format",
+		})
+		return
+	}
+
+	trip, err := s.createTrip(req.Name, req.Description, req.Password, int(userIDFloat))
+	if err != nil {
+		log.Printf("Error creating trip: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to create trip",
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"trip": trip,
+	})
+}
+
+func (s *Server) handleGetTrips(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "User information not found",
+		})
+		return
+	}
+
+	userIDFloat, ok := userID.(float64)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Invalid user ID format",
+		})
+		return
+	}
+
+	trips, err := s.getTripsByUserID(int(userIDFloat))
+	if err != nil {
+		log.Printf("Error getting trips: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get trips",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"trips": trips,
+	})
+}
+
+func (s *Server) handleGetTrip(c *gin.Context) {
+	tripIDStr := c.Param("id")
+	tripID, err := strconv.Atoi(tripIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid trip ID",
+		})
+		return
+	}
+
+	trip, err := s.getTripByID(tripID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Trip not found",
+			})
+			return
+		}
+		log.Printf("Error getting trip: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get trip",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"trip": trip,
+	})
+}
+
+func (s *Server) handleEndTrip(c *gin.Context) {
+	tripIDStr := c.Param("id")
+	tripID, err := strconv.Atoi(tripIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid trip ID",
+		})
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "User information not found",
+		})
+		return
+	}
+
+	userIDFloat, ok := userID.(float64)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Invalid user ID format",
+		})
+		return
+	}
+
+	err = s.endTrip(tripID, int(userIDFloat))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found or not authorized") {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Trip not found or not authorized",
+			})
+			return
+		}
+		log.Printf("Error ending trip: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to end trip",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Trip ended successfully",
+	})
+}
+
+func (s *Server) handleStartTrip(c *gin.Context) {
+	tripIDStr := c.Param("id")
+	tripID, err := strconv.Atoi(tripIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid trip ID",
+		})
+		return
+	}
+
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "User information not found",
+		})
+		return
+	}
+
+	userIDFloat, ok := userID.(float64)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Invalid user ID format",
+		})
+		return
+	}
+
+	err = s.startTrip(tripID, int(userIDFloat))
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "not authorized") || strings.Contains(err.Error(), "already started") {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		log.Printf("Error starting trip: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to start trip",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Trip started successfully",
+	})
+}
+
 func (s *Server) setupRoutes() *gin.Engine {
 	if os.Getenv("GIN_MODE") == "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -531,14 +865,15 @@ func (s *Server) setupRoutes() *gin.Engine {
 			auth.POST("/login", s.handleLogin)
 		}
 
-		// Placeholder for trip routes
+		// Protected trip routes
 		trips := v1.Group("/trips")
+		trips.Use(s.authMiddleware())
 		{
-			trips.GET("", func(c *gin.Context) {
-				c.JSON(http.StatusOK, gin.H{
-					"trips": []any{},
-				})
-			})
+			trips.POST("", s.handleCreateTrip)
+			trips.GET("", s.handleGetTrips)
+			trips.GET("/:id", s.handleGetTrip)
+			trips.PUT("/:id/start", s.handleStartTrip)
+			trips.PUT("/:id/end", s.handleEndTrip)
 		}
 
 		// Protected user routes
