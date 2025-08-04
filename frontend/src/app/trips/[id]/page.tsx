@@ -22,7 +22,6 @@ interface Trip {
     updated_at: string;
 }
 
-
 export default function TripPage() {
     const [trip, setTrip] = useState<Trip | null>(null);
     const [loading, setLoading] = useState(true);
@@ -34,26 +33,15 @@ export default function TripPage() {
     const tripId = params.id as string;
 
     useEffect(() => {
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-            router.push('/auth/login');
-            return;
-        }
-
         fetchTrip();
     }, [tripId, router]);
 
     const fetchTrip = async () => {
-        const token = localStorage.getItem('access_token');
-        if (!token) return;
-
         try {
             const response = await fetch(
                 `http://localhost:8080/api/v1/trips/${tripId}`,
                 {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
+                    credentials: 'include', // Include cookies
                 }
             );
 
@@ -62,6 +50,8 @@ export default function TripPage() {
                 setTrip(data.trip);
             } else if (response.status === 404) {
                 router.push('/dashboard');
+            } else if (response.status === 401) {
+                router.push('/auth/login');
             }
         } catch (error) {
             console.error('Failed to fetch trip:', error);
@@ -80,16 +70,13 @@ export default function TripPage() {
         if (!confirmed) return;
 
         setEndingTrip(true);
-        const token = localStorage.getItem('access_token');
 
         try {
             const response = await fetch(
                 `http://localhost:8080/api/v1/trips/${trip.id}/end`,
                 {
                     method: 'PUT',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
+                    credentials: 'include', // Include cookies
                 }
             );
 
@@ -112,16 +99,13 @@ export default function TripPage() {
         if (!trip || startingTrip) return;
 
         setStartingTrip(true);
-        const token = localStorage.getItem('access_token');
 
         try {
             const response = await fetch(
                 `http://localhost:8080/api/v1/trips/${trip.id}/start`,
                 {
                     method: 'PUT',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
+                    credentials: 'include', // Include cookies
                 }
             );
 
@@ -277,4 +261,3 @@ export default function TripPage() {
         </div>
     );
 }
-

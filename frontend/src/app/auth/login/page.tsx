@@ -26,6 +26,7 @@ export default function LoginPage() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
+                credentials: 'include', // Include cookies in request
                 body: JSON.stringify({ email, password }),
             });
 
@@ -35,9 +36,7 @@ export default function LoginPage() {
                 throw new Error(data.error || 'Login failed');
             }
 
-            // Store tokens in localStorage
-            localStorage.setItem('access_token', data.access_token);
-            localStorage.setItem('refresh_token', data.refresh_token);
+            // Store user in localStorage (tokens are now in HttpOnly cookies)
             localStorage.setItem('user', JSON.stringify(data.user));
 
             // Redirect to dashboard

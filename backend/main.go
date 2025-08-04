@@ -479,10 +479,13 @@ func (s *Server) handleSignup(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		User:         *user,
+	// Set HttpOnly cookies
+	c.SetCookie("access_token", accessToken, 15*60, "/", "", false, true) // 15 minutes
+	c.SetCookie("refresh_token", refreshToken, 7*24*60*60, "/", "", false, true) // 7 days
+
+	c.JSON(http.StatusCreated, gin.H{
+		"user": *user,
+		"message": "User created successfully",
 	})
 }
 
@@ -526,39 +529,41 @@ func (s *Server) handleLogin(c *gin.Context) {
 	// Clear password from response
 	user.Password = ""
 
-	c.JSON(http.StatusOK, TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		User:         *user,
+	// Set HttpOnly cookies
+	c.SetCookie("access_token", accessToken, 15*60, "/", "", false, true) // 15 minutes
+	c.SetCookie("refresh_token", refreshToken, 7*24*60*60, "/", "", false, true) // 7 days
+
+	c.JSON(http.StatusOK, gin.H{
+		"user": *user,
+		"message": "Login successful",
+	})
+}
+
+func (s *Server) handleLogout(c *gin.Context) {
+	// Clear cookies by setting them with negative max age
+	c.SetCookie("access_token", "", -1, "/", "", false, true)
+	c.SetCookie("refresh_token", "", -1, "/", "", false, true)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logout successful",
 	})
 }
 
 // JWT middleware
 func (s *Server) authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		// Try to get access token from cookie
+		accessToken, err := c.Cookie("access_token")
+		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Authorization header required",
-			})
-			c.Abort()
-			return
-		}
-
-		// Check if header starts with "Bearer "
-		tokenString := ""
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			tokenString = authHeader[7:]
-		} else {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid authorization header format",
+				"error": "Access token required",
 			})
 			c.Abort()
 			return
 		}
 
 		// Validate token
-		claims, err := s.validateToken(tokenString)
+		claims, err := s.validateToken(accessToken)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "Invalid or expired token",
@@ -814,9 +819,10 @@ func (s *Server) setupRoutes() *gin.Engine {
 
 	// CORS middleware
 	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token")
+		c.Header("Access-Control-Allow-Credentials", "true")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -863,6 +869,7 @@ func (s *Server) setupRoutes() *gin.Engine {
 		{
 			auth.POST("/signup", s.handleSignup)
 			auth.POST("/login", s.handleLogin)
+			auth.POST("/logout", s.handleLogout)
 		}
 
 		// Protected trip routes

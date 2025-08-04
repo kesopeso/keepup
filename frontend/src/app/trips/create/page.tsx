@@ -22,19 +22,13 @@ export default function CreateTripPage() {
         setLoading(true);
         setError('');
 
-        const token = localStorage.getItem('access_token');
-        if (!token) {
-            router.push('/auth/login');
-            return;
-        }
-
         try {
             const response = await fetch('http://localhost:8080/api/v1/trips', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
                 },
+                credentials: 'include', // Include cookies
                 body: JSON.stringify({ name, description, password }),
             });
 

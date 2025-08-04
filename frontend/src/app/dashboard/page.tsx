@@ -33,32 +33,44 @@ export default function DashboardPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const token = localStorage.getItem('access_token');
         const storedUser = localStorage.getItem('user');
 
-        if (!token) {
-            router.push('/auth/login');
-            return;
-        }
+        // Check if user is authenticated by trying to fetch user data
+        checkAuth();
 
         if (storedUser) {
             setUser(JSON.parse(storedUser));
-            setLoading(false);
         }
 
         // Fetch user's trips
         fetchTrips();
     }, [router]);
 
-    const fetchTrips = async () => {
-        const token = localStorage.getItem('access_token');
-        if (!token) return;
+    const checkAuth = async () => {
+        try {
+            const response = await fetch('http://localhost:8080/api/v1/users/me', {
+                credentials: 'include', // Include cookies
+            });
 
+            if (!response.ok) {
+                router.push('/auth/login');
+                return;
+            }
+
+            const data = await response.json();
+            setUser(data.user);
+            localStorage.setItem('user', JSON.stringify(data.user));
+        } catch (error) {
+            router.push('/auth/login');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchTrips = async () => {
         try {
             const response = await fetch('http://localhost:8080/api/v1/trips', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
+                credentials: 'include', // Include cookies
             });
 
             if (response.ok) {
@@ -72,9 +84,18 @@ export default function DashboardPage() {
         }
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+    const handleLogout = async () => {
+        try {
+            // Call logout endpoint to clear HttpOnly cookies
+            await fetch('http://localhost:8080/api/v1/auth/logout', {
+                method: 'POST',
+                credentials: 'include',
+            });
+        } catch (error) {
+            console.error('Logout request failed:', error);
+        }
+
+        // Clear localStorage and redirect
         localStorage.removeItem('user');
         router.push('/auth/login');
     };
