@@ -102,3 +102,19 @@ Then fill in:
 - recovery prompt
 - tracker limit
 - member statuses
+
+## Immediate Next Step
+
+The runnable shell milestone is complete:
+
+1. `apps/web` is scaffolded as a Next.js app
+2. `apps/api` is scaffolded as a Go service with a health endpoint
+3. `docker compose up` brings up web, api, and postgres together
+
+When work resumes, continue with the backend skeleton and persistence:
+
+1. add API config structure and database connection wiring
+2. add the first SQL migration for core tables
+3. enable PostGIS in the database setup
+4. add a simple API database health check path or startup verification
+5. then begin core route lifecycle APIs

@@ -1,0 +1,8 @@
+FROM golang:1.25-alpine
+
+WORKDIR /workspace/apps/api
+
+RUN apk add --no-cache git
+RUN go install github.com/air-verse/air@latest
+
+EXPOSE 8080

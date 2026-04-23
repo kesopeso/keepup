@@ -1,0 +1,29 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Node / Next.js
+node_modules/
+.pnpm-store/
+.next/
+dist/
+coverage/
+
+# Go
+bin/
+*.test
+*.out
+
+# Logs
+*.log
+
+# Docker / local data
+tmp/
+.tmp/
+
