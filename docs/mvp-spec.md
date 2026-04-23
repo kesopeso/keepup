@@ -1,0 +1,212 @@
+# KeepUp MVP Spec
+
+## Product Summary
+
+KeepUp is a mobile-first web app for live route sharing between friends, groups, or coordinators monitoring participants across different vehicles. Users join routes via shareable links/codes and can watch live progress or share their own location when allowed.
+
+## Core Concepts
+
+- Route owner: user who creates and manages the route
+- Route member: any user who joins the route
+- Spectator: joined member who is not sharing location
+- Tracker: joined member who is actively sharing location
+- Route archive: closed route that remains viewable but no longer live
+
+## Route Access
+
+- Routes are accessible only by share link/code
+- Route code is human-friendly, uppercase, case-insensitive
+- Route names are required and not unique
+- Route descriptions are optional
+- Routes may be:
+  - open by link/code
+  - password-protected
+- Password is required only to gain membership
+- Returning browsers with valid member tokens do not re-enter the password
+- Closed routes remain accessible by link/code and password if protected
+
+## Membership and Identity
+
+- Users are anonymous for MVP
+- Browser stores:
+  - `clientId`
+  - `displayName`
+  - preferred `transportMode`
+  - per-route member/owner tokens
+- Alias must be unique within a route
+- Membership is browser/device-specific
+- Every viewer becomes a route member, including spectators
+- Members can leave the route
+- Leaving preserves history and keeps the member visible as `Left`
+
+## Owner Rules
+
+- Owner is a role, not an automatically tracked participant
+- Owner may spectate or track
+- Owner may leave and return later
+- Owner authority persists via owner token
+- Owner can:
+  - edit route name/description
+  - close route
+  - delete route
+- Closing requires confirmation
+- Deleting requires stronger confirmation
+- Closed routes cannot be reopened
+
+## Sharing Policies
+
+- `everyone_can_share`
+  - any joined member may start sharing if tracking slots are available
+- `joiners_can_view_only`
+  - non-owner members are spectators only
+  - owner may still choose to track or spectate
+
+## Tracking
+
+- Members explicitly press `Start sharing location`
+- Starting sharing requires usable location access
+- Route creation does not require location access
+- Stopping sharing returns member to spectator state
+- On refresh, if a member was previously sharing:
+  - rejoin route automatically
+  - show prompt:
+    - Continue sharing
+    - Continue as spectator
+- No offline buffering in MVP
+- No road/path snapping in MVP
+- Path rendering is point-to-point between accepted positions
+
+## Transport Modes
+
+- Selected per member on create/join
+- Allowed values:
+  - `walking`
+  - `bicycle`
+  - `car`
+  - `bus`
+  - `train`
+  - `boat`
+  - `airplane`
+- Transport mode is fixed for MVP
+
+## Limits
+
+- No spectator limit
+- Active tracking member limit exists
+- Default active tracking member limit: `10`
+- Limit counts only active trackers
+- Owner counts only if actively tracking
+- If limit is reached, members remain spectators and see an error
+
+## Route Lifecycle
+
+- Active route:
+  - members can join
+  - live updates run
+  - tracking allowed depending on route policy and available slots
+- Closed route:
+  - no live updates
+  - no new tracking sessions
+  - read-only archive
+  - still viewable by anyone with link/code and password if required
+- Deleted route:
+  - all related data removed permanently
+
+## Map and UI
+
+- Mobile-first
+- Balanced dark UI
+- Map style should remain readable outdoors
+- Same route screen structure for active and closed routes
+- Route screen includes:
+  - route header
+  - map
+  - member bottom sheet
+- Route code is visible but secondary to share action
+- Share uses native Web Share API when available, with copy-link fallback
+
+## Map Behavior
+
+- Initial load fits full known route history plus active markers
+- Default live viewport mode auto-fits group/route
+- Manual pan/zoom disables auto-follow
+- User can re-center/re-fit
+- Path polyline and live marker are separate render states
+- Show:
+  - polyline for historical path
+  - live marker for active trackers
+- Do not show per-segment start/end markers in MVP
+
+## Member Statuses
+
+- `Owner`
+- `Tracking`
+- `Stale`
+- `Spectating`
+- `Offline`
+- `Left`
+
+Member sort order on active route:
+
+1. Owner
+2. Tracking
+3. Stale
+4. Spectating
+5. Offline
+6. Left
+
+Within the same status group, sort by join time.
+
+## Data and Timing
+
+- Store exact timestamps in UTC
+- Client displays localized times
+- API snapshot returns full route history and current statuses
+- Snapshot also returns current viewer capability booleans
+- Return full snapshot for MVP; no chunked history yet
+
+## Live Protocol
+
+Live stream includes:
+
+- `member_joined`
+- `member_left`
+- `member_started_sharing`
+- `member_stopped_sharing`
+- `member_became_stale`
+- `member_back_online`
+- `position_update`
+- `route_updated`
+- `route_closed`
+
+## Persistence Rules
+
+- Store accepted raw GPS readings as source of truth
+- Preserve browser payload for accepted points
+- Store:
+  - server canonical timestamp
+  - client timestamp if available
+- Canonical ordering uses server receive time
+- Brief reconnects within grace window keep the same path segment
+- Prolonged disconnects end the segment
+
+## GPS Validation
+
+- Reject invalid coordinates
+- Reject too-inaccurate first/live points based on configurable threshold
+- Reject duplicate timestamp duplicates
+- Reject impossible jumps using a generous speed threshold
+- Do not store rejected points in MVP
+
+## Dev and Deployment
+
+- One monorepo
+- Everything containerized
+- Local development runs via `docker compose up`
+- Services:
+  - web
+  - api
+  - postgres/postgis
+- Production MVP targets a single VPS with containers
+- HTTPS required in production
+
