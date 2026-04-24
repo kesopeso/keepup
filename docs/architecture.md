@@ -34,6 +34,18 @@ docker-compose.yml
 - Local browser identity and per-route tokens from local storage
 - Map adapter separated from tile provider config
 
+### Current Frontend Foundation
+
+- Browser identity helpers live in `apps/web/lib/identity-storage.ts`
+- The helper owns local storage access for:
+  - stable `clientId`
+  - saved `displayName`
+  - preferred `transportMode`
+  - per-route `memberToken`
+  - per-route `ownerToken`
+- Route codes are normalized to uppercase before reading or writing route-scoped auth
+- The helper guards server rendering by returning safe defaults when browser storage is unavailable
+
 ## Backend
 
 - Go service

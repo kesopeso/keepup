@@ -123,22 +123,25 @@ The backend foundation and first route lifecycle slice are complete:
    - `PATCH /routes/{code}`
    - `DELETE /routes/{code}`
    - `DELETE /routes/{code}/members/me`
+6. Frontend browser identity storage is implemented in `apps/web/lib/identity-storage.ts` for:
+   - `clientId`
+   - `displayName`
+   - preferred `transportMode`
+   - route-scoped `memberToken`
+   - route-scoped `ownerToken`
 
 ## Immediate Next Step
 
 When work resumes, continue with the frontend integration against the existing route API:
 
-1. implement browser-side local identity storage:
-   - `clientId`
-   - `displayName`
-   - preferred `transportMode`
-   - route-scoped tokens
-2. implement the create route flow against `POST /routes`
+1. implement the create route flow against `POST /routes`
+2. persist returned route-scoped tokens with the browser identity helper
 3. implement the join flow against:
    - `GET /routes/{code}/access`
    - `POST /routes/{code}/members`
-4. implement authenticated route bootstrap with `GET /routes/{code}`
-5. build the first usable route screen shell:
+4. reuse saved route auth for returning browsers
+5. implement authenticated route bootstrap with `GET /routes/{code}`
+6. build the first usable route screen shell:
    - header
    - member sheet
    - placeholder snapshot rendering before map integration
