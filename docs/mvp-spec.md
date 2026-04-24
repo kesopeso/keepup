@@ -12,6 +12,20 @@ KeepUp is a mobile-first web app for live route sharing between friends, groups,
 - Tracker: joined member who is actively sharing location
 - Route archive: closed route that remains viewable but no longer live
 
+## Ubiquitous Language
+
+- Route: one shareable tracking session
+- Route code: the short human-enterable identifier used in URLs and manual entry
+- Route owner: the member with management authority over the route
+- Route member: a browser/device-specific participant record within a route
+- Membership: the relationship created when a browser joins a route
+- Spectator: a member who is present but not sharing location
+- Tracker: a member who is actively sharing location
+- Sharing policy: the rule that determines who may start sharing location
+- Access metadata: the public pre-join route data returned by the access endpoint
+- Snapshot: the authenticated full route bootstrap payload for rendering the route screen
+- Archive: a closed, read-only route that preserves historical data
+
 ## Route Access
 
 - Routes are accessible only by share link/code
@@ -24,6 +38,16 @@ KeepUp is a mobile-first web app for live route sharing between friends, groups,
 - Password is required only to gain membership
 - Returning browsers with valid member tokens do not re-enter the password
 - Closed routes remain accessible by link/code and password if protected
+
+Current API naming:
+
+- `POST /routes`
+- `GET /routes/{code}/access`
+- `POST /routes/{code}/members`
+- `GET /routes/{code}`
+- `PATCH /routes/{code}`
+- `DELETE /routes/{code}`
+- `DELETE /routes/{code}/members/me`
 
 ## Membership and Identity
 
@@ -209,4 +233,3 @@ Live stream includes:
   - postgres/postgis
 - Production MVP targets a single VPS with containers
 - HTTPS required in production
-

@@ -1,15 +1,19 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"keepup/apps/api/internal/config"
+	"keepup/apps/api/internal/routes"
 )
 
 type stubHealthChecker struct {
@@ -18,6 +22,72 @@ type stubHealthChecker struct {
 
 func (s stubHealthChecker) Ping(_ context.Context) error {
 	return s.err
+}
+
+type stubRouteService struct {
+	accessRouteFn func(context.Context, string) (routes.AccessRouteResult, error)
+	createRouteFn func(context.Context, routes.CreateRouteInput) (routes.CreateRouteResult, error)
+	deleteRouteFn func(context.Context, string, string) error
+	joinRouteFn   func(context.Context, string, routes.JoinRouteInput) (routes.JoinRouteResult, error)
+	leaveRouteFn  func(context.Context, string, string) (routes.LeaveRouteResult, error)
+	snapshotFn    func(context.Context, string, string) (routes.Snapshot, error)
+	updateRouteFn func(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
+}
+
+func (s stubRouteService) CreateRoute(ctx context.Context, input routes.CreateRouteInput) (routes.CreateRouteResult, error) {
+	if s.createRouteFn == nil {
+		return routes.CreateRouteResult{}, nil
+	}
+
+	return s.createRouteFn(ctx, input)
+}
+
+func (s stubRouteService) AccessRoute(ctx context.Context, code string) (routes.AccessRouteResult, error) {
+	if s.accessRouteFn == nil {
+		return routes.AccessRouteResult{}, nil
+	}
+
+	return s.accessRouteFn(ctx, code)
+}
+
+func (s stubRouteService) JoinRoute(ctx context.Context, code string, input routes.JoinRouteInput) (routes.JoinRouteResult, error) {
+	if s.joinRouteFn == nil {
+		return routes.JoinRouteResult{}, nil
+	}
+
+	return s.joinRouteFn(ctx, code, input)
+}
+
+func (s stubRouteService) Snapshot(ctx context.Context, code, memberToken string) (routes.Snapshot, error) {
+	if s.snapshotFn == nil {
+		return routes.Snapshot{}, nil
+	}
+
+	return s.snapshotFn(ctx, code, memberToken)
+}
+
+func (s stubRouteService) UpdateRoute(ctx context.Context, code, ownerToken string, input routes.UpdateRouteInput) (routes.Route, error) {
+	if s.updateRouteFn == nil {
+		return routes.Route{}, nil
+	}
+
+	return s.updateRouteFn(ctx, code, ownerToken, input)
+}
+
+func (s stubRouteService) LeaveRoute(ctx context.Context, code, memberToken string) (routes.LeaveRouteResult, error) {
+	if s.leaveRouteFn == nil {
+		return routes.LeaveRouteResult{}, nil
+	}
+
+	return s.leaveRouteFn(ctx, code, memberToken)
+}
+
+func (s stubRouteService) DeleteRoute(ctx context.Context, code, ownerToken string) error {
+	if s.deleteRouteFn == nil {
+		return nil
+	}
+
+	return s.deleteRouteFn(ctx, code, ownerToken)
 }
 
 func TestHealthAndLivenessHandlers(t *testing.T) {
@@ -60,6 +130,7 @@ func TestHealthAndLivenessHandlers(t *testing.T) {
 				slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 				config.AppConfig{Env: "test", Port: "8080"},
 				stubHealthChecker{err: tc.healthErr},
+				stubRouteService{},
 			)
 
 			request := httptest.NewRequest(http.MethodGet, tc.path, nil)
@@ -85,6 +156,7 @@ func TestRootHandler(t *testing.T) {
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
+		stubRouteService{},
 	)
 
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -98,6 +170,370 @@ func TestRootHandler(t *testing.T) {
 
 	if body := recorder.Body.String(); !strings.Contains(body, `"env":"test"`) {
 		t.Fatalf("ServeHTTP() body = %q, want env field", body)
+	}
+}
+
+func TestCreateRouteHandler(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{
+			createRouteFn: func(_ context.Context, input routes.CreateRouteInput) (routes.CreateRouteResult, error) {
+				if input.Name != "Morning convoy" {
+					t.Fatalf("CreateRoute() name = %q, want Morning convoy", input.Name)
+				}
+
+				return routes.CreateRouteResult{
+					Route: routes.Route{
+						Code:               "K7P9QD",
+						Name:               input.Name,
+						SharingPolicy:      input.SharingPolicy,
+						Status:             routes.RouteStatusActive,
+						MaxTrackingMembers: 10,
+					},
+					Owner: routes.Member{
+						ID:          "member-1",
+						DisplayName: input.DisplayName,
+						IsOwner:     true,
+					},
+					MemberToken: "member-token",
+					OwnerToken:  "owner-token",
+				}, nil
+			},
+		},
+	)
+
+	body := map[string]string{
+		"clientId":      "client-1",
+		"displayName":   "Ana",
+		"transportMode": "car",
+		"name":          "Morning convoy",
+		"sharingPolicy": routes.SharingPolicyEveryoneCanShare,
+	}
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/routes", bytes.NewReader(payload))
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusCreated)
+	}
+
+	if !strings.Contains(recorder.Body.String(), `"memberToken":"member-token"`) {
+		t.Fatalf("ServeHTTP() body = %q, want member token", recorder.Body.String())
+	}
+}
+
+func TestRouteAccessHandler(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{
+			accessRouteFn: func(_ context.Context, code string) (routes.AccessRouteResult, error) {
+				if code != "K7P9QD" {
+					t.Fatalf("AccessRoute() code = %q, want K7P9QD", code)
+				}
+
+				return routes.AccessRouteResult{
+					Code:             "K7P9QD",
+					Name:             "Morning convoy",
+					Status:           routes.RouteStatusActive,
+					RequiresPassword: true,
+					SharingPolicy:    routes.SharingPolicyEveryoneCanShare,
+				}, nil
+			},
+		},
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/routes/K7P9QD/access", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if !strings.Contains(recorder.Body.String(), `"requiresPassword":true`) {
+		t.Fatalf("ServeHTTP() body = %q, want requiresPassword", recorder.Body.String())
+	}
+}
+
+func TestRouteHandlerRequiresBearerToken(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{},
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/routes/K7P9QD", nil)
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestRouteHandler(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{
+			snapshotFn: func(_ context.Context, code, token string) (routes.Snapshot, error) {
+				if code != "K7P9QD" {
+					t.Fatalf("Snapshot() code = %q, want K7P9QD", code)
+				}
+
+				if token != "member-token" {
+					t.Fatalf("Snapshot() token = %q, want member-token", token)
+				}
+
+				return routes.Snapshot{
+					Route: routes.Route{
+						Code:               "K7P9QD",
+						Name:               "Morning convoy",
+						Status:             routes.RouteStatusActive,
+						SharingPolicy:      routes.SharingPolicyEveryoneCanShare,
+						MaxTrackingMembers: 10,
+						CreatedAt:          now,
+					},
+					Members: []routes.SnapshotMember{
+						{
+							ID:            "member-1",
+							DisplayName:   "Ana",
+							TransportMode: "car",
+							Role:          routes.RoleOwner,
+							Status:        routes.MemberStatusSpectating,
+							Color:         "#22c55e",
+							JoinedAt:      now,
+							Paths:         []routes.PathSegment{},
+						},
+					},
+					Viewer: routes.ViewerCapabilities{
+						MemberID:        "member-1",
+						Role:            routes.RoleOwner,
+						Status:          routes.MemberStatusSpectating,
+						CanStartSharing: true,
+						CanCloseRoute:   true,
+					},
+				}, nil
+			},
+		},
+	)
+
+	request := httptest.NewRequest(http.MethodGet, "/routes/K7P9QD", nil)
+	request.Header.Set("Authorization", "Bearer member-token")
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if !strings.Contains(recorder.Body.String(), `"canCloseRoute":true`) {
+		t.Fatalf("ServeHTTP() body = %q, want viewer permissions", recorder.Body.String())
+	}
+}
+
+func TestCreateRouteMemberHandler(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{
+			joinRouteFn: func(_ context.Context, code string, input routes.JoinRouteInput) (routes.JoinRouteResult, error) {
+				if code != "K7P9QD" {
+					t.Fatalf("JoinRoute() code = %q, want K7P9QD", code)
+				}
+
+				if input.DisplayName != "Matej" {
+					t.Fatalf("JoinRoute() displayName = %q, want Matej", input.DisplayName)
+				}
+
+				return routes.JoinRouteResult{
+					Route: routes.Route{
+						Code:          "K7P9QD",
+						Name:          "Morning convoy",
+						SharingPolicy: routes.SharingPolicyEveryoneCanShare,
+						Status:        routes.RouteStatusActive,
+					},
+					Member: routes.Member{
+						ID:          "member-2",
+						DisplayName: input.DisplayName,
+					},
+					MemberToken: "member-token",
+				}, nil
+			},
+		},
+	)
+
+	body := map[string]string{
+		"clientId":      "client-2",
+		"displayName":   "Matej",
+		"transportMode": "train",
+		"password":      "secret",
+	}
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/routes/K7P9QD/members", bytes.NewReader(payload))
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusCreated)
+	}
+
+	if !strings.Contains(recorder.Body.String(), `"memberToken":"member-token"`) {
+		t.Fatalf("ServeHTTP() body = %q, want member token", recorder.Body.String())
+	}
+}
+
+func TestUpdateRouteHandler(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{
+			updateRouteFn: func(_ context.Context, code, token string, input routes.UpdateRouteInput) (routes.Route, error) {
+				if code != "K7P9QD" || token != "owner-token" {
+					t.Fatalf("UpdateRoute() got code=%q token=%q", code, token)
+				}
+
+				if input.Status != routes.RouteStatusClosed {
+					t.Fatalf("UpdateRoute() status = %q, want closed", input.Status)
+				}
+
+				return routes.Route{
+					Code:          code,
+					Name:          "Morning convoy",
+					Status:        routes.RouteStatusClosed,
+					SharingPolicy: routes.SharingPolicyEveryoneCanShare,
+				}, nil
+			},
+		},
+	)
+
+	body := map[string]string{
+		"status": routes.RouteStatusClosed,
+	}
+
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodPatch, "/routes/K7P9QD", bytes.NewReader(payload))
+	request.Header.Set("Authorization", "Bearer owner-token")
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if !strings.Contains(recorder.Body.String(), `"status":"closed"`) {
+		t.Fatalf("ServeHTTP() body = %q, want closed status", recorder.Body.String())
+	}
+}
+
+func TestLeaveRouteHandler(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{
+			leaveRouteFn: func(_ context.Context, code, token string) (routes.LeaveRouteResult, error) {
+				if code != "K7P9QD" || token != "member-token" {
+					t.Fatalf("LeaveRoute() got code=%q token=%q", code, token)
+				}
+
+				now := time.Now().UTC()
+				return routes.LeaveRouteResult{
+					Member: routes.Member{
+						ID:     "member-2",
+						Status: routes.MemberStatusLeft,
+						LeftAt: &now,
+					},
+				}, nil
+			},
+		},
+	)
+
+	request := httptest.NewRequest(http.MethodDelete, "/routes/K7P9QD/members/me", nil)
+	request.Header.Set("Authorization", "Bearer member-token")
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if !strings.Contains(recorder.Body.String(), `"status":"left"`) {
+		t.Fatalf("ServeHTTP() body = %q, want left status", recorder.Body.String())
+	}
+}
+
+func TestDeleteRouteHandler(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{
+			deleteRouteFn: func(_ context.Context, code, token string) error {
+				if code != "K7P9QD" || token != "owner-token" {
+					t.Fatalf("DeleteRoute() got code=%q token=%q", code, token)
+				}
+
+				return nil
+			},
+		},
+	)
+
+	request := httptest.NewRequest(http.MethodDelete, "/routes/K7P9QD", nil)
+	request.Header.Set("Authorization", "Bearer owner-token")
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusNoContent)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"keepup/apps/api/internal/config"
 	"keepup/apps/api/internal/database"
 	"keepup/apps/api/internal/httpapi"
+	"keepup/apps/api/internal/routes"
 )
 
 func main() {
@@ -32,7 +33,8 @@ func main() {
 	}
 	defer dbPool.Close()
 
-	handler := httpapi.NewHandler(logger, cfg.App, dbPool)
+	routeService := routes.NewService(routes.NewPostgresRepository(dbPool), cfg.Routes.DefaultMaxTrackingMembers)
+	handler := httpapi.NewHandler(logger, cfg.App, dbPool, routeService)
 
 	if err := httpapi.Serve(ctx, logger, cfg.App, handler); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("serve api", "error", err)

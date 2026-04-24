@@ -59,18 +59,41 @@ docker-compose.yml
 - HTTP server shutdown is tied to process signal cancellation
 - Migrations are manual and are not applied automatically on API startup
 
+## Ubiquitous Language
+
+- Route: one tracking session and the top-level aggregate
+- Route code: public short identifier for a route
+- Route member: a participant record scoped to one route
+- Membership: creation of a route member
+- Route owner: a route member with management authority
+- Spectator: member state without active location sharing
+- Tracker: member state with active location sharing
+- Access metadata: public route pre-join information
+- Snapshot: authenticated route bootstrap payload used to render the route screen
+- Archive: closed route state with preserved history
+
 ## Service Responsibilities
 
 ### REST
 
 - create route
 - inspect route access requirements
-- join route
-- fetch snapshot
+- create membership
+- fetch route snapshot
 - edit route metadata
 - leave route
 - close route
 - delete route
+
+Current path shape:
+
+- `POST /routes`
+- `GET /routes/{code}/access`
+- `POST /routes/{code}/members`
+- `GET /routes/{code}`
+- `PATCH /routes/{code}`
+- `DELETE /routes/{code}`
+- `DELETE /routes/{code}/members/me`
 
 ### WebSocket
 
