@@ -38,6 +38,9 @@ KeepUp is a mobile-first web app for live route sharing between friends, groups,
 - Password is required only to gain membership
 - Returning browsers with valid member tokens do not re-enter the password
 - Closed routes remain accessible by link/code and password if protected
+- Creating a route collects the owner's display name and transport mode
+- Successful route creation stores member and owner tokens for that route in the browser
+- Successful route creation takes the owner to the route page for the new route code
 
 Current API naming:
 

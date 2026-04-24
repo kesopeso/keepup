@@ -37,6 +37,10 @@ docker-compose.yml
 ### Current Frontend Foundation
 
 - Browser identity helpers live in `apps/web/lib/identity-storage.ts`
+- Route API helpers live in `apps/web/lib/routes-api.ts`
+- The root page renders the first create-route flow and posts to `POST /routes`
+- Successful create responses save route-scoped member/owner tokens before navigating to `/routes/{code}`
+- `/routes/{code}` currently provides the minimal route landing surface and verifies whether this browser has saved member access
 - The helper owns local storage access for:
   - stable `clientId`
   - saved `displayName`

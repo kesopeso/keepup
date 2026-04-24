@@ -129,19 +129,24 @@ The backend foundation and first route lifecycle slice are complete:
    - preferred `transportMode`
    - route-scoped `memberToken`
    - route-scoped `ownerToken`
+7. Frontend create route flow is implemented:
+   - root page renders a mobile-first create route form
+   - form posts to `POST /routes`
+   - browser profile is saved before creation
+   - returned `memberToken` and `ownerToken` are stored by route code
+   - successful creation navigates to `/routes/{code}`
+8. `/routes/{code}` exists as the minimal route landing surface and checks saved member access
 
 ## Immediate Next Step
 
 When work resumes, continue with the frontend integration against the existing route API:
 
-1. implement the create route flow against `POST /routes`
-2. persist returned route-scoped tokens with the browser identity helper
-3. implement the join flow against:
+1. implement the join flow against:
    - `GET /routes/{code}/access`
    - `POST /routes/{code}/members`
-4. reuse saved route auth for returning browsers
-5. implement authenticated route bootstrap with `GET /routes/{code}`
-6. build the first usable route screen shell:
+2. reuse saved route auth for returning browsers
+3. implement authenticated route bootstrap with `GET /routes/{code}`
+4. build the first usable route screen shell:
    - header
    - member sheet
    - placeholder snapshot rendering before map integration
