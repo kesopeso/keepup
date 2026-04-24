@@ -5,6 +5,8 @@
 - The repo root is a monorepo.
 - Product and architecture decisions live in `docs/`.
 - When a product rule or architectural decision changes, update the relevant doc in the same change.
+- On completion of any meaningful task, refresh the affected files in `docs/` automatically.
+- Do not wait for a user reminder before updating project docs.
 
 ## Local Development
 

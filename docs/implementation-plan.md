@@ -103,23 +103,48 @@ Then fill in:
 - tracker limit
 - member statuses
 
-## Immediate Next Step
+## Current Status
 
-The runnable shell and persistence foundation milestone is complete:
+The backend foundation and first route lifecycle slice are complete:
 
 1. `apps/web` is scaffolded as a Next.js app
-2. `apps/api` is scaffolded as a Go service with a health endpoint
+2. `apps/api` is scaffolded as a Go service with:
+   - config loading
+   - PostgreSQL connectivity
+   - DB-backed health checks
+   - route lifecycle REST endpoints
 3. `docker compose up` brings up web, api, and postgres together
-4. API config loading, database connectivity, and DB-backed health checks are in place
-5. Manual `golang-migrate` up/down migrations exist for the core schema
+4. Manual `golang-migrate` up/down migrations exist for the core schema
+5. The current route API surface includes:
+   - `POST /routes`
+   - `GET /routes/{code}/access`
+   - `POST /routes/{code}/members`
+   - `GET /routes/{code}`
+   - `PATCH /routes/{code}`
+   - `DELETE /routes/{code}`
+   - `DELETE /routes/{code}/members/me`
 
-When work resumes, continue with the first application data layer:
+## Immediate Next Step
 
-1. add a repository layer over the current schema
-2. add a repeatable migration usage note to developer workflow if needed
-3. implement route lifecycle APIs:
-   - create route
-   - route access metadata
-   - join route
-   - snapshot
-4. then start wiring route validation and token issuance
+When work resumes, continue with the frontend integration against the existing route API:
+
+1. implement browser-side local identity storage:
+   - `clientId`
+   - `displayName`
+   - preferred `transportMode`
+   - route-scoped tokens
+2. implement the create route flow against `POST /routes`
+3. implement the join flow against:
+   - `GET /routes/{code}/access`
+   - `POST /routes/{code}/members`
+4. implement authenticated route bootstrap with `GET /routes/{code}`
+5. build the first usable route screen shell:
+   - header
+   - member sheet
+   - placeholder snapshot rendering before map integration
+
+After that, move into:
+
+1. MapLibre route rendering
+2. WebSocket realtime lifecycle
+3. start/stop sharing location flow
