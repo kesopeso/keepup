@@ -40,7 +40,9 @@ docker-compose.yml
 - Route API helpers live in `apps/web/lib/routes-api.ts`
 - The root page renders the first create-route flow and posts to `POST /routes`
 - Successful create responses save route-scoped member/owner tokens before navigating to `/routes/{code}`
-- `/routes/{code}` currently provides the minimal route landing surface and verifies whether this browser has saved member access
+- `/routes/{code}` checks for saved member access before showing the join flow
+- Browsers without saved access fetch `GET /routes/{code}/access`, then join with `POST /routes/{code}/members`
+- Successful join responses save the route-scoped member token before showing the route access placeholder
 - The helper owns local storage access for:
   - stable `clientId`
   - saved `displayName`

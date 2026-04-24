@@ -45,6 +45,28 @@ export type CreateRouteResponse = {
   ownerToken: string;
 };
 
+export type RouteAccess = {
+  code: string;
+  name: string;
+  description: string;
+  status: "active" | "closed";
+  requiresPassword: boolean;
+  sharingPolicy: SharingPolicy;
+};
+
+export type JoinRouteRequest = {
+  clientId: string;
+  displayName: string;
+  transportMode: TransportMode;
+  password: string;
+};
+
+export type JoinRouteResponse = {
+  route: RouteSummary;
+  member: MemberSummary;
+  memberToken: string;
+};
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export class ApiError extends Error {
@@ -88,9 +110,74 @@ export async function createRoute(
   return (await response.json()) as CreateRouteResponse;
 }
 
+export async function getRouteAccess(code: string): Promise<RouteAccess> {
+  const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}/access`);
+
+  if (!response.ok) {
+    let errorCode: string | undefined;
+    try {
+      const payload = (await response.json()) as { error?: string };
+      errorCode = payload.error;
+    } catch {
+      errorCode = undefined;
+    }
+
+    throw new ApiError(
+      routeErrorMessage(response.status, errorCode),
+      response.status,
+      errorCode,
+    );
+  }
+
+  return (await response.json()) as RouteAccess;
+}
+
+export async function joinRoute(
+  code: string,
+  request: JoinRouteRequest,
+): Promise<JoinRouteResponse> {
+  const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}/members`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    let errorCode: string | undefined;
+    try {
+      const payload = (await response.json()) as { error?: string };
+      errorCode = payload.error;
+    } catch {
+      errorCode = undefined;
+    }
+
+    throw new ApiError(
+      routeErrorMessage(response.status, errorCode),
+      response.status,
+      errorCode,
+    );
+  }
+
+  return (await response.json()) as JoinRouteResponse;
+}
+
 function routeErrorMessage(status: number, code?: string): string {
   if (code === "invalid_input" || status === 400) {
-    return "Check the route details and try again.";
+    return "Check the details and try again.";
+  }
+
+  if (code === "invalid_password" || status === 403) {
+    return "The password is not correct.";
+  }
+
+  if (status === 404) {
+    return "Route not found.";
+  }
+
+  if (status === 409) {
+    return "That name is already used on this route.";
   }
 
   if (status >= 500) {

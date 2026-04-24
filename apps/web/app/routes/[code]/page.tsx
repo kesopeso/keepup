@@ -1,4 +1,4 @@
-import { RouteAuthStatus } from "./route-auth-status";
+import { JoinRouteScreen } from "./join-route-screen";
 
 type RoutePageProps = {
   params: Promise<{
@@ -12,13 +12,7 @@ export default async function RoutePage({ params }: RoutePageProps) {
 
   return (
     <main className="page-shell">
-      <section className="route-shell">
-        <div className="form-header">
-          <p className="eyebrow">Route</p>
-          <h1>{routeCode}</h1>
-        </div>
-        <RouteAuthStatus code={routeCode} />
-      </section>
+      <JoinRouteScreen code={routeCode} />
     </main>
   );
 }

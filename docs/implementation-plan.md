@@ -136,17 +136,19 @@ The backend foundation and first route lifecycle slice are complete:
    - returned `memberToken` and `ownerToken` are stored by route code
    - successful creation navigates to `/routes/{code}`
 8. `/routes/{code}` exists as the minimal route landing surface and checks saved member access
+9. Frontend join route flow is implemented:
+   - route pages fetch `GET /routes/{code}/access` when no member token is saved
+   - join form posts to `POST /routes/{code}/members`
+   - browser profile is saved before joining
+   - returned `memberToken` is stored by route code
+   - saved member access skips the join form
 
 ## Immediate Next Step
 
 When work resumes, continue with the frontend integration against the existing route API:
 
-1. implement the join flow against:
-   - `GET /routes/{code}/access`
-   - `POST /routes/{code}/members`
-2. reuse saved route auth for returning browsers
-3. implement authenticated route bootstrap with `GET /routes/{code}`
-4. build the first usable route screen shell:
+1. implement authenticated route bootstrap with `GET /routes/{code}`
+2. build the first usable route screen shell:
    - header
    - member sheet
    - placeholder snapshot rendering before map integration
