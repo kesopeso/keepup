@@ -47,8 +47,17 @@ docker-compose.yml
 - WebSocket: `nhooyr.io/websocket` or equivalent
 - Postgres: `pgx`
 - Queries: `sqlc`
-- Migrations: `goose`
+- Migrations: `golang-migrate`
 - Logging: `slog`
+
+### Current Backend Foundation
+
+- API config is loaded from environment variables
+- PostgreSQL connectivity is established on startup with retry/backoff inside a bounded startup window
+- `/livez` reports process liveness
+- `/healthz` checks database reachability
+- HTTP server shutdown is tied to process signal cancellation
+- Migrations are manual and are not applied automatically on API startup
 
 ## Service Responsibilities
 
@@ -201,6 +210,13 @@ This allows switching basemap providers without rewriting route rendering logic.
   - replay timelines
 
 Never overwrite raw points with derived geometry.
+
+## Migration Workflow
+
+- SQL migrations live under `db/migrations`
+- Migrations use `golang-migrate` up/down files
+- Migration execution is manual through root `Makefile` commands
+- The API service does not mutate schema state automatically on boot
 
 ## Observability
 

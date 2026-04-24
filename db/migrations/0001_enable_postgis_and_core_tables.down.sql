@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS owner_tokens;
+DROP TABLE IF EXISTS member_tokens;
+DROP INDEX IF EXISTS position_points_location_gist_idx;
+DROP INDEX IF EXISTS position_points_segment_recorded_at_idx;
+DROP INDEX IF EXISTS position_points_route_recorded_at_idx;
+DROP INDEX IF EXISTS position_points_segment_seq_unique_idx;
+DROP TABLE IF EXISTS position_points;
+DROP TABLE IF EXISTS path_segments;
+DROP INDEX IF EXISTS route_members_route_alias_unique_idx;
+DROP TABLE IF EXISTS route_members;
+DROP TABLE IF EXISTS routes;

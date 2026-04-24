@@ -10,6 +10,7 @@
 
 - Main entrypoint: `docker compose up`
 - Root helper commands are in the `Makefile`
+- Database migrations are manual via `golang-migrate`; they are not applied automatically on API startup
 
 ## Repository Structure
 
@@ -17,4 +18,3 @@
 - `apps/api`: Go backend
 - `db/migrations`: database migrations
 - `docs`: product, architecture, backlog, and planning docs
-

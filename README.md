@@ -16,3 +16,12 @@ KeepUp is a mobile-first web app for live route sharing. A route owner creates a
 - [Architecture](./docs/architecture.md)
 - [Implementation Plan](./docs/implementation-plan.md)
 - [Backlog](./docs/backlog.md)
+
+## Database Migrations
+
+Migrations are manual and use `golang-migrate`.
+
+- `make migrate-up`
+- `make migrate-down`
+- `make migrate-drop`
+- `make migrate-version`
