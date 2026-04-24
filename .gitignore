@@ -19,6 +19,7 @@ coverage/
 bin/
 *.test
 *.out
+apps/api/tmp/
 
 # Logs
 *.log
@@ -26,4 +27,3 @@ bin/
 # Docker / local data
 tmp/
 .tmp/
-

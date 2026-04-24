@@ -105,16 +105,21 @@ Then fill in:
 
 ## Immediate Next Step
 
-The runnable shell milestone is complete:
+The runnable shell and persistence foundation milestone is complete:
 
 1. `apps/web` is scaffolded as a Next.js app
 2. `apps/api` is scaffolded as a Go service with a health endpoint
 3. `docker compose up` brings up web, api, and postgres together
+4. API config loading, database connectivity, and DB-backed health checks are in place
+5. Manual `golang-migrate` up/down migrations exist for the core schema
 
-When work resumes, continue with the backend skeleton and persistence:
+When work resumes, continue with the first application data layer:
 
-1. add API config structure and database connection wiring
-2. add the first SQL migration for core tables
-3. enable PostGIS in the database setup
-4. add a simple API database health check path or startup verification
-5. then begin core route lifecycle APIs
+1. add a repository layer over the current schema
+2. add a repeatable migration usage note to developer workflow if needed
+3. implement route lifecycle APIs:
+   - create route
+   - route access metadata
+   - join route
+   - snapshot
+4. then start wiring route validation and token issuance

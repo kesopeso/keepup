@@ -27,6 +27,7 @@ services:
       APP_ENV: development
       APP_PORT: 8080
       DATABASE_URL: postgres://keepup:keepup@postgres:5432/keepup?sslmode=disable
+      DATABASE_STARTUP_TIMEOUT: 20s
     ports:
       - "8080:8080"
     volumes:
@@ -34,7 +35,8 @@ services:
       - go_pkg_mod:/go/pkg/mod
       - go_build_cache:/root/.cache/go-build
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgis/postgis:16-3.4
@@ -44,6 +46,11 @@ services:
       POSTGRES_PASSWORD: keepup
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keepup -d keepup"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -53,4 +60,3 @@ volumes:
   postgres_data:
   web_next:
   web_node_modules:
-

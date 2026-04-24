@@ -2,7 +2,9 @@ FROM golang:1.25-alpine
 
 WORKDIR /workspace/apps/api
 
-RUN apk add --no-cache git
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+RUN apk add --no-cache build-base git
 RUN go install github.com/air-verse/air@latest
 
 EXPOSE 8080
