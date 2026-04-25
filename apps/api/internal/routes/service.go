@@ -5,9 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -61,6 +64,7 @@ type Repository interface {
 	CountTrackingMembers(context.Context, string) (int, error)
 	StartTrackingMember(context.Context, string, string) (StartSharingRepoResult, error)
 	StopTrackingMember(context.Context, string, string) (Member, error)
+	RecordPosition(context.Context, RecordPositionRepoParams) (PositionUpdateResult, error)
 	UpdateRoute(context.Context, string, UpdateRouteRepoParams) (Route, error)
 	LeaveMember(context.Context, string) (Member, error)
 	DeleteRoute(context.Context, string) error
@@ -141,6 +145,20 @@ type UpdateRouteRepoParams struct {
 type StartSharingRepoResult struct {
 	Member  Member
 	Segment PathSegment
+}
+
+// RecordPositionRepoParams contains persistence fields for one accepted point.
+type RecordPositionRepoParams struct {
+	RouteID          string
+	MemberID         string
+	Latitude         float64
+	Longitude        float64
+	AccuracyM        *float64
+	AltitudeM        *float64
+	SpeedMPS         *float64
+	HeadingDeg       *float64
+	ClientRecordedAt *time.Time
+	RawPayload       json.RawMessage
 }
 
 // CreateRoute validates input and creates a route plus owner membership.
@@ -430,6 +448,49 @@ func (s *Service) StopSharing(ctx context.Context, code, memberToken string) (St
 	return StopSharingResult{Member: member}, nil
 }
 
+// RecordPosition validates and persists one position update for an authenticated tracking member.
+func (s *Service) RecordPosition(ctx context.Context, memberToken string, input PositionUpdateInput) (PositionUpdateResult, error) {
+	if strings.TrimSpace(memberToken) == "" {
+		return PositionUpdateResult{}, ErrUnauthorized
+	}
+
+	normalized, err := normalizePositionUpdateInput(input)
+	if err != nil {
+		return PositionUpdateResult{}, err
+	}
+
+	authorized, err := s.repo.GetAuthorizedMemberByTokenHash(ctx, tokenHash(memberToken))
+	if err != nil {
+		return PositionUpdateResult{}, err
+	}
+
+	if authorized.Route.Status != RouteStatusActive {
+		return PositionUpdateResult{}, ErrRouteClosed
+	}
+
+	if authorized.Member.Status != MemberStatusTracking {
+		return PositionUpdateResult{}, ErrInvalidInput
+	}
+
+	result, err := s.repo.RecordPosition(ctx, RecordPositionRepoParams{
+		RouteID:          authorized.Route.ID,
+		MemberID:         authorized.Member.ID,
+		Latitude:         normalized.Latitude,
+		Longitude:        normalized.Longitude,
+		AccuracyM:        normalized.AccuracyM,
+		AltitudeM:        normalized.AltitudeM,
+		SpeedMPS:         normalized.SpeedMPS,
+		HeadingDeg:       normalized.HeadingDeg,
+		ClientRecordedAt: normalized.ClientRecordedAt,
+		RawPayload:       normalized.RawPayload,
+	})
+	if err != nil {
+		return PositionUpdateResult{}, fmt.Errorf("record position: %w", err)
+	}
+
+	return result, nil
+}
+
 // DeleteRoute removes a route owned by the authenticated owner token.
 func (s *Service) DeleteRoute(ctx context.Context, code, ownerToken string) error {
 	if strings.TrimSpace(ownerToken) == "" {
@@ -585,6 +646,43 @@ func normalizeJoinInput(input JoinRouteInput) (JoinRouteInput, error) {
 	}
 
 	return normalized, nil
+}
+
+func normalizePositionUpdateInput(input PositionUpdateInput) (PositionUpdateInput, error) {
+	normalized := input
+	if !isFiniteInRange(normalized.Latitude, -90, 90) ||
+		!isFiniteInRange(normalized.Longitude, -180, 180) {
+		return PositionUpdateInput{}, ErrInvalidInput
+	}
+
+	if !isNilOrFiniteAtLeast(normalized.AccuracyM, 0) ||
+		!isNilOrFinite(normalized.AltitudeM) ||
+		!isNilOrFiniteAtLeast(normalized.SpeedMPS, 0) ||
+		!isNilOrFiniteInRange(normalized.HeadingDeg, 0, 360) {
+		return PositionUpdateInput{}, ErrInvalidInput
+	}
+
+	if len(normalized.RawPayload) == 0 {
+		normalized.RawPayload = []byte("{}")
+	}
+
+	return normalized, nil
+}
+
+func isFiniteInRange(value, minValue, maxValue float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0) && value >= minValue && value <= maxValue
+}
+
+func isNilOrFinite(value *float64) bool {
+	return value == nil || (!math.IsNaN(*value) && !math.IsInf(*value, 0))
+}
+
+func isNilOrFiniteAtLeast(value *float64, minValue float64) bool {
+	return value == nil || (isNilOrFinite(value) && *value >= minValue)
+}
+
+func isNilOrFiniteInRange(value *float64, minValue, maxValue float64) bool {
+	return value == nil || (isNilOrFinite(value) && *value >= minValue && *value < maxValue)
 }
 
 func normalizeCode(code string) string {

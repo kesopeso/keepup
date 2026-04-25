@@ -37,6 +37,7 @@ type stubRouteService struct {
 	snapshotFn        func(context.Context, string, string) (routes.Snapshot, error)
 	startSharingFn    func(context.Context, string, string) (routes.StartSharingResult, error)
 	stopSharingFn     func(context.Context, string, string) (routes.StopSharingResult, error)
+	recordPositionFn  func(context.Context, string, routes.PositionUpdateInput) (routes.PositionUpdateResult, error)
 	updateRouteFn     func(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
 }
 
@@ -94,6 +95,14 @@ func (s stubRouteService) StopSharing(ctx context.Context, code, memberToken str
 	}
 
 	return s.stopSharingFn(ctx, code, memberToken)
+}
+
+func (s stubRouteService) RecordPosition(ctx context.Context, memberToken string, input routes.PositionUpdateInput) (routes.PositionUpdateResult, error) {
+	if s.recordPositionFn == nil {
+		return routes.PositionUpdateResult{}, nil
+	}
+
+	return s.recordPositionFn(ctx, memberToken, input)
 }
 
 func (s stubRouteService) UpdateRoute(ctx context.Context, code, ownerToken string, input routes.UpdateRouteInput) (routes.Route, error) {
@@ -833,6 +842,203 @@ func TestWebSocketReceivesMemberJoinedBroadcast(t *testing.T) {
 
 	if event.Member.ID != "member-2" || event.Member.DisplayName != "Matej" || event.Member.Status != routes.MemberStatusSpectating {
 		t.Fatalf("event member = %#v, want joined member", event.Member)
+	}
+}
+
+func TestWebSocketRecordsAndBroadcastsPositionUpdate(t *testing.T) {
+	t.Parallel()
+
+	recordedAt := time.Now().UTC()
+	clientRecordedAt := recordedAt.Add(-2 * time.Second).UTC()
+	accuracy := 8.5
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
+		stubHealthChecker{},
+		stubRouteService{
+			authorizeMemberFn: func(_ context.Context, token string) (routes.AuthorizedMember, error) {
+				if token != "member-token" {
+					t.Fatalf("AuthorizeMember() token = %q, want member-token", token)
+				}
+
+				return routes.AuthorizedMember{
+					Route: routes.Route{
+						ID:     "route-1",
+						Code:   "K7P9QD",
+						Status: routes.RouteStatusActive,
+					},
+					Member: routes.Member{
+						ID:     "member-1",
+						Status: routes.MemberStatusTracking,
+					},
+				}, nil
+			},
+			recordPositionFn: func(_ context.Context, token string, input routes.PositionUpdateInput) (routes.PositionUpdateResult, error) {
+				if token != "member-token" {
+					t.Fatalf("RecordPosition() token = %q, want member-token", token)
+				}
+
+				if input.Latitude != 46.0569 || input.Longitude != 14.5058 {
+					t.Fatalf("RecordPosition() coordinates = %f,%f", input.Latitude, input.Longitude)
+				}
+
+				if input.AccuracyM == nil || *input.AccuracyM != accuracy {
+					t.Fatal("RecordPosition() expected accuracy")
+				}
+
+				if input.ClientRecordedAt == nil || !input.ClientRecordedAt.Equal(clientRecordedAt) {
+					t.Fatal("RecordPosition() expected client recorded time")
+				}
+
+				if !strings.Contains(string(input.RawPayload), `"type":"position_update"`) {
+					t.Fatalf("RecordPosition() raw payload = %s, want original message", string(input.RawPayload))
+				}
+
+				return routes.PositionUpdateResult{
+					RouteID:   "route-1",
+					MemberID:  "member-1",
+					SegmentID: "segment-1",
+					Point: routes.RoutePoint{
+						Seq:              7,
+						Latitude:         input.Latitude,
+						Longitude:        input.Longitude,
+						AccuracyM:        input.AccuracyM,
+						ClientRecordedAt: input.ClientRecordedAt,
+						RecordedAt:       recordedAt,
+					},
+				}, nil
+			},
+		},
+	)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	connection, _, err := websocket.Dial(ctx, webSocketURL(server.URL), nil)
+	if err != nil {
+		t.Fatalf("websocket.Dial() error = %v", err)
+	}
+	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+
+	if err := wsjson.Write(ctx, connection, map[string]string{
+		"type":        "authenticate",
+		"memberToken": "member-token",
+	}); err != nil {
+		t.Fatalf("write authenticate error = %v", err)
+	}
+
+	var established map[string]any
+	if err := wsjson.Read(ctx, connection, &established); err != nil {
+		t.Fatalf("read connection_established error = %v", err)
+	}
+
+	if err := wsjson.Write(ctx, connection, map[string]any{
+		"type":             "position_update",
+		"latitude":         46.0569,
+		"longitude":        14.5058,
+		"accuracyM":        accuracy,
+		"clientRecordedAt": clientRecordedAt,
+	}); err != nil {
+		t.Fatalf("write position_update error = %v", err)
+	}
+
+	var event struct {
+		Type      string `json:"type"`
+		MemberID  string `json:"memberId"`
+		SegmentID string `json:"segmentId"`
+		Point     struct {
+			Seq       int64   `json:"seq"`
+			Latitude  float64 `json:"latitude"`
+			Longitude float64 `json:"longitude"`
+		} `json:"point"`
+	}
+	if err := wsjson.Read(ctx, connection, &event); err != nil {
+		t.Fatalf("read position_updated event error = %v", err)
+	}
+
+	if event.Type != "position_updated" {
+		t.Fatalf("event type = %q, want position_updated", event.Type)
+	}
+
+	if event.MemberID != "member-1" || event.SegmentID != "segment-1" {
+		t.Fatalf("event member/segment = %q/%q, want member-1/segment-1", event.MemberID, event.SegmentID)
+	}
+
+	if event.Point.Seq != 7 || event.Point.Latitude != 46.0569 || event.Point.Longitude != 14.5058 {
+		t.Fatalf("event point = %#v, want accepted point", event.Point)
+	}
+}
+
+func TestWebSocketRejectsInvalidPositionUpdate(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
+		stubHealthChecker{},
+		stubRouteService{
+			authorizeMemberFn: func(_ context.Context, _ string) (routes.AuthorizedMember, error) {
+				return routes.AuthorizedMember{
+					Route: routes.Route{
+						ID:     "route-1",
+						Code:   "K7P9QD",
+						Status: routes.RouteStatusActive,
+					},
+					Member: routes.Member{
+						ID:     "member-1",
+						Status: routes.MemberStatusTracking,
+					},
+				}, nil
+			},
+			recordPositionFn: func(context.Context, string, routes.PositionUpdateInput) (routes.PositionUpdateResult, error) {
+				t.Fatal("RecordPosition() should not run for a malformed position message")
+				return routes.PositionUpdateResult{}, nil
+			},
+		},
+	)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	connection, _, err := websocket.Dial(ctx, webSocketURL(server.URL), nil)
+	if err != nil {
+		t.Fatalf("websocket.Dial() error = %v", err)
+	}
+	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+
+	if err := wsjson.Write(ctx, connection, map[string]string{
+		"type":        "authenticate",
+		"memberToken": "member-token",
+	}); err != nil {
+		t.Fatalf("write authenticate error = %v", err)
+	}
+
+	var established map[string]any
+	if err := wsjson.Read(ctx, connection, &established); err != nil {
+		t.Fatalf("read connection_established error = %v", err)
+	}
+
+	if err := wsjson.Write(ctx, connection, map[string]any{
+		"type":      "position_update",
+		"longitude": 14.5058,
+	}); err != nil {
+		t.Fatalf("write position_update error = %v", err)
+	}
+
+	var event struct {
+		Type  string `json:"type"`
+		Error string `json:"error"`
+	}
+	if err := wsjson.Read(ctx, connection, &event); err != nil {
+		t.Fatalf("read position_rejected event error = %v", err)
+	}
+
+	if event.Type != "position_rejected" || event.Error != "invalid_input" {
+		t.Fatalf("event = %#v, want invalid position rejection", event)
 	}
 }
 

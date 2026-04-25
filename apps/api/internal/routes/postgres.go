@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -499,6 +500,102 @@ func (r *PostgresRepository) StopTrackingMember(ctx context.Context, routeID, me
 	}
 
 	return member, nil
+}
+
+// RecordPosition appends a point to the member's current open path segment.
+func (r *PostgresRepository) RecordPosition(ctx context.Context, params RecordPositionRepoParams) (PositionUpdateResult, error) {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return PositionUpdateResult{}, fmt.Errorf("begin record position tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var segmentID string
+	if err := tx.QueryRow(ctx, `
+		SELECT id
+		FROM path_segments
+		WHERE route_id = $1 AND member_id = $2 AND ended_at IS NULL
+		ORDER BY started_at DESC
+		LIMIT 1
+		FOR UPDATE
+	`, params.RouteID, params.MemberID).Scan(&segmentID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PositionUpdateResult{}, ErrInvalidInput
+		}
+
+		return PositionUpdateResult{}, fmt.Errorf("load open path segment: %w", err)
+	}
+
+	var point RoutePoint
+	var accuracy sql.NullFloat64
+	var clientRecordedAt sql.NullTime
+	if err := tx.QueryRow(ctx, `
+		WITH next_seq AS (
+			SELECT COALESCE(MAX(seq), 0) + 1 AS seq
+			FROM position_points
+			WHERE segment_id = $3
+		)
+		INSERT INTO position_points (
+			route_id,
+			member_id,
+			segment_id,
+			seq,
+			client_recorded_at,
+			location,
+			latitude,
+			longitude,
+			accuracy_m,
+			altitude_m,
+			speed_mps,
+			heading_deg,
+			raw_payload
+		)
+		VALUES (
+			$1,
+			$2,
+			$3,
+			(SELECT seq FROM next_seq),
+			$10,
+			ST_SetSRID(ST_MakePoint($5, $4), 4326)::geography,
+			$4,
+			$5,
+			$6,
+			$7,
+			$8,
+			$9,
+			$11
+		)
+		RETURNING seq, latitude, longitude, accuracy_m, client_recorded_at, recorded_at
+	`, params.RouteID, params.MemberID, segmentID, params.Latitude, params.Longitude, params.AccuracyM, params.AltitudeM, params.SpeedMPS, params.HeadingDeg, params.ClientRecordedAt, params.RawPayload).Scan(
+		&point.Seq,
+		&point.Latitude,
+		&point.Longitude,
+		&accuracy,
+		&clientRecordedAt,
+		&point.RecordedAt,
+	); err != nil {
+		return PositionUpdateResult{}, fmt.Errorf("insert position point: %w", err)
+	}
+
+	if accuracy.Valid {
+		point.AccuracyM = &accuracy.Float64
+	}
+	if clientRecordedAt.Valid {
+		point.ClientRecordedAt = &clientRecordedAt.Time
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return PositionUpdateResult{}, fmt.Errorf("commit record position tx: %w", err)
+	}
+
+	return PositionUpdateResult{
+		RouteID:   params.RouteID,
+		MemberID:  params.MemberID,
+		SegmentID: segmentID,
+		Point:     point,
+	}, nil
 }
 
 // UpdateRoute mutates route name, description, and/or status.

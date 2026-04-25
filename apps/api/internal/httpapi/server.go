@@ -46,6 +46,7 @@ type RouteService interface {
 	Snapshot(context.Context, string, string) (routes.Snapshot, error)
 	StartSharing(context.Context, string, string) (routes.StartSharingResult, error)
 	StopSharing(context.Context, string, string) (routes.StopSharingResult, error)
+	RecordPosition(context.Context, string, routes.PositionUpdateInput) (routes.PositionUpdateResult, error)
 	UpdateRoute(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
 	LeaveRoute(context.Context, string, string) (routes.LeaveRouteResult, error)
 	DeleteRoute(context.Context, string, string) error
@@ -386,12 +387,57 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	readErrCh := make(chan error, 1)
+	outboundEventCh := make(chan live.Event, 16)
 	go func() {
 		for {
-			var message map[string]any
-			if err := wsjson.Read(r.Context(), connection, &message); err != nil {
+			var rawMessage json.RawMessage
+			var message webSocketClientMessage
+			if err := wsjson.Read(r.Context(), connection, &rawMessage); err != nil {
 				readErrCh <- err
 				return
+			}
+			if err := json.Unmarshal(rawMessage, &message); err != nil {
+				readErrCh <- err
+				return
+			}
+
+			switch message.Type {
+			case "position_update":
+				input, err := positionUpdateInput(message, rawMessage)
+				if err != nil {
+					if !enqueueLiveEvent(r.Context(), outboundEventCh, live.Event{
+						"type":  "position_rejected",
+						"error": routeErrorReason(err),
+					}) {
+						return
+					}
+					continue
+				}
+
+				result, err := s.routes.RecordPosition(r.Context(), authMessage.MemberToken, input)
+				if err != nil {
+					if !enqueueLiveEvent(r.Context(), outboundEventCh, live.Event{
+						"type":  "position_rejected",
+						"error": routeErrorReason(err),
+					}) {
+						return
+					}
+					continue
+				}
+
+				s.broadcastLiveEvent(result.RouteID, live.Event{
+					"type":      "position_updated",
+					"memberId":  result.MemberID,
+					"segmentId": result.SegmentID,
+					"point":     result.Point,
+				})
+			default:
+				if !enqueueLiveEvent(r.Context(), outboundEventCh, live.Event{
+					"type":  "message_rejected",
+					"error": "unknown_message",
+				}) {
+					return
+				}
 			}
 		}
 	}()
@@ -403,6 +449,11 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		case err := <-readErrCh:
 			s.logger.Debug("websocket read loop ended", "error", err)
 			return
+		case event := <-outboundEventCh:
+			if err := writeWebSocketJSON(r.Context(), connection, event); err != nil {
+				s.logger.Debug("websocket direct event write failed", "error", err)
+				return
+			}
 		case event, ok := <-subscription.Events():
 			if !ok {
 				return
@@ -440,26 +491,38 @@ func (s *Server) writeError(w http.ResponseWriter, status int, reason string) {
 }
 
 func (s *Server) writeRouteError(w http.ResponseWriter, err error) {
+	status, reason := routeErrorStatusAndReason(err)
+	if status == http.StatusInternalServerError {
+		s.logger.Error("route handler failed", "error", err)
+	}
+	s.writeError(w, status, reason)
+}
+
+func routeErrorReason(err error) string {
+	_, reason := routeErrorStatusAndReason(err)
+	return reason
+}
+
+func routeErrorStatusAndReason(err error) (int, string) {
 	switch {
 	case errors.Is(err, routes.ErrInvalidInput):
-		s.writeError(w, http.StatusBadRequest, "invalid_input")
+		return http.StatusBadRequest, "invalid_input"
 	case errors.Is(err, routes.ErrRouteNotFound):
-		s.writeError(w, http.StatusNotFound, "route_not_found")
+		return http.StatusNotFound, "route_not_found"
 	case errors.Is(err, routes.ErrInvalidPassword):
-		s.writeError(w, http.StatusUnauthorized, "invalid_password")
+		return http.StatusUnauthorized, "invalid_password"
 	case errors.Is(err, routes.ErrAliasTaken):
-		s.writeError(w, http.StatusConflict, "alias_taken")
+		return http.StatusConflict, "alias_taken"
 	case errors.Is(err, routes.ErrUnauthorized):
-		s.writeError(w, http.StatusUnauthorized, "unauthorized")
+		return http.StatusUnauthorized, "unauthorized"
 	case errors.Is(err, routes.ErrRouteClosed):
-		s.writeError(w, http.StatusConflict, "route_closed")
+		return http.StatusConflict, "route_closed"
 	case errors.Is(err, routes.ErrSharingNotAllowed):
-		s.writeError(w, http.StatusForbidden, "sharing_not_allowed")
+		return http.StatusForbidden, "sharing_not_allowed"
 	case errors.Is(err, routes.ErrTrackingLimitReached):
-		s.writeError(w, http.StatusConflict, "tracking_limit_reached")
+		return http.StatusConflict, "tracking_limit_reached"
 	default:
-		s.logger.Error("route handler failed", "error", err)
-		s.writeError(w, http.StatusInternalServerError, "internal_error")
+		return http.StatusInternalServerError, "internal_error"
 	}
 }
 
@@ -551,6 +614,43 @@ func bearerToken(header string) string {
 type webSocketAuthMessage struct {
 	Type        string `json:"type"`
 	MemberToken string `json:"memberToken"`
+}
+
+type webSocketClientMessage struct {
+	Type             string     `json:"type"`
+	Latitude         *float64   `json:"latitude"`
+	Longitude        *float64   `json:"longitude"`
+	AccuracyM        *float64   `json:"accuracyM"`
+	AltitudeM        *float64   `json:"altitudeM"`
+	SpeedMPS         *float64   `json:"speedMps"`
+	HeadingDeg       *float64   `json:"headingDeg"`
+	ClientRecordedAt *time.Time `json:"clientRecordedAt"`
+}
+
+func positionUpdateInput(message webSocketClientMessage, rawPayload json.RawMessage) (routes.PositionUpdateInput, error) {
+	if message.Latitude == nil || message.Longitude == nil {
+		return routes.PositionUpdateInput{}, routes.ErrInvalidInput
+	}
+
+	return routes.PositionUpdateInput{
+		Latitude:         *message.Latitude,
+		Longitude:        *message.Longitude,
+		AccuracyM:        message.AccuracyM,
+		AltitudeM:        message.AltitudeM,
+		SpeedMPS:         message.SpeedMPS,
+		HeadingDeg:       message.HeadingDeg,
+		ClientRecordedAt: message.ClientRecordedAt,
+		RawPayload:       append(json.RawMessage(nil), rawPayload...),
+	}, nil
+}
+
+func enqueueLiveEvent(ctx context.Context, events chan<- live.Event, event live.Event) bool {
+	select {
+	case events <- event:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 func readWebSocketAuth(ctx context.Context, connection *websocket.Conn, timeout time.Duration) (webSocketAuthMessage, error) {

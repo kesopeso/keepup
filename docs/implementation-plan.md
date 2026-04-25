@@ -185,11 +185,16 @@ The backend foundation and first route lifecycle slice are complete:
    - the member bottom sheet shows a start/stop sharing action from viewer capabilities
    - starting and stopping sharing call `PUT /routes/{code}/members/me/sharing`
    - the screen refreshes the authenticated snapshot after each successful sharing state mutation
+18. Backend WebSocket position ingestion is implemented:
+   - authenticated live clients send `position_update` messages over the existing route WebSocket
+   - the route service validates active route status, current tracking state, coordinates, and open path segment persistence
+   - accepted points are stored in `position_points`
+   - accepted points are broadcast to route subscribers as `position_updated`
+   - invalid or disallowed points return `position_rejected` to the sender
 
 ## Immediate Next Step
 
 When work resumes, continue the realtime tracking slice:
 
-1. add position update ingestion
-2. apply live marker/path updates through the existing frontend map state
-3. add stale/disconnect handling
+1. apply live marker/path updates through the existing frontend map state
+2. add stale/disconnect handling

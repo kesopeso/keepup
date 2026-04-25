@@ -1,7 +1,10 @@
 // Package routes owns route lifecycle behavior and data contracts.
 package routes
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 const (
 	SharingPolicyEveryoneCanShare = "everyone_can_share"
@@ -138,6 +141,26 @@ type StopSharingResult struct {
 	Member Member `json:"member"`
 }
 
+// PositionUpdateInput contains one client-recorded location sample.
+type PositionUpdateInput struct {
+	Latitude         float64
+	Longitude        float64
+	AccuracyM        *float64
+	AltitudeM        *float64
+	SpeedMPS         *float64
+	HeadingDeg       *float64
+	ClientRecordedAt *time.Time
+	RawPayload       json.RawMessage
+}
+
+// PositionUpdateResult contains the accepted and persisted route point.
+type PositionUpdateResult struct {
+	RouteID   string     `json:"-"`
+	MemberID  string     `json:"memberId"`
+	SegmentID string     `json:"segmentId"`
+	Point     RoutePoint `json:"point"`
+}
+
 // Snapshot contains the full route page bootstrap payload.
 type Snapshot struct {
 	Route   Route              `json:"route"`
@@ -168,6 +191,7 @@ type PathSegment struct {
 
 // RoutePoint is a historical route point representation.
 type RoutePoint struct {
+	Seq              int64      `json:"seq,omitempty"`
 	Latitude         float64    `json:"latitude"`
 	Longitude        float64    `json:"longitude"`
 	AccuracyM        *float64   `json:"accuracyM,omitempty"`

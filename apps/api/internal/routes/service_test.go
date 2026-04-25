@@ -18,6 +18,7 @@ type stubRepository struct {
 	getRouteByCodeFn             func(context.Context, string) (Route, string, error)
 	startTrackingMemberFn        func(context.Context, string, string) (StartSharingRepoResult, error)
 	stopTrackingMemberFn         func(context.Context, string, string) (Member, error)
+	recordPositionFn             func(context.Context, RecordPositionRepoParams) (PositionUpdateResult, error)
 	updateRouteFn                func(context.Context, string, UpdateRouteRepoParams) (Route, error)
 	leaveMemberFn                func(context.Context, string) (Member, error)
 	deleteRouteFn                func(context.Context, string) error
@@ -61,6 +62,10 @@ func (s stubRepository) StartTrackingMember(ctx context.Context, routeID, member
 
 func (s stubRepository) StopTrackingMember(ctx context.Context, routeID, memberID string) (Member, error) {
 	return s.stopTrackingMemberFn(ctx, routeID, memberID)
+}
+
+func (s stubRepository) RecordPosition(ctx context.Context, params RecordPositionRepoParams) (PositionUpdateResult, error) {
+	return s.recordPositionFn(ctx, params)
 }
 
 func (s stubRepository) UpdateRoute(ctx context.Context, routeID string, params UpdateRouteRepoParams) (Route, error) {
@@ -575,6 +580,130 @@ func TestStopSharing(t *testing.T) {
 
 	if result.Member.Status != MemberStatusSpectating {
 		t.Fatalf("StopSharing() status = %q, want %q", result.Member.Status, MemberStatusSpectating)
+	}
+}
+
+func TestRecordPosition(t *testing.T) {
+	t.Parallel()
+
+	accuracy := 12.5
+	clientRecordedAt := time.Now().UTC()
+	service := NewService(stubRepository{
+		getAuthorizedMemberByTokenFn: func(_ context.Context, _ string) (AuthorizedMember, error) {
+			return AuthorizedMember{
+				Route: Route{
+					ID:     "route-1",
+					Code:   "K7P9QD",
+					Status: RouteStatusActive,
+				},
+				Member: Member{
+					ID:      "member-2",
+					RouteID: "route-1",
+					Status:  MemberStatusTracking,
+				},
+			}, nil
+		},
+		recordPositionFn: func(_ context.Context, params RecordPositionRepoParams) (PositionUpdateResult, error) {
+			if params.RouteID != "route-1" || params.MemberID != "member-2" {
+				t.Fatalf("RecordPosition() got routeID=%q memberID=%q", params.RouteID, params.MemberID)
+			}
+
+			if params.Latitude != 46.0569 || params.Longitude != 14.5058 {
+				t.Fatalf("RecordPosition() got coordinates=%f,%f", params.Latitude, params.Longitude)
+			}
+
+			if params.AccuracyM == nil || *params.AccuracyM != accuracy {
+				t.Fatal("RecordPosition() expected accuracy")
+			}
+
+			if params.ClientRecordedAt == nil || !params.ClientRecordedAt.Equal(clientRecordedAt) {
+				t.Fatal("RecordPosition() expected client recorded time")
+			}
+
+			if string(params.RawPayload) != "{}" {
+				t.Fatalf("RecordPosition() raw payload = %s, want {}", string(params.RawPayload))
+			}
+
+			return PositionUpdateResult{
+				RouteID:   params.RouteID,
+				MemberID:  params.MemberID,
+				SegmentID: "segment-1",
+				Point: RoutePoint{
+					Seq:              1,
+					Latitude:         params.Latitude,
+					Longitude:        params.Longitude,
+					AccuracyM:        params.AccuracyM,
+					ClientRecordedAt: params.ClientRecordedAt,
+					RecordedAt:       time.Now().UTC(),
+				},
+			}, nil
+		},
+	}, 10)
+
+	result, err := service.RecordPosition(context.Background(), "member-token", PositionUpdateInput{
+		Latitude:         46.0569,
+		Longitude:        14.5058,
+		AccuracyM:        &accuracy,
+		ClientRecordedAt: &clientRecordedAt,
+	})
+	if err != nil {
+		t.Fatalf("RecordPosition() error = %v", err)
+	}
+
+	if result.SegmentID != "segment-1" || result.Point.Seq != 1 {
+		t.Fatalf("RecordPosition() result segment/seq = %q/%d", result.SegmentID, result.Point.Seq)
+	}
+}
+
+func TestRecordPositionRejectsSpectator(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(stubRepository{
+		getAuthorizedMemberByTokenFn: func(_ context.Context, _ string) (AuthorizedMember, error) {
+			return AuthorizedMember{
+				Route: Route{
+					ID:     "route-1",
+					Code:   "K7P9QD",
+					Status: RouteStatusActive,
+				},
+				Member: Member{
+					ID:      "member-2",
+					RouteID: "route-1",
+					Status:  MemberStatusSpectating,
+				},
+			}, nil
+		},
+		recordPositionFn: func(context.Context, RecordPositionRepoParams) (PositionUpdateResult, error) {
+			t.Fatal("RecordPosition() repository call should not run for a spectator")
+			return PositionUpdateResult{}, nil
+		},
+	}, 10)
+
+	_, err := service.RecordPosition(context.Background(), "member-token", PositionUpdateInput{
+		Latitude:  46.0569,
+		Longitude: 14.5058,
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("RecordPosition() error = %v, want ErrInvalidInput", err)
+	}
+}
+
+func TestRecordPositionRejectsInvalidCoordinates(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(stubRepository{
+		getAuthorizedMemberByTokenFn: func(context.Context, string) (AuthorizedMember, error) {
+			t.Fatal("RecordPosition() should validate coordinates before authorization")
+			return AuthorizedMember{}, nil
+		},
+	}, 10)
+
+	_, err := service.RecordPosition(context.Background(), "member-token", PositionUpdateInput{
+		Latitude:  91,
+		Longitude: 14.5058,
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("RecordPosition() error = %v, want ErrInvalidInput", err)
 	}
 }
 

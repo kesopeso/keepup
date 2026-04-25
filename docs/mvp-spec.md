@@ -111,6 +111,9 @@ Current API naming:
 - Current backend sharing state updates use `PUT /routes/{code}/members/me/sharing` with `{ "enabled": true }` to start sharing and `{ "enabled": false }` to stop sharing
 - Starting sharing updates member status to `tracking` and opens a path segment
 - Stopping sharing updates member status to `spectating` and closes open path segments
+- Active trackers send live position samples over the authenticated WebSocket as `position_update` messages
+- The backend accepts WebSocket position updates only from members who are currently `tracking`
+- Accepted WebSocket position updates are persisted to the open path segment and broadcast as `position_updated`
 - On refresh, if a member was previously sharing:
   - rejoin route automatically
   - show prompt:
@@ -231,12 +234,13 @@ Live stream includes:
 - `member_stopped_sharing`
 - `member_became_stale`
 - `member_back_online`
-- `position_update`
+- `position_updated`
 - `route_updated`
 - `route_closed`
 
 Current backend broadcasts `member_joined`, `member_left`, `route_updated`, and `route_closed` over authenticated WebSocket route rooms.
 Current backend also broadcasts `member_started_sharing` and `member_stopped_sharing` after successful sharing state updates.
+Current backend accepts authenticated WebSocket `position_update` messages and broadcasts accepted points as `position_updated`.
 
 ## Persistence Rules
 

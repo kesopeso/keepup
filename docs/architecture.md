@@ -151,6 +151,9 @@ Current live foundation:
 - The server sends `connection_established` with route/member identity after successful auth
 - Each route room subscription owns a buffered live event channel
 - The live hub can broadcast live events to all active subscriptions in a route room
+- Authenticated WebSocket clients send `position_update` messages for live tracking samples
+- Accepted position updates are persisted to the member's open path segment and broadcast as `position_updated`
+- Invalid or disallowed position updates return `position_rejected` to the sending connection
 - REST lifecycle mutations currently broadcast:
   - `member_joined` after a successful join
   - `member_left` after a successful leave
@@ -258,7 +261,7 @@ Examples:
 - `member_stopped_sharing`
 - `member_became_stale`
 - `member_left`
-- `position_update`
+- `position_updated`
 - `route_closed`
 
 ## Tracking Rules
@@ -271,6 +274,8 @@ Examples:
 - Sharing state is currently updated through `PUT /routes/{code}/members/me/sharing` with an `enabled` boolean payload
 - Enabling sharing updates the member to `tracking` and opens a path segment
 - Disabling sharing updates the member to `spectating` and ends open path segments with reason `stopped`
+- Position updates are ingested through the authenticated WebSocket, not a REST endpoint
+- Position ingestion requires an active route, a tracking member, valid latitude/longitude, and an open path segment
 - Reconnects inside the grace window keep the same segment
 - Prolonged disconnect ends the segment
 
