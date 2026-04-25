@@ -150,6 +150,11 @@ The backend foundation and first route lifecycle slice are complete:
    - authenticated route view has a route header
    - map area has stable pre-MapLibre dimensions
    - member bottom sheet renders route metadata, viewer capabilities, and sorted members
+12. Map display abstraction is implemented with a placeholder adapter:
+   - `RouteMapRenderer` owns rendering and viewport commands only
+   - snapshot DTOs are normalized into `RouteMapState`
+   - route screen renders through the React map wrapper
+   - renderer factory currently returns the placeholder implementation
 
 ## Immediate Next Step
 
@@ -157,7 +162,7 @@ When work resumes, discuss and decide the MapLibre integration approach before i
 
 1. map package/dependency setup
 2. tile provider configuration
-3. map adapter boundaries
+3. replacing the placeholder renderer in the existing factory
 4. snapshot path and marker rendering rules
 
 After that, move into:

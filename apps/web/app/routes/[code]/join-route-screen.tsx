@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { RouteMap } from "../../components/route-map";
 import {
   clearRouteAuth,
   getProfile,
@@ -19,6 +20,7 @@ import {
   type RouteSnapshot,
   type SnapshotMember,
 } from "../../../lib/routes-api";
+import { routeSnapshotToMapState } from "../../../lib/map/snapshot-map-state";
 
 const transportLabels: Record<TransportMode, string> = {
   walking: "Walking",
@@ -286,15 +288,7 @@ function loadRouteAccess(
 
 function RouteSnapshotShell({ snapshot }: { snapshot: RouteSnapshot }) {
   const sortedMembers = [...snapshot.members].sort(compareMembers);
-  const totalPathPoints = snapshot.members.reduce(
-    (total, member) =>
-      total +
-      member.paths.reduce(
-        (memberTotal, path) => memberTotal + path.points.length,
-        0,
-      ),
-    0,
-  );
+  const mapState = routeSnapshotToMapState(snapshot);
 
   return (
     <section className="route-screen">
@@ -313,15 +307,7 @@ function RouteSnapshotShell({ snapshot }: { snapshot: RouteSnapshot }) {
         </div>
       </header>
 
-      <section className="map-stage" aria-label="Route map">
-        <div className="map-surface">
-          <div className="map-grid" aria-hidden="true" />
-          <div className="map-state">
-            <strong>{totalPathPoints}</strong>
-            <span>{totalPathPoints === 1 ? "point" : "points"}</span>
-          </div>
-        </div>
-      </section>
+      <RouteMap state={mapState} />
 
       <aside className="member-sheet" aria-label="Route members">
         <div className="sheet-handle" aria-hidden="true" />
