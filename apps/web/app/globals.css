@@ -235,6 +235,74 @@ code {
   background: rgba(21, 27, 32, 0.82);
 }
 
+.route-panel h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.capability-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.capability-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.capability-item span,
+.member-row p {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.capability-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.member-list {
+  display: grid;
+  gap: 10px;
+}
+
+.member-row {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(12, 16, 20, 0.56);
+}
+
+.member-color {
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(248, 250, 252, 0.34);
+  border-radius: 50%;
+}
+
+.member-row h3,
+.member-row p {
+  margin: 0;
+}
+
+.member-row h3 {
+  overflow-wrap: anywhere;
+  font-size: 0.98rem;
+}
+
+.member-row div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
 .primary-action {
   min-height: 52px;
   border: 0;

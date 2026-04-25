@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  clearRouteAuth,
   getProfile,
   getRouteAuth,
   saveProfile,
@@ -10,9 +11,13 @@ import {
   type TransportMode,
 } from "../../../lib/identity-storage";
 import {
+  ApiError,
   getRouteAccess,
+  getRouteSnapshot,
   joinRoute,
   type RouteAccess,
+  type RouteSnapshot,
+  type SnapshotMember,
 } from "../../../lib/routes-api";
 
 const transportLabels: Record<TransportMode, string> = {
@@ -33,7 +38,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
-  const [hasSavedAccess, setHasSavedAccess] = useState(false);
+  const [snapshot, setSnapshot] = useState<RouteSnapshot | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -44,32 +49,52 @@ export function JoinRouteScreen({ code }: { code: string }) {
 
     const routeAuth = getRouteAuth(code);
     if (routeAuth?.memberToken) {
-      setHasSavedAccess(true);
-      setIsLoading(false);
+      getRouteSnapshot(code, routeAuth.memberToken)
+        .then((routeSnapshot) => {
+          if (!isMounted) {
+            return;
+          }
+
+          setSnapshot(routeSnapshot);
+          setIsLoading(false);
+        })
+        .catch((caughtError) => {
+          if (!isMounted) {
+            return;
+          }
+
+          if (
+            caughtError instanceof ApiError &&
+            caughtError.code === "unauthorized"
+          ) {
+            clearRouteAuth(code);
+            loadRouteAccess(
+              code,
+              () => isMounted,
+              setAccess,
+              setError,
+              setIsLoading,
+            );
+            return;
+          }
+
+          setError(
+            caughtError instanceof Error
+              ? caughtError.message
+              : "Could not load this route.",
+          );
+          setIsLoading(false);
+        });
       return;
     }
 
-    getRouteAccess(code)
-      .then((routeAccess) => {
-        if (!isMounted) {
-          return;
-        }
-
-        setAccess(routeAccess);
-        setIsLoading(false);
-      })
-      .catch((caughtError) => {
-        if (!isMounted) {
-          return;
-        }
-
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Could not load this route.",
-        );
-        setIsLoading(false);
-      });
+    loadRouteAccess(
+      code,
+      () => isMounted,
+      setAccess,
+      setError,
+      setIsLoading,
+    );
 
     return () => {
       isMounted = false;
@@ -111,7 +136,11 @@ export function JoinRouteScreen({ code }: { code: string }) {
       saveRouteAuth(result.route.code, {
         memberToken: result.memberToken,
       });
-      setHasSavedAccess(true);
+      const routeSnapshot = await getRouteSnapshot(
+        result.route.code,
+        result.memberToken,
+      );
+      setSnapshot(routeSnapshot);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -132,15 +161,8 @@ export function JoinRouteScreen({ code }: { code: string }) {
     );
   }
 
-  if (hasSavedAccess) {
-    return (
-      <section className="route-shell">
-        <RouteHeader code={code} label="Route" />
-        <div className="route-panel">
-          <p className="route-status">Saved access found.</p>
-        </div>
-      </section>
-    );
+  if (snapshot) {
+    return <RouteSnapshotShell snapshot={snapshot} />;
   }
 
   if (!access) {
@@ -230,6 +252,157 @@ export function JoinRouteScreen({ code }: { code: string }) {
       </button>
     </form>
   );
+}
+
+function loadRouteAccess(
+  code: string,
+  shouldUpdate: () => boolean,
+  setAccess: (access: RouteAccess) => void,
+  setError: (error: string) => void,
+  setIsLoading: (isLoading: boolean) => void,
+) {
+  getRouteAccess(code)
+    .then((routeAccess) => {
+      if (!shouldUpdate()) {
+        return;
+      }
+
+      setAccess(routeAccess);
+      setIsLoading(false);
+    })
+    .catch((caughtError) => {
+      if (!shouldUpdate()) {
+        return;
+      }
+
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not load this route.",
+      );
+      setIsLoading(false);
+    });
+}
+
+function RouteSnapshotShell({ snapshot }: { snapshot: RouteSnapshot }) {
+  const sortedMembers = [...snapshot.members].sort(compareMembers);
+
+  return (
+    <section className="route-shell">
+      <RouteHeader
+        code={snapshot.route.code}
+        label={snapshot.route.status === "closed" ? "Archive" : "Route"}
+        title={snapshot.route.name}
+      />
+
+      {snapshot.route.description ? (
+        <p className="route-description">{snapshot.route.description}</p>
+      ) : null}
+
+      <div className="route-meta">
+        <span>{snapshot.route.status === "closed" ? "Closed" : "Active"}</span>
+        <span>
+          {snapshot.route.sharingPolicy === "everyone_can_share"
+            ? "Everyone can share"
+            : "Joiners view only"}
+        </span>
+        <span>{snapshot.members.length} members</span>
+      </div>
+
+      <section className="route-panel" aria-label="Viewer capabilities">
+        <h2>Your access</h2>
+        <div className="capability-grid">
+          <CapabilityLabel label="Role" value={formatRole(snapshot.viewer.role)} />
+          <CapabilityLabel
+            label="Status"
+            value={formatStatus(snapshot.viewer.status)}
+          />
+          <CapabilityLabel
+            label="Can share"
+            value={snapshot.viewer.canStartSharing ? "Yes" : "No"}
+          />
+          <CapabilityLabel
+            label="Can manage"
+            value={snapshot.viewer.canEditRoute ? "Yes" : "No"}
+          />
+        </div>
+      </section>
+
+      <section className="route-panel" aria-label="Members">
+        <h2>Members</h2>
+        <div className="member-list">
+          {sortedMembers.map((member) => (
+            <MemberRow key={member.id} member={member} />
+          ))}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function CapabilityLabel({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="capability-item">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function MemberRow({ member }: { member: SnapshotMember }) {
+  return (
+    <article className="member-row">
+      <span
+        aria-hidden="true"
+        className="member-color"
+        style={{ backgroundColor: member.color }}
+      />
+      <div>
+        <h3>{member.displayName}</h3>
+        <p>
+          {formatRole(member.role)} · {formatStatus(member.status)} ·{" "}
+          {formatTransportMode(member.transportMode)}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function compareMembers(first: SnapshotMember, second: SnapshotMember) {
+  const statusOrder: Record<string, number> = {
+    tracking: 1,
+    stale: 2,
+    spectating: 3,
+    offline: 4,
+    left: 5,
+  };
+
+  if (first.role !== second.role) {
+    return first.role === "owner" ? -1 : 1;
+  }
+
+  const firstStatus = statusOrder[first.status] ?? 99;
+  const secondStatus = statusOrder[second.status] ?? 99;
+  if (firstStatus !== secondStatus) {
+    return firstStatus - secondStatus;
+  }
+
+  return new Date(first.joinedAt).getTime() - new Date(second.joinedAt).getTime();
+}
+
+function formatRole(role: string) {
+  return role === "owner" ? "Owner" : "Member";
+}
+
+function formatStatus(status: string) {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatTransportMode(mode: string) {
+  return transportLabels[mode as TransportMode] ?? formatStatus(mode);
 }
 
 function RouteHeader({

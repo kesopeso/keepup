@@ -67,6 +67,51 @@ export type JoinRouteResponse = {
   memberToken: string;
 };
 
+export type SnapshotMember = {
+  id: string;
+  displayName: string;
+  transportMode: TransportMode;
+  role: "owner" | "member";
+  status: string;
+  color: string;
+  joinedAt: string;
+  leftAt: string | null;
+  paths: PathSegment[];
+};
+
+export type PathSegment = {
+  id?: string;
+  startedAt?: string;
+  endedAt?: string;
+  points: RoutePoint[];
+};
+
+export type RoutePoint = {
+  latitude: number;
+  longitude: number;
+  accuracyM?: number;
+  clientRecordedAt?: string;
+  recordedAt: string;
+};
+
+export type ViewerCapabilities = {
+  memberId: string;
+  role: "owner" | "member";
+  status: string;
+  canStartSharing: boolean;
+  canStopSharing: boolean;
+  canLeaveRoute: boolean;
+  canCloseRoute: boolean;
+  canDeleteRoute: boolean;
+  canEditRoute: boolean;
+};
+
+export type RouteSnapshot = {
+  route: RouteSummary;
+  members: SnapshotMember[];
+  viewer: ViewerCapabilities;
+};
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export class ApiError extends Error {
@@ -163,13 +208,46 @@ export async function joinRoute(
   return (await response.json()) as JoinRouteResponse;
 }
 
+export async function getRouteSnapshot(
+  code: string,
+  memberToken: string,
+): Promise<RouteSnapshot> {
+  const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}`, {
+    headers: {
+      Authorization: `Bearer ${memberToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    let errorCode: string | undefined;
+    try {
+      const payload = (await response.json()) as { error?: string };
+      errorCode = payload.error;
+    } catch {
+      errorCode = undefined;
+    }
+
+    throw new ApiError(
+      routeErrorMessage(response.status, errorCode),
+      response.status,
+      errorCode,
+    );
+  }
+
+  return (await response.json()) as RouteSnapshot;
+}
+
 function routeErrorMessage(status: number, code?: string): string {
   if (code === "invalid_input" || status === 400) {
     return "Check the details and try again.";
   }
 
-  if (code === "invalid_password" || status === 403) {
+  if (code === "invalid_password") {
     return "The password is not correct.";
+  }
+
+  if (code === "unauthorized" || status === 401 || status === 403) {
+    return "Route access expired. Join again to continue.";
   }
 
   if (status === 404) {
@@ -184,5 +262,5 @@ function routeErrorMessage(status: number, code?: string): string {
     return "The route service is unavailable. Try again shortly.";
   }
 
-  return "Could not create the route.";
+  return "Could not load the route.";
 }

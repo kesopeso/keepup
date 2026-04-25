@@ -44,6 +44,8 @@ KeepUp is a mobile-first web app for live route sharing between friends, groups,
 - Opening a route page without saved member access fetches access metadata and shows the join flow
 - Joining a route collects display name, transport mode, and password when required
 - Successful join stores the member token for that route in the browser
+- Opening a route page with saved member access fetches the authenticated route snapshot
+- Expired or invalid saved member access is cleared and the browser returns to the join flow
 
 Current API naming:
 

@@ -142,19 +142,19 @@ The backend foundation and first route lifecycle slice are complete:
    - browser profile is saved before joining
    - returned `memberToken` is stored by route code
    - saved member access skips the join form
+10. Authenticated route bootstrap is implemented:
+   - route pages call `GET /routes/{code}` with the saved member token
+   - invalid saved member access is cleared and returns to the join flow
+   - the first route screen shell renders route metadata, viewer capabilities, and members
 
 ## Immediate Next Step
 
 When work resumes, continue with the frontend integration against the existing route API:
 
-1. implement authenticated route bootstrap with `GET /routes/{code}`
-2. build the first usable route screen shell:
-   - header
-   - member sheet
-   - placeholder snapshot rendering before map integration
+1. refine the route screen layout into the intended header/member sheet structure
+2. add MapLibre route rendering
 
 After that, move into:
 
-1. MapLibre route rendering
-2. WebSocket realtime lifecycle
-3. start/stop sharing location flow
+1. WebSocket realtime lifecycle
+2. start/stop sharing location flow
