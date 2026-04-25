@@ -44,6 +44,8 @@ type RouteService interface {
 	AuthorizeMember(context.Context, string) (routes.AuthorizedMember, error)
 	JoinRoute(context.Context, string, routes.JoinRouteInput) (routes.JoinRouteResult, error)
 	Snapshot(context.Context, string, string) (routes.Snapshot, error)
+	StartSharing(context.Context, string, string) (routes.StartSharingResult, error)
+	StopSharing(context.Context, string, string) (routes.StopSharingResult, error)
 	UpdateRoute(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
 	LeaveRoute(context.Context, string, string) (routes.LeaveRouteResult, error)
 	DeleteRoute(context.Context, string, string) error
@@ -73,6 +75,7 @@ func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, rou
 	mux.HandleFunc("PATCH /routes/{code}", server.handleUpdateRoute)
 	mux.HandleFunc("DELETE /routes/{code}", server.handleDeleteRoute)
 	mux.HandleFunc("DELETE /routes/{code}/members/me", server.handleLeaveRoute)
+	mux.HandleFunc("PUT /routes/{code}/members/me/sharing", server.handleMemberSharing)
 	mux.HandleFunc("GET /ws", server.handleWebSocket)
 
 	return server.withCORS(server.withLogging(mux))
@@ -265,6 +268,54 @@ func (s *Server) handleLeaveRoute(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) handleMemberSharing(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r.Header.Get("Authorization"))
+	if token == "" {
+		s.writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var request struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := decodeJSON(r.Body, &request); err != nil {
+		s.writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	if request.Enabled == nil {
+		s.writeError(w, http.StatusBadRequest, "invalid_input")
+		return
+	}
+
+	if *request.Enabled {
+		result, err := s.routes.StartSharing(r.Context(), r.PathValue("code"), token)
+		if err != nil {
+			s.writeRouteError(w, err)
+			return
+		}
+
+		s.broadcastLiveEvent(result.Member.RouteID, live.Event{
+			"type":    "member_started_sharing",
+			"member":  result.Member,
+			"segment": result.Segment,
+		})
+		s.writeJSON(w, http.StatusOK, result)
+		return
+	}
+
+	result, err := s.routes.StopSharing(r.Context(), r.PathValue("code"), token)
+	if err != nil {
+		s.writeRouteError(w, err)
+		return
+	}
+
+	s.broadcastLiveEvent(result.Member.RouteID, live.Event{
+		"type":   "member_stopped_sharing",
+		"member": result.Member,
+	})
+	s.writeJSON(w, http.StatusOK, result)
+}
+
 func (s *Server) handleDeleteRoute(w http.ResponseWriter, r *http.Request) {
 	token := bearerToken(r.Header.Get("Authorization"))
 	if token == "" {
@@ -402,6 +453,10 @@ func (s *Server) writeRouteError(w http.ResponseWriter, err error) {
 		s.writeError(w, http.StatusUnauthorized, "unauthorized")
 	case errors.Is(err, routes.ErrRouteClosed):
 		s.writeError(w, http.StatusConflict, "route_closed")
+	case errors.Is(err, routes.ErrSharingNotAllowed):
+		s.writeError(w, http.StatusForbidden, "sharing_not_allowed")
+	case errors.Is(err, routes.ErrTrackingLimitReached):
+		s.writeError(w, http.StatusConflict, "tracking_limit_reached")
 	default:
 		s.logger.Error("route handler failed", "error", err)
 		s.writeError(w, http.StatusInternalServerError, "internal_error")

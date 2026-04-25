@@ -16,6 +16,8 @@ type stubRepository struct {
 	getAuthorizedOwnerByTokenFn  func(context.Context, string) (AuthorizedMember, error)
 	getMembersByRouteIDFn        func(context.Context, string) ([]Member, error)
 	getRouteByCodeFn             func(context.Context, string) (Route, string, error)
+	startTrackingMemberFn        func(context.Context, string, string) (StartSharingRepoResult, error)
+	stopTrackingMemberFn         func(context.Context, string, string) (Member, error)
 	updateRouteFn                func(context.Context, string, UpdateRouteRepoParams) (Route, error)
 	leaveMemberFn                func(context.Context, string) (Member, error)
 	deleteRouteFn                func(context.Context, string) error
@@ -51,6 +53,14 @@ func (s stubRepository) CountMembersByRouteID(ctx context.Context, routeID strin
 
 func (s stubRepository) CountTrackingMembers(ctx context.Context, routeID string) (int, error) {
 	return s.countTrackingMembersFn(ctx, routeID)
+}
+
+func (s stubRepository) StartTrackingMember(ctx context.Context, routeID, memberID string) (StartSharingRepoResult, error) {
+	return s.startTrackingMemberFn(ctx, routeID, memberID)
+}
+
+func (s stubRepository) StopTrackingMember(ctx context.Context, routeID, memberID string) (Member, error) {
+	return s.stopTrackingMemberFn(ctx, routeID, memberID)
 }
 
 func (s stubRepository) UpdateRoute(ctx context.Context, routeID string, params UpdateRouteRepoParams) (Route, error) {
@@ -401,6 +411,170 @@ func TestLeaveRoute(t *testing.T) {
 
 	if result.Member.Status != MemberStatusLeft {
 		t.Fatalf("LeaveRoute() status = %q, want %q", result.Member.Status, MemberStatusLeft)
+	}
+}
+
+func TestStartSharing(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	authorized := AuthorizedMember{
+		Route: Route{
+			ID:                 "route-1",
+			Code:               "K7P9QD",
+			SharingPolicy:      SharingPolicyEveryoneCanShare,
+			Status:             RouteStatusActive,
+			MaxTrackingMembers: 10,
+		},
+		Member: Member{
+			ID:      "member-2",
+			RouteID: "route-1",
+			Status:  MemberStatusSpectating,
+		},
+	}
+
+	service := NewService(stubRepository{
+		getAuthorizedMemberByTokenFn: func(_ context.Context, _ string) (AuthorizedMember, error) {
+			return authorized, nil
+		},
+		countTrackingMembersFn: func(_ context.Context, routeID string) (int, error) {
+			if routeID != "route-1" {
+				t.Fatalf("CountTrackingMembers() routeID = %q, want route-1", routeID)
+			}
+
+			return 1, nil
+		},
+		startTrackingMemberFn: func(_ context.Context, routeID, memberID string) (StartSharingRepoResult, error) {
+			if routeID != "route-1" || memberID != "member-2" {
+				t.Fatalf("StartTrackingMember() got routeID=%q memberID=%q", routeID, memberID)
+			}
+
+			return StartSharingRepoResult{
+				Member: Member{
+					ID:      memberID,
+					RouteID: routeID,
+					Status:  MemberStatusTracking,
+				},
+				Segment: PathSegment{
+					ID:        "segment-1",
+					StartedAt: &now,
+					Points:    []RoutePoint{},
+				},
+			}, nil
+		},
+	}, 10)
+
+	result, err := service.StartSharing(context.Background(), "k7p9qd", "member-token")
+	if err != nil {
+		t.Fatalf("StartSharing() error = %v", err)
+	}
+
+	if result.Member.Status != MemberStatusTracking {
+		t.Fatalf("StartSharing() status = %q, want %q", result.Member.Status, MemberStatusTracking)
+	}
+
+	if result.Segment.ID == "" {
+		t.Fatal("StartSharing() segment ID must not be empty")
+	}
+}
+
+func TestStartSharingRejectsTrackingLimit(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(stubRepository{
+		getAuthorizedMemberByTokenFn: func(_ context.Context, _ string) (AuthorizedMember, error) {
+			return AuthorizedMember{
+				Route: Route{
+					ID:                 "route-1",
+					Code:               "K7P9QD",
+					SharingPolicy:      SharingPolicyEveryoneCanShare,
+					Status:             RouteStatusActive,
+					MaxTrackingMembers: 1,
+				},
+				Member: Member{
+					ID:      "member-2",
+					RouteID: "route-1",
+					Status:  MemberStatusSpectating,
+				},
+			}, nil
+		},
+		countTrackingMembersFn: func(_ context.Context, _ string) (int, error) {
+			return 1, nil
+		},
+	}, 10)
+
+	_, err := service.StartSharing(context.Background(), "K7P9QD", "member-token")
+	if !errors.Is(err, ErrTrackingLimitReached) {
+		t.Fatalf("StartSharing() error = %v, want ErrTrackingLimitReached", err)
+	}
+}
+
+func TestStartSharingRejectsRestrictedJoiner(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(stubRepository{
+		getAuthorizedMemberByTokenFn: func(_ context.Context, _ string) (AuthorizedMember, error) {
+			return AuthorizedMember{
+				Route: Route{
+					ID:            "route-1",
+					Code:          "K7P9QD",
+					SharingPolicy: SharingPolicyJoinersViewOnly,
+					Status:        RouteStatusActive,
+				},
+				Member: Member{
+					ID:      "member-2",
+					RouteID: "route-1",
+					Status:  MemberStatusSpectating,
+					IsOwner: false,
+				},
+			}, nil
+		},
+	}, 10)
+
+	_, err := service.StartSharing(context.Background(), "K7P9QD", "member-token")
+	if !errors.Is(err, ErrSharingNotAllowed) {
+		t.Fatalf("StartSharing() error = %v, want ErrSharingNotAllowed", err)
+	}
+}
+
+func TestStopSharing(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(stubRepository{
+		getAuthorizedMemberByTokenFn: func(_ context.Context, _ string) (AuthorizedMember, error) {
+			return AuthorizedMember{
+				Route: Route{
+					ID:     "route-1",
+					Code:   "K7P9QD",
+					Status: RouteStatusActive,
+				},
+				Member: Member{
+					ID:      "member-2",
+					RouteID: "route-1",
+					Status:  MemberStatusTracking,
+				},
+			}, nil
+		},
+		stopTrackingMemberFn: func(_ context.Context, routeID, memberID string) (Member, error) {
+			if routeID != "route-1" || memberID != "member-2" {
+				t.Fatalf("StopTrackingMember() got routeID=%q memberID=%q", routeID, memberID)
+			}
+
+			return Member{
+				ID:      memberID,
+				RouteID: routeID,
+				Status:  MemberStatusSpectating,
+			}, nil
+		},
+	}, 10)
+
+	result, err := service.StopSharing(context.Background(), "K7P9QD", "member-token")
+	if err != nil {
+		t.Fatalf("StopSharing() error = %v", err)
+	}
+
+	if result.Member.Status != MemberStatusSpectating {
+		t.Fatalf("StopSharing() status = %q, want %q", result.Member.Status, MemberStatusSpectating)
 	}
 }
 

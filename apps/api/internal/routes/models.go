@@ -18,6 +18,8 @@ const (
 
 	RoleOwner  = "owner"
 	RoleMember = "member"
+
+	PathSegmentEndReasonStopped = "stopped"
 )
 
 var validTransportModes = map[string]struct{}{
@@ -122,6 +124,17 @@ type JoinRouteResult struct {
 
 // LeaveRouteResult contains the member state after leaving a route.
 type LeaveRouteResult struct {
+	Member Member `json:"member"`
+}
+
+// StartSharingResult contains the member state and opened path segment.
+type StartSharingResult struct {
+	Member  Member      `json:"member"`
+	Segment PathSegment `json:"segment"`
+}
+
+// StopSharingResult contains the member state after stopping tracking.
+type StopSharingResult struct {
 	Member Member `json:"member"`
 }
 

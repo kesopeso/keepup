@@ -35,6 +35,8 @@ type stubRouteService struct {
 	joinRouteFn       func(context.Context, string, routes.JoinRouteInput) (routes.JoinRouteResult, error)
 	leaveRouteFn      func(context.Context, string, string) (routes.LeaveRouteResult, error)
 	snapshotFn        func(context.Context, string, string) (routes.Snapshot, error)
+	startSharingFn    func(context.Context, string, string) (routes.StartSharingResult, error)
+	stopSharingFn     func(context.Context, string, string) (routes.StopSharingResult, error)
 	updateRouteFn     func(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
 }
 
@@ -76,6 +78,22 @@ func (s stubRouteService) Snapshot(ctx context.Context, code, memberToken string
 	}
 
 	return s.snapshotFn(ctx, code, memberToken)
+}
+
+func (s stubRouteService) StartSharing(ctx context.Context, code, memberToken string) (routes.StartSharingResult, error) {
+	if s.startSharingFn == nil {
+		return routes.StartSharingResult{}, nil
+	}
+
+	return s.startSharingFn(ctx, code, memberToken)
+}
+
+func (s stubRouteService) StopSharing(ctx context.Context, code, memberToken string) (routes.StopSharingResult, error) {
+	if s.stopSharingFn == nil {
+		return routes.StopSharingResult{}, nil
+	}
+
+	return s.stopSharingFn(ctx, code, memberToken)
 }
 
 func (s stubRouteService) UpdateRoute(ctx context.Context, code, ownerToken string, input routes.UpdateRouteInput) (routes.Route, error) {
@@ -517,6 +535,92 @@ func TestLeaveRouteHandler(t *testing.T) {
 
 	if !strings.Contains(recorder.Body.String(), `"status":"left"`) {
 		t.Fatalf("ServeHTTP() body = %q, want left status", recorder.Body.String())
+	}
+}
+
+func TestMemberSharingHandlerStartsSharing(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{
+			startSharingFn: func(_ context.Context, code, token string) (routes.StartSharingResult, error) {
+				if code != "K7P9QD" || token != "member-token" {
+					t.Fatalf("StartSharing() got code=%q token=%q", code, token)
+				}
+
+				return routes.StartSharingResult{
+					Member: routes.Member{
+						ID:      "member-2",
+						RouteID: "route-1",
+						Status:  routes.MemberStatusTracking,
+					},
+					Segment: routes.PathSegment{
+						ID:        "segment-1",
+						StartedAt: &now,
+						Points:    []routes.RoutePoint{},
+					},
+				}, nil
+			},
+		},
+	)
+
+	request := httptest.NewRequest(http.MethodPut, "/routes/K7P9QD/members/me/sharing", strings.NewReader(`{"enabled":true}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer member-token")
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if !strings.Contains(recorder.Body.String(), `"status":"tracking"`) {
+		t.Fatalf("ServeHTTP() body = %q, want tracking status", recorder.Body.String())
+	}
+}
+
+func TestMemberSharingHandlerStopsSharing(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080"},
+		stubHealthChecker{},
+		stubRouteService{
+			stopSharingFn: func(_ context.Context, code, token string) (routes.StopSharingResult, error) {
+				if code != "K7P9QD" || token != "member-token" {
+					t.Fatalf("StopSharing() got code=%q token=%q", code, token)
+				}
+
+				return routes.StopSharingResult{
+					Member: routes.Member{
+						ID:      "member-2",
+						RouteID: "route-1",
+						Status:  routes.MemberStatusSpectating,
+					},
+				}, nil
+			},
+		},
+	)
+
+	request := httptest.NewRequest(http.MethodPut, "/routes/K7P9QD/members/me/sharing", strings.NewReader(`{"enabled":false}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer member-token")
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if !strings.Contains(recorder.Body.String(), `"status":"spectating"`) {
+		t.Fatalf("ServeHTTP() body = %q, want spectating status", recorder.Body.String())
 	}
 }
 

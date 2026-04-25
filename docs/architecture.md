@@ -129,6 +129,7 @@ Current path shape:
 - `PATCH /routes/{code}`
 - `DELETE /routes/{code}`
 - `DELETE /routes/{code}/members/me`
+- `PUT /routes/{code}/members/me/sharing`
 
 ### WebSocket
 
@@ -154,6 +155,8 @@ Current live foundation:
   - `member_left` after a successful leave
   - `route_updated` after owner metadata updates
   - `route_closed` after owner close
+  - `member_started_sharing` after sharing is enabled
+  - `member_stopped_sharing` after sharing is disabled
 - The current hub is single-process only; Redis-backed presence/pubsub remains deferred until horizontal scale is needed
 
 ## Data Model
@@ -264,6 +267,9 @@ Examples:
 - Tracking slot count is enforced server-side
 - Limit counts only active trackers
 - Spectators remain unlimited
+- Sharing state is currently updated through `PUT /routes/{code}/members/me/sharing` with an `enabled` boolean payload
+- Enabling sharing updates the member to `tracking` and opens a path segment
+- Disabling sharing updates the member to `spectating` and ends open path segments with reason `stopped`
 - Reconnects inside the grace window keep the same segment
 - Prolonged disconnect ends the segment
 

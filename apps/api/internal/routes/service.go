@@ -30,6 +30,10 @@ var (
 	ErrInvalidInput = errors.New("invalid input")
 	// ErrRouteClosed is returned when a route no longer accepts live mutations.
 	ErrRouteClosed = errors.New("route closed")
+	// ErrSharingNotAllowed is returned when the route sharing policy forbids tracking.
+	ErrSharingNotAllowed = errors.New("sharing not allowed")
+	// ErrTrackingLimitReached is returned when all active tracking slots are occupied.
+	ErrTrackingLimitReached = errors.New("tracking limit reached")
 )
 
 var palette = []string{
@@ -55,6 +59,8 @@ type Repository interface {
 	GetMembersByRouteID(context.Context, string) ([]Member, error)
 	CountMembersByRouteID(context.Context, string) (int, error)
 	CountTrackingMembers(context.Context, string) (int, error)
+	StartTrackingMember(context.Context, string, string) (StartSharingRepoResult, error)
+	StopTrackingMember(context.Context, string, string) (Member, error)
 	UpdateRoute(context.Context, string, UpdateRouteRepoParams) (Route, error)
 	LeaveMember(context.Context, string) (Member, error)
 	DeleteRoute(context.Context, string) error
@@ -129,6 +135,12 @@ type UpdateRouteRepoParams struct {
 	Name        *string
 	Description *string
 	Status      *string
+}
+
+// StartSharingRepoResult contains the member and opened path segment.
+type StartSharingRepoResult struct {
+	Member  Member
+	Segment PathSegment
 }
 
 // CreateRoute validates input and creates a route plus owner membership.
@@ -338,6 +350,84 @@ func (s *Service) LeaveRoute(ctx context.Context, code, memberToken string) (Lea
 	}
 
 	return LeaveRouteResult{Member: member}, nil
+}
+
+// StartSharing marks an authenticated member as actively sharing location.
+func (s *Service) StartSharing(ctx context.Context, code, memberToken string) (StartSharingResult, error) {
+	if strings.TrimSpace(memberToken) == "" {
+		return StartSharingResult{}, ErrUnauthorized
+	}
+
+	authorized, err := s.repo.GetAuthorizedMemberByTokenHash(ctx, tokenHash(memberToken))
+	if err != nil {
+		return StartSharingResult{}, err
+	}
+
+	if normalizeCode(code) != authorized.Route.Code {
+		return StartSharingResult{}, ErrUnauthorized
+	}
+
+	if authorized.Route.Status != RouteStatusActive {
+		return StartSharingResult{}, ErrRouteClosed
+	}
+
+	if authorized.Member.Status == MemberStatusLeft || authorized.Member.Status == MemberStatusTracking {
+		return StartSharingResult{}, ErrInvalidInput
+	}
+
+	if !authorized.Member.IsOwner && authorized.Route.SharingPolicy != SharingPolicyEveryoneCanShare {
+		return StartSharingResult{}, ErrSharingNotAllowed
+	}
+
+	trackingCount, err := s.repo.CountTrackingMembers(ctx, authorized.Route.ID)
+	if err != nil {
+		return StartSharingResult{}, fmt.Errorf("start sharing count tracking members: %w", err)
+	}
+
+	if trackingCount >= authorized.Route.MaxTrackingMembers {
+		return StartSharingResult{}, ErrTrackingLimitReached
+	}
+
+	result, err := s.repo.StartTrackingMember(ctx, authorized.Route.ID, authorized.Member.ID)
+	if err != nil {
+		return StartSharingResult{}, fmt.Errorf("start sharing: %w", err)
+	}
+
+	return StartSharingResult{
+		Member:  result.Member,
+		Segment: result.Segment,
+	}, nil
+}
+
+// StopSharing returns an authenticated tracking member to spectator state.
+func (s *Service) StopSharing(ctx context.Context, code, memberToken string) (StopSharingResult, error) {
+	if strings.TrimSpace(memberToken) == "" {
+		return StopSharingResult{}, ErrUnauthorized
+	}
+
+	authorized, err := s.repo.GetAuthorizedMemberByTokenHash(ctx, tokenHash(memberToken))
+	if err != nil {
+		return StopSharingResult{}, err
+	}
+
+	if normalizeCode(code) != authorized.Route.Code {
+		return StopSharingResult{}, ErrUnauthorized
+	}
+
+	if authorized.Route.Status != RouteStatusActive {
+		return StopSharingResult{}, ErrRouteClosed
+	}
+
+	if authorized.Member.Status != MemberStatusTracking {
+		return StopSharingResult{}, ErrInvalidInput
+	}
+
+	member, err := s.repo.StopTrackingMember(ctx, authorized.Route.ID, authorized.Member.ID)
+	if err != nil {
+		return StopSharingResult{}, fmt.Errorf("stop sharing: %w", err)
+	}
+
+	return StopSharingResult{Member: member}, nil
 }
 
 // DeleteRoute removes a route owned by the authenticated owner token.

@@ -174,12 +174,18 @@ The backend foundation and first route lifecycle slice are complete:
    - the live hub broadcasts events to active subscriptions by route ID
    - authenticated WebSocket connections forward broadcast events to clients
    - route join, leave, metadata update, and close mutations publish lifecycle events
+16. Backend sharing state mutation is implemented:
+   - `PUT /routes/{code}/members/me/sharing` accepts an `enabled` boolean payload
+   - enabling sharing enforces route status, sharing policy, current member status, and tracking slot limits
+   - enabling sharing updates the member to `tracking`, opens a path segment, and broadcasts `member_started_sharing`
+   - disabling sharing updates the member to `spectating`, closes open path segments, and broadcasts `member_stopped_sharing`
+   - frontend route API helpers can call the sharing state endpoint
 
 ## Immediate Next Step
 
 When work resumes, continue the realtime tracking slice:
 
-1. add start/stop sharing endpoints or WebSocket commands
+1. add frontend tracking controls that call the sharing state endpoint
 2. add position update ingestion
 3. apply live marker/path updates through the existing frontend map state
 4. add stale/disconnect handling

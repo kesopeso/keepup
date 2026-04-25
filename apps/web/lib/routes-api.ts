@@ -112,6 +112,15 @@ export type RouteSnapshot = {
   viewer: ViewerCapabilities;
 };
 
+export type StartSharingResponse = {
+  member: MemberSummary;
+  segment: PathSegment;
+};
+
+export type StopSharingResponse = {
+  member: MemberSummary;
+};
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 export class ApiError extends Error {
@@ -237,6 +246,68 @@ export async function getRouteSnapshot(
   return (await response.json()) as RouteSnapshot;
 }
 
+export async function startSharing(
+  code: string,
+  memberToken: string,
+): Promise<StartSharingResponse> {
+  const response = await fetch(
+    `${apiUrl}/routes/${encodeURIComponent(code)}/members/me/sharing`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${memberToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ enabled: true }),
+    },
+  );
+
+  if (!response.ok) {
+    throw await routeApiError(response);
+  }
+
+  return (await response.json()) as StartSharingResponse;
+}
+
+export async function stopSharing(
+  code: string,
+  memberToken: string,
+): Promise<StopSharingResponse> {
+  const response = await fetch(
+    `${apiUrl}/routes/${encodeURIComponent(code)}/members/me/sharing`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${memberToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ enabled: false }),
+    },
+  );
+
+  if (!response.ok) {
+    throw await routeApiError(response);
+  }
+
+  return (await response.json()) as StopSharingResponse;
+}
+
+async function routeApiError(response: Response): Promise<ApiError> {
+  let errorCode: string | undefined;
+  try {
+    const payload = (await response.json()) as { error?: string };
+    errorCode = payload.error;
+  } catch {
+    errorCode = undefined;
+  }
+
+  return new ApiError(
+    routeErrorMessage(response.status, errorCode),
+    response.status,
+    errorCode,
+  );
+}
+
 function routeErrorMessage(status: number, code?: string): string {
   if (code === "invalid_input" || status === 400) {
     return "Check the details and try again.";
@@ -252,6 +323,18 @@ function routeErrorMessage(status: number, code?: string): string {
 
   if (status === 404) {
     return "Route not found.";
+  }
+
+  if (code === "sharing_not_allowed") {
+    return "This route only allows the owner to share location.";
+  }
+
+  if (code === "tracking_limit_reached") {
+    return "All tracking slots are currently in use.";
+  }
+
+  if (code === "route_closed") {
+    return "This route is closed.";
   }
 
   if (status === 409) {

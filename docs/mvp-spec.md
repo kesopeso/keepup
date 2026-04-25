@@ -64,6 +64,7 @@ Current API naming:
 - `PATCH /routes/{code}`
 - `DELETE /routes/{code}`
 - `DELETE /routes/{code}/members/me`
+- `PUT /routes/{code}/members/me/sharing`
 
 ## Membership and Identity
 
@@ -107,6 +108,9 @@ Current API naming:
 - Starting sharing requires usable location access
 - Route creation does not require location access
 - Stopping sharing returns member to spectator state
+- Current backend sharing state updates use `PUT /routes/{code}/members/me/sharing` with `{ "enabled": true }` to start sharing and `{ "enabled": false }` to stop sharing
+- Starting sharing updates member status to `tracking` and opens a path segment
+- Stopping sharing updates member status to `spectating` and closes open path segments
 - On refresh, if a member was previously sharing:
   - rejoin route automatically
   - show prompt:
@@ -231,6 +235,7 @@ Live stream includes:
 - `route_closed`
 
 Current backend broadcasts `member_joined`, `member_left`, `route_updated`, and `route_closed` over authenticated WebSocket route rooms.
+Current backend also broadcasts `member_started_sharing` and `member_stopped_sharing` after successful sharing state updates.
 
 ## Persistence Rules
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -387,6 +388,117 @@ func (r *PostgresRepository) CountTrackingMembers(ctx context.Context, routeID s
 	}
 
 	return count, nil
+}
+
+// StartTrackingMember marks a member as tracking and opens a path segment.
+func (r *PostgresRepository) StartTrackingMember(ctx context.Context, routeID, memberID string) (StartSharingRepoResult, error) {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return StartSharingRepoResult{}, fmt.Errorf("begin start tracking tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var member Member
+	if err := tx.QueryRow(ctx, `
+		UPDATE route_members
+		SET status = $3
+		WHERE id = $1 AND route_id = $2
+		RETURNING id, route_id, client_id, display_name, transport_mode, is_owner, status, color, joined_at, left_at
+	`, memberID, routeID, MemberStatusTracking).Scan(
+		&member.ID,
+		&member.RouteID,
+		&member.ClientID,
+		&member.DisplayName,
+		&member.TransportMode,
+		&member.IsOwner,
+		&member.Status,
+		&member.Color,
+		&member.JoinedAt,
+		&member.LeftAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return StartSharingRepoResult{}, ErrUnauthorized
+		}
+
+		return StartSharingRepoResult{}, fmt.Errorf("update tracking member row: %w", err)
+	}
+
+	var segment PathSegment
+	var startedAt time.Time
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO path_segments (route_id, member_id)
+		VALUES ($1, $2)
+		RETURNING id, started_at, ended_at
+	`, routeID, memberID).Scan(
+		&segment.ID,
+		&startedAt,
+		&segment.EndedAt,
+	); err != nil {
+		return StartSharingRepoResult{}, fmt.Errorf("insert path segment: %w", err)
+	}
+	segment.StartedAt = &startedAt
+	segment.Points = []RoutePoint{}
+
+	if err := tx.Commit(ctx); err != nil {
+		return StartSharingRepoResult{}, fmt.Errorf("commit start tracking tx: %w", err)
+	}
+
+	return StartSharingRepoResult{
+		Member:  member,
+		Segment: segment,
+	}, nil
+}
+
+// StopTrackingMember marks a member as spectating and ends open path segments.
+func (r *PostgresRepository) StopTrackingMember(ctx context.Context, routeID, memberID string) (Member, error) {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return Member{}, fmt.Errorf("begin stop tracking tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var member Member
+	if err := tx.QueryRow(ctx, `
+		UPDATE route_members
+		SET status = $3
+		WHERE id = $1 AND route_id = $2
+		RETURNING id, route_id, client_id, display_name, transport_mode, is_owner, status, color, joined_at, left_at
+	`, memberID, routeID, MemberStatusSpectating).Scan(
+		&member.ID,
+		&member.RouteID,
+		&member.ClientID,
+		&member.DisplayName,
+		&member.TransportMode,
+		&member.IsOwner,
+		&member.Status,
+		&member.Color,
+		&member.JoinedAt,
+		&member.LeftAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Member{}, ErrUnauthorized
+		}
+
+		return Member{}, fmt.Errorf("update spectating member row: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE path_segments
+		SET ended_at = COALESCE(ended_at, NOW()), end_reason = COALESCE(end_reason, $3)
+		WHERE route_id = $1 AND member_id = $2 AND ended_at IS NULL
+	`, routeID, memberID, PathSegmentEndReasonStopped); err != nil {
+		return Member{}, fmt.Errorf("end path segment: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Member{}, fmt.Errorf("commit stop tracking tx: %w", err)
+	}
+
+	return member, nil
 }
 
 // UpdateRoute mutates route name, description, and/or status.
