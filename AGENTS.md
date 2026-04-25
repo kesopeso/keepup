@@ -2,7 +2,7 @@
 
 ## Documentation Discipline
 
-- Treat files in `docs/` as project memory and source-of-truth planning artifacts.
+- Treat files in `docs/` as project memory and source-of-truth planning artifacts. Inspect every file in this folder on session start, to learn about this project.
 - On completion of any meaningful task, update the relevant files in `docs/` in the same change.
 - Do not wait for the user to remind you to refresh docs after implementation, architecture, API, workflow, or scope changes.
 - If a change affects product behavior, update `docs/mvp-spec.md`.
