@@ -286,56 +286,98 @@ function loadRouteAccess(
 
 function RouteSnapshotShell({ snapshot }: { snapshot: RouteSnapshot }) {
   const sortedMembers = [...snapshot.members].sort(compareMembers);
+  const totalPathPoints = snapshot.members.reduce(
+    (total, member) =>
+      total +
+      member.paths.reduce(
+        (memberTotal, path) => memberTotal + path.points.length,
+        0,
+      ),
+    0,
+  );
 
   return (
-    <section className="route-shell">
-      <RouteHeader
-        code={snapshot.route.code}
-        label={snapshot.route.status === "closed" ? "Archive" : "Route"}
-        title={snapshot.route.name}
-      />
+    <section className="route-screen">
+      <header className="route-topbar">
+        <div className="route-title-block">
+          <p className="eyebrow">
+            {snapshot.route.status === "closed" ? "Archive" : "Route"}
+          </p>
+          <h1>{snapshot.route.name}</h1>
+          <p className="route-code">{snapshot.route.code}</p>
+        </div>
 
-      {snapshot.route.description ? (
-        <p className="route-description">{snapshot.route.description}</p>
-      ) : null}
+        <div className="route-meta route-topbar-meta">
+          <span>{snapshot.route.status === "closed" ? "Closed" : "Active"}</span>
+          <span>{snapshot.members.length} members</span>
+        </div>
+      </header>
 
-      <div className="route-meta">
-        <span>{snapshot.route.status === "closed" ? "Closed" : "Active"}</span>
-        <span>
-          {snapshot.route.sharingPolicy === "everyone_can_share"
-            ? "Everyone can share"
-            : "Joiners view only"}
-        </span>
-        <span>{snapshot.members.length} members</span>
-      </div>
-
-      <section className="route-panel" aria-label="Viewer capabilities">
-        <h2>Your access</h2>
-        <div className="capability-grid">
-          <CapabilityLabel label="Role" value={formatRole(snapshot.viewer.role)} />
-          <CapabilityLabel
-            label="Status"
-            value={formatStatus(snapshot.viewer.status)}
-          />
-          <CapabilityLabel
-            label="Can share"
-            value={snapshot.viewer.canStartSharing ? "Yes" : "No"}
-          />
-          <CapabilityLabel
-            label="Can manage"
-            value={snapshot.viewer.canEditRoute ? "Yes" : "No"}
-          />
+      <section className="map-stage" aria-label="Route map">
+        <div className="map-surface">
+          <div className="map-grid" aria-hidden="true" />
+          <div className="map-state">
+            <strong>{totalPathPoints}</strong>
+            <span>{totalPathPoints === 1 ? "point" : "points"}</span>
+          </div>
         </div>
       </section>
 
-      <section className="route-panel" aria-label="Members">
-        <h2>Members</h2>
-        <div className="member-list">
-          {sortedMembers.map((member) => (
-            <MemberRow key={member.id} member={member} />
-          ))}
+      <aside className="member-sheet" aria-label="Route members">
+        <div className="sheet-handle" aria-hidden="true" />
+
+        <div className="sheet-section">
+          <div className="sheet-heading">
+            <h2>Route</h2>
+            <span>
+              {snapshot.route.sharingPolicy === "everyone_can_share"
+                ? "Everyone can share"
+                : "Joiners view only"}
+            </span>
+          </div>
+
+          {snapshot.route.description ? (
+            <p className="route-description">{snapshot.route.description}</p>
+          ) : null}
         </div>
-      </section>
+
+        <div className="sheet-section">
+          <div className="sheet-heading">
+            <h2>Your access</h2>
+            <span>{formatStatus(snapshot.viewer.status)}</span>
+          </div>
+          <div className="capability-grid">
+            <CapabilityLabel
+              label="Role"
+              value={formatRole(snapshot.viewer.role)}
+            />
+            <CapabilityLabel
+              label="Can share"
+              value={snapshot.viewer.canStartSharing ? "Yes" : "No"}
+            />
+            <CapabilityLabel
+              label="Can leave"
+              value={snapshot.viewer.canLeaveRoute ? "Yes" : "No"}
+            />
+            <CapabilityLabel
+              label="Can manage"
+              value={snapshot.viewer.canEditRoute ? "Yes" : "No"}
+            />
+          </div>
+        </div>
+
+        <div className="sheet-section">
+          <div className="sheet-heading">
+            <h2>Members</h2>
+            <span>{sortedMembers.length}</span>
+          </div>
+          <div className="member-list">
+            {sortedMembers.map((member) => (
+              <MemberRow key={member.id} member={member} />
+            ))}
+          </div>
+        </div>
+      </aside>
     </section>
   );
 }

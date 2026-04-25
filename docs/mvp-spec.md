@@ -154,6 +154,7 @@ Current API naming:
   - route header
   - map
   - member bottom sheet
+- Current pre-map route screen reserves a stable map surface and renders the member bottom sheet from snapshot data
 - Route code is visible but secondary to share action
 - Share uses native Web Share API when available, with copy-link fallback
 

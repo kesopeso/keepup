@@ -146,15 +146,22 @@ The backend foundation and first route lifecycle slice are complete:
    - route pages call `GET /routes/{code}` with the saved member token
    - invalid saved member access is cleared and returns to the join flow
    - the first route screen shell renders route metadata, viewer capabilities, and members
+11. Route screen layout refinement is implemented:
+   - authenticated route view has a route header
+   - map area has stable pre-MapLibre dimensions
+   - member bottom sheet renders route metadata, viewer capabilities, and sorted members
 
 ## Immediate Next Step
 
-When work resumes, continue with the frontend integration against the existing route API:
+When work resumes, discuss and decide the MapLibre integration approach before implementation:
 
-1. refine the route screen layout into the intended header/member sheet structure
-2. add MapLibre route rendering
+1. map package/dependency setup
+2. tile provider configuration
+3. map adapter boundaries
+4. snapshot path and marker rendering rules
 
 After that, move into:
 
-1. WebSocket realtime lifecycle
-2. start/stop sharing location flow
+1. implement MapLibre route rendering
+2. WebSocket realtime lifecycle
+3. start/stop sharing location flow

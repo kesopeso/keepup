@@ -45,7 +45,8 @@ docker-compose.yml
 - Successful join responses save the route-scoped member token before fetching the authenticated snapshot
 - Browsers with saved member access fetch `GET /routes/{code}` with `Authorization: Bearer <memberToken>`
 - Unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
-- The route screen currently renders route metadata, viewer capabilities, and the snapshot member list before map integration
+- The authenticated route screen uses a route header, reserved map surface, and member bottom sheet before MapLibre integration
+- The member bottom sheet renders route metadata, viewer capabilities, and the snapshot member list
 - The helper owns local storage access for:
   - stable `clientId`
   - saved `displayName`
