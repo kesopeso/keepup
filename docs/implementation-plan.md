@@ -191,10 +191,13 @@ The backend foundation and first route lifecycle slice are complete:
    - accepted points are stored in `position_points`
    - accepted points are broadcast to route subscribers as `position_updated`
    - invalid or disallowed points return `position_rejected` to the sender
+19. Frontend live tracking updates are implemented:
+   - authenticated route screens open a WebSocket live connection after active snapshot load
+   - tracking viewers send browser geolocation samples as `position_update` messages over the live connection
+   - accepted `position_updated` events append to the route map state for live marker and path updates without a snapshot refresh
 
 ## Immediate Next Step
 
 When work resumes, continue the realtime tracking slice:
 
-1. apply live marker/path updates through the existing frontend map state
-2. add stale/disconnect handling
+1. add stale/disconnect handling

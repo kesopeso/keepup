@@ -87,6 +87,7 @@ export type PathSegment = {
 };
 
 export type RoutePoint = {
+  seq?: number;
   latitude: number;
   longitude: number;
   accuracyM?: number;
@@ -122,6 +123,9 @@ export type StopSharingResponse = {
 };
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+
+export const routeWebSocketUrl =
+  process.env.NEXT_PUBLIC_WS_URL ?? webSocketUrl(apiUrl);
 
 export class ApiError extends Error {
   constructor(
@@ -346,4 +350,13 @@ function routeErrorMessage(status: number, code?: string): string {
   }
 
   return "Could not load the route.";
+}
+
+function webSocketUrl(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = "/ws";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
 }

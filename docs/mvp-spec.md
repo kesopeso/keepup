@@ -172,6 +172,9 @@ Current API naming:
 - Current route screen renders a stable MapLibre-backed map surface and the member bottom sheet from snapshot data
 - Current member bottom sheet renders start/stop sharing controls from viewer capabilities and refreshes the route snapshot after sharing changes
 - Current map surface renders snapshot path polylines and latest member point markers through the map adapter
+- Current route screen opens an authenticated WebSocket live connection for active routes after authenticated snapshot load
+- Current tracking viewers stream browser geolocation samples over the authenticated WebSocket
+- Current map surface applies accepted `position_updated` events directly to live marker and path state
 - Route code is visible but secondary to share action
 - Share uses native Web Share API when available, with copy-link fallback
 
@@ -241,6 +244,7 @@ Live stream includes:
 Current backend broadcasts `member_joined`, `member_left`, `route_updated`, and `route_closed` over authenticated WebSocket route rooms.
 Current backend also broadcasts `member_started_sharing` and `member_stopped_sharing` after successful sharing state updates.
 Current backend accepts authenticated WebSocket `position_update` messages and broadcasts accepted points as `position_updated`.
+Current frontend connects to the authenticated WebSocket for active routes, sends `position_update` messages while the viewer is tracking, and applies `position_updated` events to the displayed map state.
 
 ## Persistence Rules
 

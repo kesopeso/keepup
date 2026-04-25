@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { RouteMap } from "../../components/route-map";
 import {
   clearRouteAuth,
@@ -16,13 +16,18 @@ import {
   getRouteAccess,
   getRouteSnapshot,
   joinRoute,
+  routeWebSocketUrl,
   startSharing,
   stopSharing,
   type RouteAccess,
+  type RoutePoint,
   type RouteSnapshot,
   type SnapshotMember,
 } from "../../../lib/routes-api";
-import { routeSnapshotToMapState } from "../../../lib/map/snapshot-map-state";
+import {
+  appendLiveRoutePoint,
+  routeSnapshotToMapState,
+} from "../../../lib/map/snapshot-map-state";
 
 const transportLabels: Record<TransportMode, string> = {
   walking: "Walking",
@@ -314,8 +319,10 @@ function RouteSnapshotShell({
     null,
   );
   const [sharingError, setSharingError] = useState("");
+  const [liveTrackingError, setLiveTrackingError] = useState("");
+  const websocketRef = useRef<WebSocket | null>(null);
+  const [mapState, setMapState] = useState(() => routeSnapshotToMapState(snapshot));
   const sortedMembers = [...snapshot.members].sort(compareMembers);
-  const mapState = routeSnapshotToMapState(snapshot);
   const canUseSharingControl =
     memberToken !== "" &&
     snapshot.route.status === "active" &&
@@ -326,6 +333,110 @@ function RouteSnapshotShell({
     : "Start sharing";
   const sharingControlBusyLabel =
     sharingAction === "stop" ? "Stopping..." : "Starting...";
+  const isViewerTracking =
+    memberToken !== "" &&
+    snapshot.route.status === "active" &&
+    snapshot.viewer.status === "tracking";
+
+  useEffect(() => {
+    setMapState(routeSnapshotToMapState(snapshot));
+  }, [snapshot]);
+
+  useEffect(() => {
+    if (memberToken === "" || snapshot.route.status !== "active") {
+      return;
+    }
+
+    let isCurrent = true;
+    const socket = new WebSocket(routeWebSocketUrl);
+    websocketRef.current = socket;
+
+    socket.addEventListener("open", () => {
+      socket.send(
+        JSON.stringify({
+          type: "authenticate",
+          memberToken,
+        }),
+      );
+    });
+
+    socket.addEventListener("message", (event) => {
+      const liveEvent = parseLiveEvent(event.data);
+      if (!liveEvent || !isCurrent) {
+        return;
+      }
+
+      if (liveEvent.type === "position_updated") {
+        setMapState((current) =>
+          appendLiveRoutePoint(current, {
+            memberId: liveEvent.memberId,
+            segmentId: liveEvent.segmentId,
+            point: liveEvent.point,
+          }),
+        );
+        return;
+      }
+
+      if (liveEvent.type === "position_rejected") {
+        setLiveTrackingError(positionRejectedMessage(liveEvent.error));
+      }
+    });
+
+    socket.addEventListener("close", () => {
+      if (websocketRef.current === socket) {
+        websocketRef.current = null;
+      }
+    });
+
+    socket.addEventListener("error", () => {
+      if (isCurrent) {
+        setLiveTrackingError("Live route connection is unavailable.");
+      }
+    });
+
+    return () => {
+      isCurrent = false;
+      if (websocketRef.current === socket) {
+        websocketRef.current = null;
+      }
+      socket.close();
+    };
+  }, [memberToken, snapshot.route.status]);
+
+  useEffect(() => {
+    if (!isViewerTracking) {
+      return;
+    }
+
+    if (!("geolocation" in navigator)) {
+      setLiveTrackingError("Location sharing is not available in this browser.");
+      return;
+    }
+
+    setLiveTrackingError("");
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const socket = websocketRef.current;
+        if (!socket || socket.readyState !== WebSocket.OPEN) {
+          return;
+        }
+
+        socket.send(JSON.stringify(positionUpdatePayload(position)));
+      },
+      () => {
+        setLiveTrackingError("Location sharing needs browser location access.");
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5_000,
+        timeout: 20_000,
+      },
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [isViewerTracking]);
 
   async function handleSharingControl() {
     if (!canUseSharingControl) {
@@ -438,6 +549,12 @@ function RouteSnapshotShell({
               {sharingError}
             </p>
           ) : null}
+
+          {liveTrackingError ? (
+            <p className="form-error" role="alert">
+              {liveTrackingError}
+            </p>
+          ) : null}
         </div>
 
         <div className="sheet-section">
@@ -482,6 +599,102 @@ function MemberRow({ member }: { member: SnapshotMember }) {
       </div>
     </article>
   );
+}
+
+type LiveEvent =
+  | {
+      type: "connection_established";
+    }
+  | {
+      type: "position_updated";
+      memberId: string;
+      segmentId?: string;
+      point: RoutePoint;
+    }
+  | {
+      type: "position_rejected";
+      error?: string;
+    }
+  | {
+      type: "message_rejected";
+      error?: string;
+    };
+
+function parseLiveEvent(payload: string | ArrayBufferLike | Blob): LiveEvent | null {
+  if (typeof payload !== "string") {
+    return null;
+  }
+
+  try {
+    const event = JSON.parse(payload) as Partial<LiveEvent>;
+    if (event.type === "position_updated" && isPositionUpdatedEvent(event)) {
+      return event;
+    }
+
+    if (
+      event.type === "position_rejected" ||
+      event.type === "message_rejected" ||
+      event.type === "connection_established"
+    ) {
+      return event as LiveEvent;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function isPositionUpdatedEvent(
+  event: Partial<LiveEvent>,
+): event is Extract<LiveEvent, { type: "position_updated" }> {
+  if (
+    event.type !== "position_updated" ||
+    typeof event.memberId !== "string" ||
+    !event.point
+  ) {
+    return false;
+  }
+
+  return (
+    typeof event.point.latitude === "number" &&
+    typeof event.point.longitude === "number" &&
+    typeof event.point.recordedAt === "string"
+  );
+}
+
+function positionUpdatePayload(position: GeolocationPosition) {
+  const { coords } = position;
+  return {
+    type: "position_update",
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    accuracyM: finiteOrUndefined(coords.accuracy),
+    altitudeM: finiteOrUndefined(coords.altitude),
+    speedMps: finiteOrUndefined(coords.speed),
+    headingDeg: finiteOrUndefined(coords.heading),
+    clientRecordedAt: new Date(position.timestamp).toISOString(),
+  };
+}
+
+function finiteOrUndefined(value: number | null): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function positionRejectedMessage(error?: string) {
+  if (error === "route_closed") {
+    return "This route is closed.";
+  }
+
+  if (error === "unauthorized") {
+    return "Route access expired. Join again to continue.";
+  }
+
+  if (error === "invalid_input") {
+    return "The latest location update could not be used.";
+  }
+
+  return "The latest location update was rejected.";
 }
 
 function compareMembers(first: SnapshotMember, second: SnapshotMember) {
