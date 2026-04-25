@@ -16,6 +16,8 @@ import {
   getRouteAccess,
   getRouteSnapshot,
   joinRoute,
+  startSharing,
+  stopSharing,
   type RouteAccess,
   type RouteSnapshot,
   type SnapshotMember,
@@ -40,6 +42,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
+  const [memberToken, setMemberToken] = useState("");
   const [snapshot, setSnapshot] = useState<RouteSnapshot | null>(null);
 
   useEffect(() => {
@@ -51,6 +54,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
 
     const routeAuth = getRouteAuth(code);
     if (routeAuth?.memberToken) {
+      setMemberToken(routeAuth.memberToken);
       getRouteSnapshot(code, routeAuth.memberToken)
         .then((routeSnapshot) => {
           if (!isMounted) {
@@ -70,6 +74,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
             caughtError.code === "unauthorized"
           ) {
             clearRouteAuth(code);
+            setMemberToken("");
             loadRouteAccess(
               code,
               () => isMounted,
@@ -138,6 +143,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
       saveRouteAuth(result.route.code, {
         memberToken: result.memberToken,
       });
+      setMemberToken(result.memberToken);
       const routeSnapshot = await getRouteSnapshot(
         result.route.code,
         result.memberToken,
@@ -164,7 +170,14 @@ export function JoinRouteScreen({ code }: { code: string }) {
   }
 
   if (snapshot) {
-    return <RouteSnapshotShell snapshot={snapshot} />;
+    return (
+      <RouteSnapshotShell
+        code={code}
+        memberToken={memberToken}
+        onSnapshotChange={setSnapshot}
+        snapshot={snapshot}
+      />
+    );
   }
 
   if (!access) {
@@ -286,9 +299,69 @@ function loadRouteAccess(
     });
 }
 
-function RouteSnapshotShell({ snapshot }: { snapshot: RouteSnapshot }) {
+function RouteSnapshotShell({
+  code,
+  memberToken,
+  onSnapshotChange,
+  snapshot,
+}: {
+  code: string;
+  memberToken: string;
+  onSnapshotChange: (snapshot: RouteSnapshot) => void;
+  snapshot: RouteSnapshot;
+}) {
+  const [sharingAction, setSharingAction] = useState<"start" | "stop" | null>(
+    null,
+  );
+  const [sharingError, setSharingError] = useState("");
   const sortedMembers = [...snapshot.members].sort(compareMembers);
   const mapState = routeSnapshotToMapState(snapshot);
+  const canUseSharingControl =
+    memberToken !== "" &&
+    snapshot.route.status === "active" &&
+    !sharingAction &&
+    (snapshot.viewer.canStartSharing || snapshot.viewer.canStopSharing);
+  const sharingControlLabel = snapshot.viewer.canStopSharing
+    ? "Stop sharing"
+    : "Start sharing";
+  const sharingControlBusyLabel =
+    sharingAction === "stop" ? "Stopping..." : "Starting...";
+
+  async function handleSharingControl() {
+    if (!canUseSharingControl) {
+      return;
+    }
+
+    setSharingError("");
+    const shouldStartSharing = snapshot.viewer.canStartSharing;
+    setSharingAction(shouldStartSharing ? "start" : "stop");
+
+    try {
+      if (shouldStartSharing) {
+        await startSharing(code, memberToken);
+      } else {
+        await stopSharing(code, memberToken);
+      }
+
+      const nextSnapshot = await getRouteSnapshot(code, memberToken);
+      onSnapshotChange(nextSnapshot);
+    } catch (caughtError) {
+      if (
+        caughtError instanceof ApiError &&
+        caughtError.code === "unauthorized"
+      ) {
+        clearRouteAuth(code);
+      }
+
+      setSharingError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not update sharing.",
+      );
+    } finally {
+      setSharingAction(null);
+    }
+  }
 
   return (
     <section className="route-screen">
@@ -350,6 +423,21 @@ function RouteSnapshotShell({ snapshot }: { snapshot: RouteSnapshot }) {
               value={snapshot.viewer.canEditRoute ? "Yes" : "No"}
             />
           </div>
+
+          <button
+            className="sharing-action"
+            disabled={!canUseSharingControl}
+            onClick={handleSharingControl}
+            type="button"
+          >
+            {sharingAction ? sharingControlBusyLabel : sharingControlLabel}
+          </button>
+
+          {sharingError ? (
+            <p className="form-error" role="alert">
+              {sharingError}
+            </p>
+          ) : null}
         </div>
 
         <div className="sheet-section">

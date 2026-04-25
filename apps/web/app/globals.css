@@ -427,6 +427,20 @@ code {
   overflow-wrap: anywhere;
 }
 
+.sharing-action {
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #052e16;
+  font-weight: 800;
+}
+
+.sharing-action:disabled {
+  opacity: 0.48;
+}
+
 .member-list {
   display: grid;
   gap: 10px;

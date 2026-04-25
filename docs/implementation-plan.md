@@ -180,12 +180,16 @@ The backend foundation and first route lifecycle slice are complete:
    - enabling sharing updates the member to `tracking`, opens a path segment, and broadcasts `member_started_sharing`
    - disabling sharing updates the member to `spectating`, closes open path segments, and broadcasts `member_stopped_sharing`
    - frontend route API helpers can call the sharing state endpoint
+17. Frontend tracking controls are wired to backend sharing state:
+   - the authenticated route screen keeps the saved member token available while rendering a snapshot
+   - the member bottom sheet shows a start/stop sharing action from viewer capabilities
+   - starting and stopping sharing call `PUT /routes/{code}/members/me/sharing`
+   - the screen refreshes the authenticated snapshot after each successful sharing state mutation
 
 ## Immediate Next Step
 
 When work resumes, continue the realtime tracking slice:
 
-1. add frontend tracking controls that call the sharing state endpoint
-2. add position update ingestion
-3. apply live marker/path updates through the existing frontend map state
-4. add stale/disconnect handling
+1. add position update ingestion
+2. apply live marker/path updates through the existing frontend map state
+3. add stale/disconnect handling

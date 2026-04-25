@@ -47,6 +47,7 @@ docker-compose.yml
 - Unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
 - The authenticated route screen uses a route header, MapLibre-backed map surface, and member bottom sheet
 - The member bottom sheet renders route metadata, viewer capabilities, and the snapshot member list
+- The member bottom sheet uses viewer capabilities to show a start/stop sharing action, calls the sharing state endpoint, then refreshes the authenticated snapshot
 - Map rendering is behind a framework-neutral `RouteMapRenderer` interface in `apps/web/lib/map`
 - Snapshot DTOs are converted to a map-specific `RouteMapState` before reaching the renderer
 - The renderer factory returns a MapLibre adapter that consumes route paths and latest member points from `RouteMapState`
