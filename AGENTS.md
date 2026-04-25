@@ -13,5 +13,7 @@
 ## Current Workflow
 
 - Local development runs via `docker compose up`.
+- All application tooling runs through Docker Compose services.
+- Do not run host `pnpm`, `npm`, Go, or other app toolchain commands directly; use Docker Compose instead.
 - Database migrations are manual via `golang-migrate`.
 - The API must not auto-apply migrations on startup.
