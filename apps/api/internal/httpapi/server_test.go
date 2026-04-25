@@ -14,6 +14,9 @@ import (
 
 	"keepup/apps/api/internal/config"
 	"keepup/apps/api/internal/routes"
+
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 )
 
 type stubHealthChecker struct {
@@ -25,13 +28,14 @@ func (s stubHealthChecker) Ping(_ context.Context) error {
 }
 
 type stubRouteService struct {
-	accessRouteFn func(context.Context, string) (routes.AccessRouteResult, error)
-	createRouteFn func(context.Context, routes.CreateRouteInput) (routes.CreateRouteResult, error)
-	deleteRouteFn func(context.Context, string, string) error
-	joinRouteFn   func(context.Context, string, routes.JoinRouteInput) (routes.JoinRouteResult, error)
-	leaveRouteFn  func(context.Context, string, string) (routes.LeaveRouteResult, error)
-	snapshotFn    func(context.Context, string, string) (routes.Snapshot, error)
-	updateRouteFn func(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
+	accessRouteFn     func(context.Context, string) (routes.AccessRouteResult, error)
+	authorizeMemberFn func(context.Context, string) (routes.AuthorizedMember, error)
+	createRouteFn     func(context.Context, routes.CreateRouteInput) (routes.CreateRouteResult, error)
+	deleteRouteFn     func(context.Context, string, string) error
+	joinRouteFn       func(context.Context, string, routes.JoinRouteInput) (routes.JoinRouteResult, error)
+	leaveRouteFn      func(context.Context, string, string) (routes.LeaveRouteResult, error)
+	snapshotFn        func(context.Context, string, string) (routes.Snapshot, error)
+	updateRouteFn     func(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
 }
 
 func (s stubRouteService) CreateRoute(ctx context.Context, input routes.CreateRouteInput) (routes.CreateRouteResult, error) {
@@ -48,6 +52,14 @@ func (s stubRouteService) AccessRoute(ctx context.Context, code string) (routes.
 	}
 
 	return s.accessRouteFn(ctx, code)
+}
+
+func (s stubRouteService) AuthorizeMember(ctx context.Context, memberToken string) (routes.AuthorizedMember, error) {
+	if s.authorizeMemberFn == nil {
+		return routes.AuthorizedMember{}, nil
+	}
+
+	return s.authorizeMemberFn(ctx, memberToken)
 }
 
 func (s stubRouteService) JoinRoute(ctx context.Context, code string, input routes.JoinRouteInput) (routes.JoinRouteResult, error) {
@@ -535,6 +547,121 @@ func TestDeleteRouteHandler(t *testing.T) {
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusNoContent)
 	}
+}
+
+func TestWebSocketAuthenticatesFirstMessage(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
+		stubHealthChecker{},
+		stubRouteService{
+			authorizeMemberFn: func(_ context.Context, token string) (routes.AuthorizedMember, error) {
+				if token != "member-token" {
+					t.Fatalf("AuthorizeMember() token = %q, want member-token", token)
+				}
+
+				return routes.AuthorizedMember{
+					Route: routes.Route{
+						ID:     "route-1",
+						Code:   "K7P9QD",
+						Status: routes.RouteStatusActive,
+					},
+					Member: routes.Member{
+						ID:     "member-1",
+						Status: routes.MemberStatusSpectating,
+					},
+				}, nil
+			},
+		},
+	)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	connection, _, err := websocket.Dial(ctx, webSocketURL(server.URL), nil)
+	if err != nil {
+		t.Fatalf("websocket.Dial() error = %v", err)
+	}
+	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+
+	if err := wsjson.Write(ctx, connection, map[string]string{
+		"type":        "authenticate",
+		"memberToken": "member-token",
+	}); err != nil {
+		t.Fatalf("wsjson.Write() error = %v", err)
+	}
+
+	var event struct {
+		Type  string `json:"type"`
+		Route struct {
+			Code string `json:"code"`
+		} `json:"route"`
+		Member struct {
+			ID string `json:"id"`
+		} `json:"member"`
+	}
+	if err := wsjson.Read(ctx, connection, &event); err != nil {
+		t.Fatalf("wsjson.Read() error = %v", err)
+	}
+
+	if event.Type != "connection_established" {
+		t.Fatalf("event type = %q, want connection_established", event.Type)
+	}
+
+	if event.Route.Code != "K7P9QD" || event.Member.ID != "member-1" {
+		t.Fatalf("event route/member = %q/%q, want K7P9QD/member-1", event.Route.Code, event.Member.ID)
+	}
+}
+
+func TestWebSocketRejectsInvalidFirstMessageToken(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
+		stubHealthChecker{},
+		stubRouteService{
+			authorizeMemberFn: func(_ context.Context, _ string) (routes.AuthorizedMember, error) {
+				return routes.AuthorizedMember{}, routes.ErrUnauthorized
+			},
+		},
+	)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	connection, _, err := websocket.Dial(ctx, webSocketURL(server.URL), nil)
+	if err != nil {
+		t.Fatalf("websocket.Dial() error = %v", err)
+	}
+	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+
+	if err := wsjson.Write(ctx, connection, map[string]string{
+		"type":        "authenticate",
+		"memberToken": "bad-token",
+	}); err != nil {
+		t.Fatalf("wsjson.Write() error = %v", err)
+	}
+
+	var event map[string]any
+	err = wsjson.Read(ctx, connection, &event)
+	if err == nil {
+		t.Fatal("wsjson.Read() error = nil, want close error")
+	}
+
+	if status := websocket.CloseStatus(err); status != websocket.StatusPolicyViolation {
+		t.Fatalf("websocket close status = %v, want %v", status, websocket.StatusPolicyViolation)
+	}
+}
+
+func webSocketURL(serverURL string) string {
+	return "ws" + strings.TrimPrefix(serverURL, "http") + "/ws"
 }
 
 type testWriter struct {

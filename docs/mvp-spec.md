@@ -201,6 +201,15 @@ Within the same status group, sort by join time.
 
 ## Live Protocol
 
+WebSocket authentication:
+
+- Client connects to `GET /ws`
+- Client sends first message:
+  - `{ "type": "authenticate", "memberToken": "..." }`
+- Server closes the socket if authentication does not arrive before the configured timeout
+- Default first-message authentication timeout: `5s`
+- Server sends `connection_established` after successful authentication and route room subscription
+
 Live stream includes:
 
 - `member_joined`

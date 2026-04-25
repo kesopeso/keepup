@@ -13,10 +13,15 @@ import (
 	"time"
 
 	"keepup/apps/api/internal/config"
+	"keepup/apps/api/internal/live"
 	"keepup/apps/api/internal/routes"
+
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 )
 
 const healthCheckTimeout = 2 * time.Second
+const defaultWebSocketAuthTimeout = 5 * time.Second
 
 // HealthChecker reports whether the API dependencies are reachable.
 type HealthChecker interface {
@@ -27,6 +32,7 @@ type HealthChecker interface {
 type Server struct {
 	appConfig config.AppConfig
 	db        HealthChecker
+	liveHub   *live.Hub
 	logger    *slog.Logger
 	routes    RouteService
 }
@@ -35,6 +41,7 @@ type Server struct {
 type RouteService interface {
 	CreateRoute(context.Context, routes.CreateRouteInput) (routes.CreateRouteResult, error)
 	AccessRoute(context.Context, string) (routes.AccessRouteResult, error)
+	AuthorizeMember(context.Context, string) (routes.AuthorizedMember, error)
 	JoinRoute(context.Context, string, routes.JoinRouteInput) (routes.JoinRouteResult, error)
 	Snapshot(context.Context, string, string) (routes.Snapshot, error)
 	UpdateRoute(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
@@ -47,8 +54,12 @@ func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, rou
 	server := &Server{
 		appConfig: cfg,
 		db:        db,
+		liveHub:   live.NewHub(),
 		logger:    logger,
 		routes:    routeService,
+	}
+	if server.appConfig.WebSocketAuthTimeout <= 0 {
+		server.appConfig.WebSocketAuthTimeout = defaultWebSocketAuthTimeout
 	}
 
 	mux := http.NewServeMux()
@@ -62,6 +73,7 @@ func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, rou
 	mux.HandleFunc("PATCH /routes/{code}", server.handleUpdateRoute)
 	mux.HandleFunc("DELETE /routes/{code}", server.handleDeleteRoute)
 	mux.HandleFunc("DELETE /routes/{code}/members/me", server.handleLeaveRoute)
+	mux.HandleFunc("GET /ws", server.handleWebSocket)
 
 	return server.withCORS(server.withLogging(mux))
 }
@@ -252,6 +264,68 @@ func (s *Server) handleDeleteRoute(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	connection, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		InsecureSkipVerify: true,
+	})
+	if err != nil {
+		s.logger.Error("websocket accept failed", "error", err)
+		return
+	}
+	defer func() {
+		if err := connection.Close(websocket.StatusNormalClosure, "closing"); err != nil {
+			s.logger.Debug("websocket close failed", "error", err)
+		}
+	}()
+
+	authMessage, err := readWebSocketAuth(r.Context(), connection, s.appConfig.WebSocketAuthTimeout)
+	if err != nil {
+		s.logger.Info("websocket authentication failed", "error", err)
+		_ = connection.Close(websocket.StatusPolicyViolation, "authentication required")
+		return
+	}
+
+	authorized, err := s.routes.AuthorizeMember(r.Context(), authMessage.MemberToken)
+	if err != nil {
+		s.logger.Info("websocket token rejected", "error", err)
+		_ = connection.Close(websocket.StatusPolicyViolation, "unauthorized")
+		return
+	}
+
+	subscription := s.liveHub.Subscribe(authorized.Route.ID, authorized.Member.ID)
+	defer subscription.Close()
+
+	s.logger.Info("websocket subscribed",
+		"route_id", authorized.Route.ID,
+		"route_code", authorized.Route.Code,
+		"member_id", authorized.Member.ID,
+		"connections", s.liveHub.RouteConnectionCount(authorized.Route.ID),
+	)
+
+	if err := writeWebSocketJSON(r.Context(), connection, map[string]any{
+		"type": "connection_established",
+		"route": map[string]any{
+			"id":     authorized.Route.ID,
+			"code":   authorized.Route.Code,
+			"status": authorized.Route.Status,
+		},
+		"member": map[string]any{
+			"id":     authorized.Member.ID,
+			"status": authorized.Member.Status,
+		},
+	}); err != nil {
+		s.logger.Debug("websocket initial write failed", "error", err)
+		return
+	}
+
+	for {
+		var message map[string]any
+		if err := wsjson.Read(r.Context(), connection, &message); err != nil {
+			return
+		}
+	}
+}
+
 func (s *Server) writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
@@ -368,4 +442,37 @@ func bearerToken(header string) string {
 	}
 
 	return strings.TrimSpace(strings.TrimPrefix(header, prefix))
+}
+
+type webSocketAuthMessage struct {
+	Type        string `json:"type"`
+	MemberToken string `json:"memberToken"`
+}
+
+func readWebSocketAuth(ctx context.Context, connection *websocket.Conn, timeout time.Duration) (webSocketAuthMessage, error) {
+	authCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var message webSocketAuthMessage
+	if err := wsjson.Read(authCtx, connection, &message); err != nil {
+		return webSocketAuthMessage{}, fmt.Errorf("read auth message: %w", err)
+	}
+
+	if message.Type != "authenticate" || strings.TrimSpace(message.MemberToken) == "" {
+		return webSocketAuthMessage{}, routes.ErrUnauthorized
+	}
+
+	message.MemberToken = strings.TrimSpace(message.MemberToken)
+	return message, nil
+}
+
+func writeWebSocketJSON(ctx context.Context, connection *websocket.Conn, payload any) error {
+	writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := wsjson.Write(writeCtx, connection, payload); err != nil {
+		return fmt.Errorf("write websocket json: %w", err)
+	}
+
+	return nil
 }

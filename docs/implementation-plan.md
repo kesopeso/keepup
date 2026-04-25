@@ -162,13 +162,20 @@ The backend foundation and first route lifecycle slice are complete:
    - latest member points render as member-colored markers
    - initial and auto-follow viewport mode fits visible route geometry
    - manual map interaction disables auto-follow
+14. Backend WebSocket authentication and route room subscription are implemented:
+   - `GET /ws` upgrades to WebSocket
+   - client must send first-message auth with `{ "type": "authenticate", "memberToken": "..." }`
+   - first-message auth deadline is configured by `WEBSOCKET_AUTH_TIMEOUT`
+   - default auth timeout is `5s`
+   - valid member tokens subscribe the connection to an in-memory route room
+   - server sends `connection_established` after successful subscription
 
 ## Immediate Next Step
 
-When work resumes, move into the realtime tracking slice:
+When work resumes, continue the realtime tracking slice:
 
-1. WebSocket authentication by member token
-2. route room subscription
-3. start/stop sharing location controls
-4. position update ingestion
-5. live marker/path updates through the existing map state
+1. add live event broadcast primitives to the hub
+2. broadcast membership/status events from existing REST lifecycle mutations where relevant
+3. add start/stop sharing endpoints or WebSocket commands
+4. add position update ingestion
+5. apply live marker/path updates through the existing frontend map state

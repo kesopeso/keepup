@@ -12,6 +12,7 @@ const (
 	defaultAppEnv                = "development"
 	defaultAppPort               = "8080"
 	defaultDatabaseStartupWindow = 20 * time.Second
+	defaultWebSocketAuthTimeout  = 5 * time.Second
 	defaultMaxTrackingMembers    = 10
 )
 
@@ -24,8 +25,9 @@ type Config struct {
 
 // AppConfig contains HTTP server settings.
 type AppConfig struct {
-	Env  string
-	Port string
+	Env                  string
+	Port                 string
+	WebSocketAuthTimeout time.Duration
 }
 
 // DatabaseConfig contains PostgreSQL connection settings.
@@ -64,6 +66,17 @@ func Load() (Config, error) {
 	}
 
 	cfg.Database.StartupTimeout = startupTimeout
+
+	webSocketAuthTimeout, err := durationOrDefault("WEBSOCKET_AUTH_TIMEOUT", defaultWebSocketAuthTimeout)
+	if err != nil {
+		return Config{}, fmt.Errorf("load config: %w", err)
+	}
+
+	if webSocketAuthTimeout <= 0 {
+		return Config{}, fmt.Errorf("load config: WEBSOCKET_AUTH_TIMEOUT must be greater than zero")
+	}
+
+	cfg.App.WebSocketAuthTimeout = webSocketAuthTimeout
 
 	maxTrackingMembers, err := intOrDefault("DEFAULT_MAX_TRACKING_MEMBERS", defaultMaxTrackingMembers)
 	if err != nil {

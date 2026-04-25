@@ -362,6 +362,20 @@ func (s *Service) DeleteRoute(ctx context.Context, code, ownerToken string) erro
 	return nil
 }
 
+// AuthorizeMember resolves a member token into route/member data.
+func (s *Service) AuthorizeMember(ctx context.Context, memberToken string) (AuthorizedMember, error) {
+	if strings.TrimSpace(memberToken) == "" {
+		return AuthorizedMember{}, ErrUnauthorized
+	}
+
+	authorized, err := s.repo.GetAuthorizedMemberByTokenHash(ctx, tokenHash(memberToken))
+	if err != nil {
+		return AuthorizedMember{}, err
+	}
+
+	return authorized, nil
+}
+
 // Snapshot returns the full route bootstrap payload for an authenticated member.
 func (s *Service) Snapshot(ctx context.Context, code, memberToken string) (Snapshot, error) {
 	if strings.TrimSpace(memberToken) == "" {

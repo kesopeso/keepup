@@ -124,12 +124,22 @@ Current path shape:
 
 ### WebSocket
 
-- authenticate member token
+- accept `GET /ws` and require the first client message to authenticate with a member token
+- close unauthenticated sockets if the auth message does not arrive before `WEBSOCKET_AUTH_TIMEOUT`
 - subscribe connection to route live events
 - receive `position_update`
 - publish live membership/status updates
 
 Business logic must not live only in the WebSocket handlers. Tracking rules belong in application services.
+
+Current live foundation:
+
+- The backend owns an in-memory live hub in `apps/api/internal/live`
+- A WebSocket connection must first send `{ "type": "authenticate", "memberToken": "..." }`
+- `WEBSOCKET_AUTH_TIMEOUT` controls the first-message auth deadline and defaults to `5s`
+- Authenticated sockets are registered in a per-route room keyed by route ID
+- The server sends `connection_established` with route/member identity after successful auth
+- The current hub is single-process only; Redis-backed presence/pubsub remains deferred until horizontal scale is needed
 
 ## Data Model
 

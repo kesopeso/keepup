@@ -13,6 +13,7 @@ func TestLoad(t *testing.T) {
 		wantPort                      string
 		wantEnv                       string
 		wantTimeout                   time.Duration
+		wantWebSocketAuthTimeout      time.Duration
 		wantDefaultMaxTrackingMembers int
 	}{
 		{
@@ -23,6 +24,7 @@ func TestLoad(t *testing.T) {
 			wantPort:                      defaultAppPort,
 			wantEnv:                       defaultAppEnv,
 			wantTimeout:                   defaultDatabaseStartupWindow,
+			wantWebSocketAuthTimeout:      defaultWebSocketAuthTimeout,
 			wantDefaultMaxTrackingMembers: defaultMaxTrackingMembers,
 		},
 		{
@@ -32,11 +34,13 @@ func TestLoad(t *testing.T) {
 				"APP_PORT":                     "9090",
 				"DATABASE_URL":                 "postgres://keepup:keepup@postgres:5432/keepup?sslmode=disable",
 				"DATABASE_STARTUP_TIMEOUT":     "45s",
+				"WEBSOCKET_AUTH_TIMEOUT":       "3s",
 				"DEFAULT_MAX_TRACKING_MEMBERS": "14",
 			},
 			wantPort:                      "9090",
 			wantEnv:                       "test",
 			wantTimeout:                   45 * time.Second,
+			wantWebSocketAuthTimeout:      3 * time.Second,
 			wantDefaultMaxTrackingMembers: 14,
 		},
 		{
@@ -52,6 +56,14 @@ func TestLoad(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "fails on non-positive websocket auth timeout",
+			env: map[string]string{
+				"DATABASE_URL":           "postgres://keepup:keepup@postgres:5432/keepup?sslmode=disable",
+				"WEBSOCKET_AUTH_TIMEOUT": "0s",
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -61,6 +73,7 @@ func TestLoad(t *testing.T) {
 			t.Setenv("APP_PORT", "")
 			t.Setenv("DATABASE_URL", "")
 			t.Setenv("DATABASE_STARTUP_TIMEOUT", "")
+			t.Setenv("WEBSOCKET_AUTH_TIMEOUT", "")
 			t.Setenv("DEFAULT_MAX_TRACKING_MEMBERS", "")
 
 			for key, value := range tc.env {
@@ -90,6 +103,10 @@ func TestLoad(t *testing.T) {
 
 			if cfg.Database.StartupTimeout != tc.wantTimeout {
 				t.Fatalf("Load() startup timeout = %v, want %v", cfg.Database.StartupTimeout, tc.wantTimeout)
+			}
+
+			if cfg.App.WebSocketAuthTimeout != tc.wantWebSocketAuthTimeout {
+				t.Fatalf("Load() websocket auth timeout = %v, want %v", cfg.App.WebSocketAuthTimeout, tc.wantWebSocketAuthTimeout)
 			}
 
 			if cfg.Routes.DefaultMaxTrackingMembers != tc.wantDefaultMaxTrackingMembers {
