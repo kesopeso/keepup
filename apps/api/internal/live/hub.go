@@ -3,17 +3,23 @@ package live
 
 import "sync"
 
+const subscriptionEventBuffer = 32
+
 // Hub tracks active WebSocket subscriptions by route.
 type Hub struct {
 	mu    sync.RWMutex
 	rooms map[string]map[*Subscription]struct{}
 }
 
+// Event is one live route event ready to send to subscribed clients.
+type Event map[string]any
+
 // Subscription represents one live route connection.
 type Subscription struct {
 	hub      *Hub
 	routeID  string
 	memberID string
+	events   chan Event
 	closed   bool
 }
 
@@ -33,6 +39,7 @@ func (h *Hub) Subscribe(routeID, memberID string) *Subscription {
 		hub:      h,
 		routeID:  routeID,
 		memberID: memberID,
+		events:   make(chan Event, subscriptionEventBuffer),
 	}
 
 	if h.rooms[routeID] == nil {
@@ -55,9 +62,15 @@ func (s *Subscription) Close() {
 	s.closed = true
 	room := s.hub.rooms[s.routeID]
 	delete(room, s)
+	close(s.events)
 	if len(room) == 0 {
 		delete(s.hub.rooms, s.routeID)
 	}
+}
+
+// Events returns the live event stream for this subscription.
+func (s *Subscription) Events() <-chan Event {
+	return s.events
 }
 
 // RouteID returns the subscribed route ID.
@@ -76,4 +89,21 @@ func (h *Hub) RouteConnectionCount(routeID string) int {
 	defer h.mu.RUnlock()
 
 	return len(h.rooms[routeID])
+}
+
+// Broadcast publishes an event to active subscriptions in one route room.
+func (h *Hub) Broadcast(routeID string, event Event) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	delivered := 0
+	for subscription := range h.rooms[routeID] {
+		select {
+		case subscription.events <- event:
+			delivered++
+		default:
+		}
+	}
+
+	return delivered
 }

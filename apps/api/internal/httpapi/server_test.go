@@ -617,6 +617,121 @@ func TestWebSocketAuthenticatesFirstMessage(t *testing.T) {
 	}
 }
 
+func TestWebSocketReceivesMemberJoinedBroadcast(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now().UTC()
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
+		stubHealthChecker{},
+		stubRouteService{
+			authorizeMemberFn: func(_ context.Context, token string) (routes.AuthorizedMember, error) {
+				if token != "member-token" {
+					t.Fatalf("AuthorizeMember() token = %q, want member-token", token)
+				}
+
+				return routes.AuthorizedMember{
+					Route: routes.Route{
+						ID:     "route-1",
+						Code:   "K7P9QD",
+						Status: routes.RouteStatusActive,
+					},
+					Member: routes.Member{
+						ID:     "member-1",
+						Status: routes.MemberStatusSpectating,
+					},
+				}, nil
+			},
+			joinRouteFn: func(_ context.Context, code string, input routes.JoinRouteInput) (routes.JoinRouteResult, error) {
+				if code != "K7P9QD" {
+					t.Fatalf("JoinRoute() code = %q, want K7P9QD", code)
+				}
+
+				return routes.JoinRouteResult{
+					Route: routes.Route{
+						ID:     "route-1",
+						Code:   "K7P9QD",
+						Status: routes.RouteStatusActive,
+					},
+					Member: routes.Member{
+						ID:            "member-2",
+						RouteID:       "route-1",
+						DisplayName:   input.DisplayName,
+						TransportMode: input.TransportMode,
+						Status:        routes.MemberStatusSpectating,
+						JoinedAt:      now,
+					},
+					MemberToken: "new-member-token",
+				}, nil
+			},
+		},
+	)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	connection, _, err := websocket.Dial(ctx, webSocketURL(server.URL), nil)
+	if err != nil {
+		t.Fatalf("websocket.Dial() error = %v", err)
+	}
+	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+
+	if err := wsjson.Write(ctx, connection, map[string]string{
+		"type":        "authenticate",
+		"memberToken": "member-token",
+	}); err != nil {
+		t.Fatalf("wsjson.Write() error = %v", err)
+	}
+
+	var established map[string]any
+	if err := wsjson.Read(ctx, connection, &established); err != nil {
+		t.Fatalf("read connection_established error = %v", err)
+	}
+
+	body := map[string]string{
+		"clientId":      "client-2",
+		"displayName":   "Matej",
+		"transportMode": "train",
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	response, err := http.Post(server.URL+"/routes/K7P9QD/members", "application/json", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("http.Post() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /routes/K7P9QD/members status = %d, want %d", response.StatusCode, http.StatusCreated)
+	}
+
+	var event struct {
+		Type   string `json:"type"`
+		Member struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"displayName"`
+			Status      string `json:"status"`
+		} `json:"member"`
+	}
+	if err := wsjson.Read(ctx, connection, &event); err != nil {
+		t.Fatalf("read member_joined event error = %v", err)
+	}
+
+	if event.Type != "member_joined" {
+		t.Fatalf("event type = %q, want member_joined", event.Type)
+	}
+
+	if event.Member.ID != "member-2" || event.Member.DisplayName != "Matej" || event.Member.Status != routes.MemberStatusSpectating {
+		t.Fatalf("event member = %#v, want joined member", event.Member)
+	}
+}
+
 func TestWebSocketRejectsInvalidFirstMessageToken(t *testing.T) {
 	t.Parallel()
 

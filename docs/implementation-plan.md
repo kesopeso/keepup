@@ -169,13 +169,17 @@ The backend foundation and first route lifecycle slice are complete:
    - default auth timeout is `5s`
    - valid member tokens subscribe the live connection to an in-memory route room
    - server sends `connection_established` after successful subscription
+15. Backend live event broadcast primitives are implemented:
+   - route room subscriptions expose buffered event channels
+   - the live hub broadcasts events to active subscriptions by route ID
+   - authenticated WebSocket connections forward broadcast events to clients
+   - route join, leave, metadata update, and close mutations publish lifecycle events
 
 ## Immediate Next Step
 
 When work resumes, continue the realtime tracking slice:
 
-1. add live event broadcast primitives to the live hub
-2. broadcast membership/status events from existing REST lifecycle mutations where relevant
-3. add start/stop sharing endpoints or WebSocket commands
-4. add position update ingestion
-5. apply live marker/path updates through the existing frontend map state
+1. add start/stop sharing endpoints or WebSocket commands
+2. add position update ingestion
+3. apply live marker/path updates through the existing frontend map state
+4. add stale/disconnect handling

@@ -230,6 +230,8 @@ Live stream includes:
 - `route_updated`
 - `route_closed`
 
+Current backend broadcasts `member_joined`, `member_left`, `route_updated`, and `route_closed` over authenticated WebSocket route rooms.
+
 ## Persistence Rules
 
 - Store accepted raw GPS readings as source of truth

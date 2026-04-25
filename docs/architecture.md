@@ -147,6 +147,13 @@ Current live foundation:
 - `WEBSOCKET_AUTH_TIMEOUT` controls the first-message auth deadline and defaults to `5s`
 - Authenticated live connections are registered in a route room keyed by route ID
 - The server sends `connection_established` with route/member identity after successful auth
+- Each route room subscription owns a buffered live event channel
+- The live hub can broadcast live events to all active subscriptions in a route room
+- REST lifecycle mutations currently broadcast:
+  - `member_joined` after a successful join
+  - `member_left` after a successful leave
+  - `route_updated` after owner metadata updates
+  - `route_closed` after owner close
 - The current hub is single-process only; Redis-backed presence/pubsub remains deferred until horizontal scale is needed
 
 ## Data Model

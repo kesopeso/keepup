@@ -183,6 +183,10 @@ func (s *Server) handleCreateRouteMember(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	s.broadcastLiveEvent(result.Route.ID, live.Event{
+		"type":   "member_joined",
+		"member": result.Member,
+	})
 	s.writeJSON(w, http.StatusCreated, result)
 }
 
@@ -230,6 +234,14 @@ func (s *Server) handleUpdateRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	eventType := "route_updated"
+	if result.Status == routes.RouteStatusClosed {
+		eventType = "route_closed"
+	}
+	s.broadcastLiveEvent(result.ID, live.Event{
+		"type":  eventType,
+		"route": result,
+	})
 	s.writeJSON(w, http.StatusOK, result)
 }
 
@@ -246,6 +258,10 @@ func (s *Server) handleLeaveRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.broadcastLiveEvent(result.Member.RouteID, live.Event{
+		"type":   "member_left",
+		"member": result.Member,
+	})
 	s.writeJSON(w, http.StatusOK, result)
 }
 
@@ -318,11 +334,44 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for {
-		var message map[string]any
-		if err := wsjson.Read(r.Context(), connection, &message); err != nil {
-			return
+	readErrCh := make(chan error, 1)
+	go func() {
+		for {
+			var message map[string]any
+			if err := wsjson.Read(r.Context(), connection, &message); err != nil {
+				readErrCh <- err
+				return
+			}
 		}
+	}()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case err := <-readErrCh:
+			s.logger.Debug("websocket read loop ended", "error", err)
+			return
+		case event, ok := <-subscription.Events():
+			if !ok {
+				return
+			}
+			if err := writeWebSocketJSON(r.Context(), connection, event); err != nil {
+				s.logger.Debug("websocket event write failed", "error", err)
+				return
+			}
+		}
+	}
+}
+
+func (s *Server) broadcastLiveEvent(routeID string, event live.Event) {
+	if strings.TrimSpace(routeID) == "" {
+		return
+	}
+
+	delivered := s.liveHub.Broadcast(routeID, event)
+	if delivered > 0 {
+		s.logger.Debug("broadcast live event", "route_id", routeID, "type", event["type"], "delivered", delivered)
 	}
 }
 
