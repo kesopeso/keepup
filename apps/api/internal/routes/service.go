@@ -411,10 +411,7 @@ func (s *Service) StartSharing(ctx context.Context, code, memberToken string) (S
 		return StartSharingResult{}, fmt.Errorf("start sharing: %w", err)
 	}
 
-	return StartSharingResult{
-		Member:  result.Member,
-		Segment: result.Segment,
-	}, nil
+	return StartSharingResult(result), nil
 }
 
 // StopSharing returns an authenticated tracking member to spectator state.

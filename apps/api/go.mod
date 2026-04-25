@@ -3,9 +3,9 @@ module keepup/apps/api
 go 1.25.0
 
 require (
+	github.com/coder/websocket v1.8.14
 	github.com/jackc/pgx/v5 v5.9.2
 	golang.org/x/crypto v0.50.0
-	nhooyr.io/websocket v1.8.17
 )
 
 require (

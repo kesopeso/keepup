@@ -3,8 +3,10 @@ FROM golang:1.25-alpine
 WORKDIR /workspace/apps/api
 
 ENV PATH="/usr/local/go/bin:${PATH}"
+ARG GOLANGCI_LINT_VERSION=v2.11.4
 
-RUN apk add --no-cache build-base git
+RUN apk add --no-cache build-base ca-certificates git
 RUN go install github.com/air-verse/air@latest
+RUN wget -O- -nv https://golangci-lint.run/install.sh | sh -s -- -b /usr/local/bin "${GOLANGCI_LINT_VERSION}"
 
 EXPOSE 8080

@@ -82,6 +82,7 @@ docker-compose.yml
 
 - API config is loaded from environment variables
 - PostgreSQL connectivity is established on startup with retry/backoff inside a bounded startup window
+- API dev tooling runs inside the Docker Compose API service, including `golangci-lint`
 - `/livez` reports process liveness
 - `/healthz` checks database reachability
 - HTTP server shutdown is tied to process signal cancellation

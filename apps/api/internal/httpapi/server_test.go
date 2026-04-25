@@ -15,8 +15,8 @@ import (
 	"keepup/apps/api/internal/config"
 	"keepup/apps/api/internal/routes"
 
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 type stubHealthChecker struct {
@@ -699,7 +699,9 @@ func TestWebSocketAuthenticatesFirstMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("websocket.Dial() error = %v", err)
 	}
-	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+	defer func() {
+		_ = connection.Close(websocket.StatusNormalClosure, "test complete")
+	}()
 
 	if err := wsjson.Write(ctx, connection, map[string]string{
 		"type":        "authenticate",
@@ -790,7 +792,9 @@ func TestWebSocketReceivesMemberJoinedBroadcast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("websocket.Dial() error = %v", err)
 	}
-	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+	defer func() {
+		_ = connection.Close(websocket.StatusNormalClosure, "test complete")
+	}()
 
 	if err := wsjson.Write(ctx, connection, map[string]string{
 		"type":        "authenticate",
@@ -818,7 +822,9 @@ func TestWebSocketReceivesMemberJoinedBroadcast(t *testing.T) {
 	if err != nil {
 		t.Fatalf("http.Post() error = %v", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		_ = response.Body.Close()
+	}()
 
 	if response.StatusCode != http.StatusCreated {
 		t.Fatalf("POST /routes/K7P9QD/members status = %d, want %d", response.StatusCode, http.StatusCreated)
@@ -920,7 +926,9 @@ func TestWebSocketRecordsAndBroadcastsPositionUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("websocket.Dial() error = %v", err)
 	}
-	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+	defer func() {
+		_ = connection.Close(websocket.StatusNormalClosure, "test complete")
+	}()
 
 	if err := wsjson.Write(ctx, connection, map[string]string{
 		"type":        "authenticate",
@@ -1008,7 +1016,9 @@ func TestWebSocketRejectsInvalidPositionUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("websocket.Dial() error = %v", err)
 	}
-	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+	defer func() {
+		_ = connection.Close(websocket.StatusNormalClosure, "test complete")
+	}()
 
 	if err := wsjson.Write(ctx, connection, map[string]string{
 		"type":        "authenticate",
@@ -1065,7 +1075,9 @@ func TestWebSocketRejectsInvalidFirstMessageToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("websocket.Dial() error = %v", err)
 	}
-	defer connection.Close(websocket.StatusNormalClosure, "test complete")
+	defer func() {
+		_ = connection.Close(websocket.StatusNormalClosure, "test complete")
+	}()
 
 	if err := wsjson.Write(ctx, connection, map[string]string{
 		"type":        "authenticate",

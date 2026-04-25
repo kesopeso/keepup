@@ -12,6 +12,7 @@
 
 - Main entrypoint: `docker compose up`
 - Root helper commands are in the `Makefile`
+- API linting runs inside the API container with `make lint-api`
 - Database migrations are manual via `golang-migrate`; they are not applied automatically on API startup
 
 ## Repository Structure

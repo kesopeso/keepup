@@ -16,8 +16,8 @@ import (
 	"keepup/apps/api/internal/live"
 	"keepup/apps/api/internal/routes"
 
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 const healthCheckTimeout = 2 * time.Second
@@ -592,7 +592,9 @@ func Serve(ctx context.Context, logger *slog.Logger, cfg config.AppConfig, handl
 }
 
 func decodeJSON(body io.ReadCloser, dst any) error {
-	defer body.Close()
+	defer func() {
+		_ = body.Close()
+	}()
 
 	if err := json.NewDecoder(body).Decode(dst); err != nil {
 		return fmt.Errorf("decode json: %w", err)
