@@ -89,7 +89,7 @@ Build the thinnest end-to-end path first:
 1. create route
 2. join route
 3. fetch snapshot
-4. open websocket
+4. open live connection
 5. start sharing
 6. broadcast position updates
 7. draw paths on the map
@@ -167,14 +167,14 @@ The backend foundation and first route lifecycle slice are complete:
    - client must send first-message auth with `{ "type": "authenticate", "memberToken": "..." }`
    - first-message auth deadline is configured by `WEBSOCKET_AUTH_TIMEOUT`
    - default auth timeout is `5s`
-   - valid member tokens subscribe the connection to an in-memory route room
+   - valid member tokens subscribe the live connection to an in-memory route room
    - server sends `connection_established` after successful subscription
 
 ## Immediate Next Step
 
 When work resumes, continue the realtime tracking slice:
 
-1. add live event broadcast primitives to the hub
+1. add live event broadcast primitives to the live hub
 2. broadcast membership/status events from existing REST lifecycle mutations where relevant
 3. add start/stop sharing endpoints or WebSocket commands
 4. add position update ingestion

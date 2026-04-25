@@ -25,6 +25,14 @@ KeepUp is a mobile-first web app for live route sharing between friends, groups,
 - Access metadata: the public pre-join route data returned by the access endpoint
 - Snapshot: the authenticated full route bootstrap payload for rendering the route screen
 - Archive: a closed, read-only route that preserves historical data
+- Live connection: one authenticated WebSocket connection for a route member
+- First-message authentication: the required first WebSocket message that authenticates a live connection with a member token
+- WebSocket authentication timeout: the maximum time a live connection may remain unauthenticated after opening
+- Live hub: the server-side coordinator that tracks live connections by route room
+- Route room: the live fan-out group for all live connections subscribed to one route
+- Route room subscription: the membership of one live connection in one route room
+- Live event: a server-published realtime fact sent to route room subscribers
+- Position update: a live event carrying one accepted location point for a tracker
 
 ## Route Access
 
@@ -206,7 +214,7 @@ WebSocket authentication:
 - Client connects to `GET /ws`
 - Client sends first message:
   - `{ "type": "authenticate", "memberToken": "..." }`
-- Server closes the socket if authentication does not arrive before the configured timeout
+- Server closes the live connection if authentication does not arrive before the configured timeout
 - Default first-message authentication timeout: `5s`
 - Server sends `connection_established` after successful authentication and route room subscription
 

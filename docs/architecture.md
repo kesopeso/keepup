@@ -30,7 +30,7 @@ docker-compose.yml
 ### Frontend State Boundaries
 
 - Route snapshot from REST
-- Live deltas from WebSocket
+- Live events from WebSocket
 - Local browser identity and per-route tokens from local storage
 - Map adapter separated from tile provider config
 
@@ -98,6 +98,14 @@ docker-compose.yml
 - Access metadata: public route pre-join information
 - Snapshot: authenticated route bootstrap payload used to render the route screen
 - Archive: closed route state with preserved history
+- Live connection: one authenticated WebSocket connection for a route member
+- First-message authentication: the required first WebSocket message that authenticates a live connection with a member token
+- WebSocket authentication timeout: the maximum time a live connection may remain unauthenticated after opening
+- Live hub: server-side coordinator that tracks live connections by route room
+- Route room: live fan-out group for all live connections subscribed to one route
+- Route room subscription: membership of one live connection in one route room
+- Live event: server-published realtime fact sent to route room subscribers
+- Position update: live event carrying one accepted location point for a tracker
 
 ## Service Responsibilities
 
@@ -125,7 +133,7 @@ Current path shape:
 ### WebSocket
 
 - accept `GET /ws` and require the first client message to authenticate with a member token
-- close unauthenticated sockets if the auth message does not arrive before `WEBSOCKET_AUTH_TIMEOUT`
+- close unauthenticated live connections if the auth message does not arrive before `WEBSOCKET_AUTH_TIMEOUT`
 - subscribe connection to route live events
 - receive `position_update`
 - publish live membership/status updates
@@ -135,9 +143,9 @@ Business logic must not live only in the WebSocket handlers. Tracking rules belo
 Current live foundation:
 
 - The backend owns an in-memory live hub in `apps/api/internal/live`
-- A WebSocket connection must first send `{ "type": "authenticate", "memberToken": "..." }`
+- A live connection must first send `{ "type": "authenticate", "memberToken": "..." }`
 - `WEBSOCKET_AUTH_TIMEOUT` controls the first-message auth deadline and defaults to `5s`
-- Authenticated sockets are registered in a per-route room keyed by route ID
+- Authenticated live connections are registered in a route room keyed by route ID
 - The server sends `connection_established` with route/member identity after successful auth
 - The current hub is single-process only; Redis-backed presence/pubsub remains deferred until horizontal scale is needed
 
@@ -226,7 +234,7 @@ Snapshot should return:
 - latest known live points where relevant
 - current viewer capabilities
 
-The goal is to render the route page fully before live deltas arrive.
+The goal is to render the route page fully before live events arrive.
 
 ## Realtime Model
 
@@ -286,6 +294,6 @@ Use structured logs from the start. Add metrics for:
 - point counts
 - request durations
 - accepted/rejected position updates
-- websocket connections/messages
+- live connections/events
 
 This is enough to decide later when snapshot chunking, caching, or path derivation is needed.
