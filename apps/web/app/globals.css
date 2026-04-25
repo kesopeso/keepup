@@ -286,26 +286,28 @@ code {
   min-height: 280px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(34, 197, 94, 0.16), transparent 34%),
-    linear-gradient(315deg, rgba(245, 158, 11, 0.12), transparent 38%),
-    #12181d;
+  background: #12181d;
 }
 
-.map-grid {
+.maplibre-route-map {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
-  background-size: 34px 34px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.92), transparent);
+}
+
+.maplibre-route-map .maplibregl-ctrl-attrib {
+  background: rgba(12, 16, 20, 0.78);
+  color: var(--text-muted);
+}
+
+.maplibre-route-map .maplibregl-ctrl-attrib a {
+  color: var(--text);
 }
 
 .map-state {
   position: absolute;
   right: 14px;
   bottom: 14px;
+  z-index: 2;
   display: grid;
   min-width: 92px;
   padding: 10px 12px;
@@ -331,6 +333,7 @@ code {
   position: absolute;
   top: 14px;
   right: 14px;
+  z-index: 2;
   display: flex;
   gap: 8px;
   align-items: center;

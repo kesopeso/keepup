@@ -54,7 +54,6 @@ export function RouteMap({ state }: { state: RouteMapState }) {
   return (
     <section className="map-stage" aria-label="Route map">
       <div className="map-surface" ref={containerRef}>
-        <div className="map-grid" aria-hidden="true" />
         <div className="map-state">
           <strong>{pointCount}</strong>
           <span>{pointCount === 1 ? "point" : "points"}</span>

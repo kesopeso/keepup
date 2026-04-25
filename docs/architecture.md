@@ -45,11 +45,13 @@ docker-compose.yml
 - Successful join responses save the route-scoped member token before fetching the authenticated snapshot
 - Browsers with saved member access fetch `GET /routes/{code}` with `Authorization: Bearer <memberToken>`
 - Unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
-- The authenticated route screen uses a route header, reserved map surface, and member bottom sheet before MapLibre integration
+- The authenticated route screen uses a route header, MapLibre-backed map surface, and member bottom sheet
 - The member bottom sheet renders route metadata, viewer capabilities, and the snapshot member list
 - Map rendering is behind a framework-neutral `RouteMapRenderer` interface in `apps/web/lib/map`
 - Snapshot DTOs are converted to a map-specific `RouteMapState` before reaching the renderer
-- The current renderer factory returns a placeholder adapter; MapLibre should replace that implementation without changing route screen state ownership
+- The renderer factory returns a MapLibre adapter that consumes route paths and latest member points from `RouteMapState`
+- Tile provider configuration lives separately from the renderer in `apps/web/lib/map/tile-provider.ts`
+- The MapLibre adapter renders historical path polylines and latest member point markers, fits the initial viewport to visible route geometry, and switches to manual viewport mode on map interaction
 - The helper owns local storage access for:
   - stable `clientId`
   - saved `displayName`

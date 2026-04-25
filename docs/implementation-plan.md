@@ -150,23 +150,25 @@ The backend foundation and first route lifecycle slice are complete:
    - authenticated route view has a route header
    - map area has stable pre-MapLibre dimensions
    - member bottom sheet renders route metadata, viewer capabilities, and sorted members
-12. Map display abstraction is implemented with a placeholder adapter:
+12. Map display abstraction is implemented:
    - `RouteMapRenderer` owns rendering and viewport commands only
    - snapshot DTOs are normalized into `RouteMapState`
    - route screen renders through the React map wrapper
-   - renderer factory currently returns the placeholder implementation
+13. MapLibre route rendering is implemented:
+   - `maplibre-gl` is installed for the web app
+   - tile provider configuration is isolated from renderer logic
+   - renderer factory returns the MapLibre adapter
+   - snapshot paths render as member-colored polylines
+   - latest member points render as member-colored markers
+   - initial and auto-follow viewport mode fits visible route geometry
+   - manual map interaction disables auto-follow
 
 ## Immediate Next Step
 
-When work resumes, discuss and decide the MapLibre integration approach before implementation:
+When work resumes, move into the realtime tracking slice:
 
-1. map package/dependency setup
-2. tile provider configuration
-3. replacing the placeholder renderer in the existing factory
-4. snapshot path and marker rendering rules
-
-After that, move into:
-
-1. implement MapLibre route rendering
-2. WebSocket realtime lifecycle
-3. start/stop sharing location flow
+1. WebSocket authentication by member token
+2. route room subscription
+3. start/stop sharing location controls
+4. position update ingestion
+5. live marker/path updates through the existing map state

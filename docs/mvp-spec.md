@@ -154,8 +154,8 @@ Current API naming:
   - route header
   - map
   - member bottom sheet
-- Current pre-map route screen reserves a stable map surface and renders the member bottom sheet from snapshot data
-- Current map surface is backed by a placeholder adapter until MapLibre rendering is added
+- Current route screen renders a stable MapLibre-backed map surface and the member bottom sheet from snapshot data
+- Current map surface renders snapshot path polylines and latest member point markers through the map adapter
 - Route code is visible but secondary to share action
 - Share uses native Web Share API when available, with copy-link fallback
 
