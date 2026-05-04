@@ -12,8 +12,6 @@ services:
       - "3000:3000"
     volumes:
       - .:/workspace
-      - web_node_modules:/workspace/apps/web/node_modules
-      - web_next:/workspace/apps/web/.next
     depends_on:
       - api
 
@@ -60,5 +58,3 @@ volumes:
   go_build_cache:
   go_pkg_mod:
   postgres_data:
-  web_next:
-  web_node_modules:
