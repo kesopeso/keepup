@@ -1,7 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { RouteMap } from "../../components/route-map";
+import { SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   clearRouteAuth,
   getProfile,
@@ -11,6 +10,10 @@ import {
   transportModes,
   type TransportMode,
 } from "../../../lib/identity-storage";
+import {
+  appendLiveRoutePoint,
+  routeSnapshotToMapState,
+} from "../../../lib/map/snapshot-map-state";
 import {
   ApiError,
   getRouteAccess,
@@ -24,10 +27,7 @@ import {
   type RouteSnapshot,
   type SnapshotMember,
 } from "../../../lib/routes-api";
-import {
-  appendLiveRoutePoint,
-  routeSnapshotToMapState,
-} from "../../../lib/map/snapshot-map-state";
+import { RouteMap } from "../../components/route-map";
 
 const transportLabels: Record<TransportMode, string> = {
   walking: "Walking",
@@ -121,7 +121,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
     [access?.requiresPassword, displayName, isJoining, password],
   );
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
