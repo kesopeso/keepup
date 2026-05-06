@@ -3,8 +3,10 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile.dev
-    working_dir: /workspace/apps/web
-    command: sh -c "corepack enable && pnpm install && pnpm dev"
+    working_dir: /workspace
+    command: >
+      sh -c "pnpm --filter '@keepup/web' install &&
+             pnpm --filter '@keepup/web' dev"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8080
       NEXT_PUBLIC_WS_URL: ws://localhost:8080/ws

@@ -1,0 +1,24 @@
+# Ignore all node_modules everywhere
+**/node_modules
+
+# Ignore git and IDE metadata
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+# Ignore build outputs
+**/dist
+**/build
+**/.next
+**/out
+
+# Ignore logs
+**/npm-debug.log*
+**/pnpm-debug.log*
+**/yarn-error.log*
+
+# Ignore local env files (don't bake secrets into images!)
+**/.env
+**/.env.local

@@ -1,8 +1,14 @@
 FROM node:25-alpine
 
-WORKDIR /workspace/apps/web
+RUN npm install -g corepack --force && corepack enable
 
-RUN corepack enable
+WORKDIR /workspace
+
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+
+RUN corepack use pnpm
+
+COPY apps/web/package.json ./apps/web
 
 EXPOSE 3000
 
