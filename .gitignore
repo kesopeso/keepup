@@ -16,7 +16,6 @@ dist/
 coverage/
 
 # Go
-bin/
 *.test
 *.out
 apps/api/tmp/

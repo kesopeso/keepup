@@ -12,6 +12,12 @@ docs/
 docker-compose.yml
 ```
 
+## Local Development Workflow
+
+- `docker compose up` starts the main local stack: web, api, and postgres.
+- One-off web pnpm commands can run through `bin/web-pnpm.sh`, which uses the dependency-free `web-helper` Compose service.
+- Example: `./bin/web-pnpm.sh build`
+
 ## Frontend
 
 - Next.js

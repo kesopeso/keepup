@@ -17,6 +17,16 @@ services:
     depends_on:
       - api
 
+  web-helper:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.dev
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    profiles:
+      - tools
+
   api:
     build:
       context: .
