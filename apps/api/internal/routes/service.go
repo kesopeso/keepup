@@ -60,6 +60,7 @@ type Repository interface {
 	GetAuthorizedMemberByTokenHash(context.Context, string) (AuthorizedMember, error)
 	GetAuthorizedOwnerByTokenHash(context.Context, string) (AuthorizedMember, error)
 	GetMembersByRouteID(context.Context, string) ([]Member, error)
+	GetPathSegmentsByRouteID(context.Context, string) (map[string][]PathSegment, error)
 	CountMembersByRouteID(context.Context, string) (int, error)
 	CountTrackingMembers(context.Context, string) (int, error)
 	StartTrackingMember(context.Context, string, string) (StartSharingRepoResult, error)
@@ -544,6 +545,11 @@ func (s *Service) Snapshot(ctx context.Context, code, memberToken string) (Snaps
 		return Snapshot{}, fmt.Errorf("load snapshot members: %w", err)
 	}
 
+	pathsByMemberID, err := s.repo.GetPathSegmentsByRouteID(ctx, authorized.Route.ID)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("load snapshot paths: %w", err)
+	}
+
 	trackingCount, err := s.repo.CountTrackingMembers(ctx, authorized.Route.ID)
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("load tracking count: %w", err)
@@ -555,6 +561,10 @@ func (s *Service) Snapshot(ctx context.Context, code, memberToken string) (Snaps
 		if member.IsOwner {
 			role = RoleOwner
 		}
+		paths := pathsByMemberID[member.ID]
+		if paths == nil {
+			paths = []PathSegment{}
+		}
 
 		snapshotMembers = append(snapshotMembers, SnapshotMember{
 			ID:            member.ID,
@@ -565,7 +575,7 @@ func (s *Service) Snapshot(ctx context.Context, code, memberToken string) (Snaps
 			Color:         member.Color,
 			JoinedAt:      member.JoinedAt,
 			LeftAt:        member.LeftAt,
-			Paths:         []PathSegment{},
+			Paths:         paths,
 		})
 	}
 

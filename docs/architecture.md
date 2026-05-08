@@ -53,10 +53,11 @@ docker-compose.yml
 - Unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
 - The authenticated route screen uses a route header, MapLibre-backed map surface, and member bottom sheet
 - The member bottom sheet renders route metadata, viewer capabilities, and the snapshot member list
-- The member bottom sheet uses viewer capabilities to show a start/stop sharing action, calls the sharing state endpoint, then refreshes the authenticated snapshot
+- The member bottom sheet uses viewer capabilities to show a start/stop sharing action, calls the sharing state endpoint, then updates local member/viewer state without refreshing the authenticated snapshot
 - The authenticated route screen opens an authenticated WebSocket live connection for active routes with saved member access
 - Active tracking viewers stream browser geolocation samples as `position_update` messages over the live connection
 - Incoming `position_updated` events update the in-memory map state so live markers and paths move without refetching the snapshot
+- Incoming sharing status events update local member/viewer state without replacing rendered route paths
 - Browser position access is isolated behind `apps/web/lib/navigation-service.ts`
 - In development, the navigation service emits the first real browser position, then broadcasts simulated movement every 2 seconds in roughly 10m direction-biased steps with small random turns
 - Map rendering is behind a framework-neutral `RouteMapRenderer` interface in `apps/web/lib/map`
@@ -260,7 +261,7 @@ Snapshot should return:
 - latest known live points where relevant
 - current viewer capabilities
 
-The goal is to render the route page fully before live events arrive.
+The route snapshot currently loads persisted path segments and position points. The goal is to render the route page fully before live events arrive.
 
 ## Realtime Model
 

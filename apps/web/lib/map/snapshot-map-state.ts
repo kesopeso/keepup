@@ -32,6 +32,32 @@ export function routeSnapshotToMapState(snapshot: RouteSnapshot): RouteMapState 
   };
 }
 
+export function mergeSnapshotIntoMapState(
+  current: RouteMapState,
+  snapshot: RouteSnapshot,
+): RouteMapState {
+  const nextState = routeSnapshotToMapState(snapshot);
+  const currentMembersByID = new Map(
+    current.members.map((member) => [member.id, member]),
+  );
+
+  return {
+    ...current,
+    members: nextState.members.map((member) => {
+      const currentMember = currentMembersByID.get(member.id);
+      if (!currentMember || countPoints(member.paths) >= countPoints(currentMember.paths)) {
+        return member;
+      }
+
+      return {
+        ...member,
+        paths: currentMember.paths,
+        latestPoint: currentMember.latestPoint,
+      };
+    }),
+  };
+}
+
 export function appendLiveRoutePoint(
   state: RouteMapState,
   update: {
@@ -84,6 +110,19 @@ export function appendLiveRoutePoint(
   };
 }
 
+export function updateMapMemberStatus(
+  state: RouteMapState,
+  memberId: string,
+  status: string,
+): RouteMapState {
+  return {
+    ...state,
+    members: state.members.map((member) =>
+      member.id === memberId ? { ...member, status } : member,
+    ),
+  };
+}
+
 function latestPointFromPaths(
   paths: Array<{ points: RouteMapPoint[] }>,
 ): RouteMapPoint | undefined {
@@ -94,4 +133,8 @@ function latestPointFromPaths(
         new Date(second.recordedAt).getTime() -
         new Date(first.recordedAt).getTime(),
     )[0];
+}
+
+function countPoints(paths: Array<{ points: RouteMapPoint[] }>) {
+  return paths.reduce((total, path) => total + path.points.length, 0);
 }

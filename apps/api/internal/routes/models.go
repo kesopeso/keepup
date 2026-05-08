@@ -168,7 +168,7 @@ type Snapshot struct {
 	Viewer  ViewerCapabilities `json:"viewer"`
 }
 
-// SnapshotMember contains a member and their empty path history placeholder.
+// SnapshotMember contains a member and their persisted path history.
 type SnapshotMember struct {
 	ID            string        `json:"id"`
 	DisplayName   string        `json:"displayName"`

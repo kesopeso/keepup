@@ -363,6 +363,98 @@ func (r *PostgresRepository) GetMembersByRouteID(ctx context.Context, routeID st
 	return members, nil
 }
 
+// GetPathSegmentsByRouteID loads persisted route paths grouped by member.
+func (r *PostgresRepository) GetPathSegmentsByRouteID(ctx context.Context, routeID string) (map[string][]PathSegment, error) {
+	segmentRows, err := r.db.Query(ctx, `
+		SELECT id, member_id, started_at, ended_at
+		FROM path_segments
+		WHERE route_id = $1
+		ORDER BY started_at ASC, id ASC
+	`, routeID)
+	if err != nil {
+		return nil, fmt.Errorf("query path segments: %w", err)
+	}
+	defer segmentRows.Close()
+
+	pathsByMemberID := map[string][]PathSegment{}
+	segmentMemberIDs := map[string]string{}
+	segmentIndexes := map[string]int{}
+
+	for segmentRows.Next() {
+		var memberID string
+		var segment PathSegment
+		if err := segmentRows.Scan(
+			&segment.ID,
+			&memberID,
+			&segment.StartedAt,
+			&segment.EndedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan path segment: %w", err)
+		}
+
+		segment.Points = []RoutePoint{}
+		pathsByMemberID[memberID] = append(pathsByMemberID[memberID], segment)
+		segmentMemberIDs[segment.ID] = memberID
+		segmentIndexes[segment.ID] = len(pathsByMemberID[memberID]) - 1
+	}
+	if err := segmentRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate path segments: %w", err)
+	}
+
+	pointRows, err := r.db.Query(ctx, `
+		SELECT segment_id, seq, latitude, longitude, accuracy_m, client_recorded_at, recorded_at
+		FROM position_points
+		WHERE route_id = $1
+		ORDER BY segment_id ASC, seq ASC
+	`, routeID)
+	if err != nil {
+		return nil, fmt.Errorf("query position points: %w", err)
+	}
+	defer pointRows.Close()
+
+	for pointRows.Next() {
+		var segmentID string
+		var point RoutePoint
+		var accuracy sql.NullFloat64
+		var clientRecordedAt sql.NullTime
+
+		if err := pointRows.Scan(
+			&segmentID,
+			&point.Seq,
+			&point.Latitude,
+			&point.Longitude,
+			&accuracy,
+			&clientRecordedAt,
+			&point.RecordedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan position point: %w", err)
+		}
+
+		memberID, ok := segmentMemberIDs[segmentID]
+		if !ok {
+			continue
+		}
+		segmentIndex := segmentIndexes[segmentID]
+
+		if accuracy.Valid {
+			point.AccuracyM = &accuracy.Float64
+		}
+		if clientRecordedAt.Valid {
+			point.ClientRecordedAt = &clientRecordedAt.Time
+		}
+
+		pathsByMemberID[memberID][segmentIndex].Points = append(
+			pathsByMemberID[memberID][segmentIndex].Points,
+			point,
+		)
+	}
+	if err := pointRows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate position points: %w", err)
+	}
+
+	return pathsByMemberID, nil
+}
+
 // CountTrackingMembers returns the number of active tracking members for a route.
 func (r *PostgresRepository) CountMembersByRouteID(ctx context.Context, routeID string) (int, error) {
 	var count int

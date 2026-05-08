@@ -12,7 +12,9 @@ import {
 } from "../../../lib/identity-storage";
 import {
   appendLiveRoutePoint,
+  mergeSnapshotIntoMapState,
   routeSnapshotToMapState,
+  updateMapMemberStatus,
 } from "../../../lib/map/snapshot-map-state";
 import {
   navigationService,
@@ -27,6 +29,8 @@ import {
   startSharing,
   stopSharing,
   type RouteAccess,
+  type MemberSummary,
+  type PathSegment,
   type RoutePoint,
   type RouteSnapshot,
   type SnapshotMember,
@@ -325,6 +329,7 @@ function RouteSnapshotShell({
   const [sharingError, setSharingError] = useState("");
   const [liveTrackingError, setLiveTrackingError] = useState("");
   const websocketRef = useRef<WebSocket | null>(null);
+  const snapshotRef = useRef(snapshot);
   const [mapState, setMapState] = useState(() => routeSnapshotToMapState(snapshot));
   const sortedMembers = [...snapshot.members].sort(compareMembers);
   const canUseSharingControl =
@@ -343,7 +348,8 @@ function RouteSnapshotShell({
     snapshot.viewer.status === "tracking";
 
   useEffect(() => {
-    setMapState(routeSnapshotToMapState(snapshot));
+    snapshotRef.current = snapshot;
+    setMapState((current) => mergeSnapshotIntoMapState(current, snapshot));
   }, [snapshot]);
 
   useEffect(() => {
@@ -383,6 +389,29 @@ function RouteSnapshotShell({
 
       if (liveEvent.type === "position_rejected") {
         setLiveTrackingError(positionRejectedMessage(liveEvent.error));
+        return;
+      }
+
+      if (
+        liveEvent.type === "member_started_sharing" ||
+        liveEvent.type === "member_stopped_sharing"
+      ) {
+        onSnapshotChange(
+          snapshotWithUpdatedSharingMember(
+            snapshotRef.current,
+            liveEvent.member,
+            liveEvent.type === "member_started_sharing"
+              ? liveEvent.segment
+              : undefined,
+          ),
+        );
+        setMapState((current) =>
+          updateMapMemberStatus(
+            current,
+            liveEvent.member.id,
+            liveEvent.member.status,
+          ),
+        );
       }
     });
 
@@ -439,13 +468,22 @@ function RouteSnapshotShell({
 
     try {
       if (shouldStartSharing) {
-        await startSharing(code, memberToken);
+        const result = await startSharing(code, memberToken);
+        onSnapshotChange(
+          snapshotWithUpdatedSharingMember(snapshot, result.member, result.segment),
+        );
+        setMapState((current) =>
+          updateMapMemberStatus(current, result.member.id, result.member.status),
+        );
       } else {
-        await stopSharing(code, memberToken);
+        const result = await stopSharing(code, memberToken);
+        onSnapshotChange(
+          snapshotWithUpdatedSharingMember(snapshot, result.member),
+        );
+        setMapState((current) =>
+          updateMapMemberStatus(current, result.member.id, result.member.status),
+        );
       }
-
-      const nextSnapshot = await getRouteSnapshot(code, memberToken);
-      onSnapshotChange(nextSnapshot);
     } catch (caughtError) {
       if (
         caughtError instanceof ApiError &&
@@ -596,6 +634,15 @@ type LiveEvent =
       type: "connection_established";
     }
   | {
+      type: "member_started_sharing";
+      member: MemberSummary;
+      segment: PathSegment;
+    }
+  | {
+      type: "member_stopped_sharing";
+      member: MemberSummary;
+    }
+  | {
       type: "position_updated";
       memberId: string;
       segmentId?: string;
@@ -618,6 +665,20 @@ function parseLiveEvent(payload: string | ArrayBufferLike | Blob): LiveEvent | n
   try {
     const event = JSON.parse(payload) as Partial<LiveEvent>;
     if (event.type === "position_updated" && isPositionUpdatedEvent(event)) {
+      return event;
+    }
+
+    if (
+      event.type === "member_started_sharing" &&
+      isSharingStartedEvent(event)
+    ) {
+      return event;
+    }
+
+    if (
+      event.type === "member_stopped_sharing" &&
+      isSharingStoppedEvent(event)
+    ) {
       return event;
     }
 
@@ -651,6 +712,104 @@ function isPositionUpdatedEvent(
     typeof event.point.longitude === "number" &&
     typeof event.point.recordedAt === "string"
   );
+}
+
+function isSharingStartedEvent(
+  event: Partial<LiveEvent>,
+): event is Extract<LiveEvent, { type: "member_started_sharing" }> {
+  return (
+    event.type === "member_started_sharing" &&
+    isMemberSummary(event.member) &&
+    Boolean(event.segment)
+  );
+}
+
+function isSharingStoppedEvent(
+  event: Partial<LiveEvent>,
+): event is Extract<LiveEvent, { type: "member_stopped_sharing" }> {
+  return event.type === "member_stopped_sharing" && isMemberSummary(event.member);
+}
+
+function isMemberSummary(member: unknown): member is MemberSummary {
+  if (!member || typeof member !== "object") {
+    return false;
+  }
+
+  const candidate = member as Partial<MemberSummary>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.displayName === "string" &&
+    typeof candidate.transportMode === "string" &&
+    typeof candidate.status === "string" &&
+    typeof candidate.color === "string" &&
+    typeof candidate.joinedAt === "string"
+  );
+}
+
+function snapshotWithUpdatedSharingMember(
+  snapshot: RouteSnapshot,
+  member: MemberSummary,
+  segment?: PathSegment,
+): RouteSnapshot {
+  const members = snapshot.members.map((snapshotMember) => {
+    if (snapshotMember.id !== member.id) {
+      return snapshotMember;
+    }
+
+    return snapshotMemberFromMemberSummary(snapshotMember, member, segment);
+  });
+  const viewer =
+    snapshot.viewer.memberId === member.id
+      ? viewerCapabilitiesForSharingMember(snapshot, member)
+      : snapshot.viewer;
+
+  return {
+    ...snapshot,
+    members,
+    viewer,
+  };
+}
+
+function snapshotMemberFromMemberSummary(
+  snapshotMember: SnapshotMember,
+  member: MemberSummary,
+  segment?: PathSegment,
+): SnapshotMember {
+  const paths =
+    segment && !snapshotMember.paths.some((path) => path.id === segment.id)
+      ? [...snapshotMember.paths, segment]
+      : snapshotMember.paths;
+
+  return {
+    ...snapshotMember,
+    displayName: member.displayName,
+    transportMode: member.transportMode,
+    status: member.status,
+    color: member.color,
+    joinedAt: member.joinedAt,
+    leftAt: member.leftAt,
+    paths,
+  };
+}
+
+function viewerCapabilitiesForSharingMember(
+  snapshot: RouteSnapshot,
+  member: MemberSummary,
+) {
+  const canUseSharingPolicy =
+    snapshot.viewer.role === "owner" ||
+    snapshot.route.sharingPolicy === "everyone_can_share";
+  const canShare =
+    snapshot.route.status === "active" &&
+    member.status !== "left" &&
+    canUseSharingPolicy;
+
+  return {
+    ...snapshot.viewer,
+    status: member.status,
+    canStartSharing: canShare && member.status !== "tracking",
+    canStopSharing: canShare && member.status === "tracking",
+  };
 }
 
 function positionUpdatePayload(position: NavigationPosition) {

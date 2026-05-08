@@ -184,7 +184,7 @@ The backend foundation and first route lifecycle slice are complete:
    - the authenticated route screen keeps the saved member token available while rendering a snapshot
    - the member bottom sheet shows a start/stop sharing action from viewer capabilities
    - starting and stopping sharing call `PUT /routes/{code}/members/me/sharing`
-   - the screen refreshes the authenticated snapshot after each successful sharing state mutation
+   - the screen updates local member/viewer state after each successful sharing state mutation without refreshing the snapshot
 18. Backend WebSocket position ingestion is implemented:
    - authenticated live clients send `position_update` messages over the existing route WebSocket
    - the route service validates active route status, current tracking state, coordinates, and open path segment persistence
@@ -195,6 +195,10 @@ The backend foundation and first route lifecycle slice are complete:
    - authenticated route screens open a WebSocket live connection after active snapshot load
    - tracking viewers send browser geolocation samples as `position_update` messages over the live connection
    - accepted `position_updated` events append to the route map state for live marker and path updates without a snapshot refresh
+20. Snapshot route history loading is implemented:
+   - authenticated snapshots include persisted path segments
+   - snapshot path segments include persisted position points ordered by sequence
+   - route screen map state preserves already-rendered live points across local sharing status updates
 
 ## Immediate Next Step
 

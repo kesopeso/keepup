@@ -15,6 +15,7 @@ type stubRepository struct {
 	getAuthorizedMemberByTokenFn func(context.Context, string) (AuthorizedMember, error)
 	getAuthorizedOwnerByTokenFn  func(context.Context, string) (AuthorizedMember, error)
 	getMembersByRouteIDFn        func(context.Context, string) ([]Member, error)
+	getPathSegmentsByRouteIDFn   func(context.Context, string) (map[string][]PathSegment, error)
 	getRouteByCodeFn             func(context.Context, string) (Route, string, error)
 	startTrackingMemberFn        func(context.Context, string, string) (StartSharingRepoResult, error)
 	stopTrackingMemberFn         func(context.Context, string, string) (Member, error)
@@ -46,6 +47,10 @@ func (s stubRepository) GetAuthorizedOwnerByTokenHash(ctx context.Context, token
 
 func (s stubRepository) GetMembersByRouteID(ctx context.Context, routeID string) ([]Member, error) {
 	return s.getMembersByRouteIDFn(ctx, routeID)
+}
+
+func (s stubRepository) GetPathSegmentsByRouteID(ctx context.Context, routeID string) (map[string][]PathSegment, error) {
+	return s.getPathSegmentsByRouteIDFn(ctx, routeID)
 }
 
 func (s stubRepository) CountMembersByRouteID(ctx context.Context, routeID string) (int, error) {
@@ -295,6 +300,29 @@ func TestSnapshot(t *testing.T) {
 				},
 			}, nil
 		},
+		getPathSegmentsByRouteIDFn: func(_ context.Context, routeID string) (map[string][]PathSegment, error) {
+			if routeID != "route-1" {
+				t.Fatalf("GetPathSegmentsByRouteID() routeID = %q, want route-1", routeID)
+			}
+
+			recordedAt := now.Add(2 * time.Minute)
+			return map[string][]PathSegment{
+				"member-2": {
+					{
+						ID:        "segment-1",
+						StartedAt: &now,
+						Points: []RoutePoint{
+							{
+								Seq:        1,
+								Latitude:   46.0569,
+								Longitude:  14.5058,
+								RecordedAt: recordedAt,
+							},
+						},
+					},
+				},
+			}, nil
+		},
 		countMembersByRouteIDFn: func(_ context.Context, _ string) (int, error) {
 			return 2, nil
 		},
@@ -310,6 +338,18 @@ func TestSnapshot(t *testing.T) {
 
 	if len(snapshot.Members) != 2 {
 		t.Fatalf("Snapshot() members = %d, want 2", len(snapshot.Members))
+	}
+
+	if len(snapshot.Members[0].Paths) != 0 {
+		t.Fatalf("Snapshot() owner paths = %d, want 0", len(snapshot.Members[0].Paths))
+	}
+
+	if len(snapshot.Members[1].Paths) != 1 {
+		t.Fatalf("Snapshot() member paths = %d, want 1", len(snapshot.Members[1].Paths))
+	}
+
+	if got := snapshot.Members[1].Paths[0].Points[0].Latitude; got != 46.0569 {
+		t.Fatalf("Snapshot() path point latitude = %f, want 46.0569", got)
 	}
 
 	if !snapshot.Viewer.CanStartSharing {
