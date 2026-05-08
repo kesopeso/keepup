@@ -15,6 +15,10 @@ import {
   routeSnapshotToMapState,
 } from "../../../lib/map/snapshot-map-state";
 import {
+  navigationService,
+  type NavigationPosition,
+} from "../../../lib/navigation-service";
+import {
   ApiError,
   getRouteAccess,
   getRouteSnapshot,
@@ -408,13 +412,8 @@ function RouteSnapshotShell({
       return;
     }
 
-    if (!("geolocation" in navigator)) {
-      setLiveTrackingError("Location sharing is not available in this browser.");
-      return;
-    }
-
     setLiveTrackingError("");
-    const watchId = navigator.geolocation.watchPosition(
+    return navigationService.watchPosition(
       (position) => {
         const socket = websocketRef.current;
         if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -426,16 +425,7 @@ function RouteSnapshotShell({
       () => {
         setLiveTrackingError("Location sharing needs browser location access.");
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 5_000,
-        timeout: 20_000,
-      },
     );
-
-    return () => {
-      navigator.geolocation.clearWatch(watchId);
-    };
   }, [isViewerTracking]);
 
   async function handleSharingControl() {
@@ -663,22 +653,17 @@ function isPositionUpdatedEvent(
   );
 }
 
-function positionUpdatePayload(position: GeolocationPosition) {
-  const { coords } = position;
+function positionUpdatePayload(position: NavigationPosition) {
   return {
     type: "position_update",
-    latitude: coords.latitude,
-    longitude: coords.longitude,
-    accuracyM: finiteOrUndefined(coords.accuracy),
-    altitudeM: finiteOrUndefined(coords.altitude),
-    speedMps: finiteOrUndefined(coords.speed),
-    headingDeg: finiteOrUndefined(coords.heading),
-    clientRecordedAt: new Date(position.timestamp).toISOString(),
+    latitude: position.latitude,
+    longitude: position.longitude,
+    accuracyM: position.accuracyM,
+    altitudeM: position.altitudeM,
+    speedMps: position.speedMps,
+    headingDeg: position.headingDeg,
+    clientRecordedAt: position.clientRecordedAt,
   };
-}
-
-function finiteOrUndefined(value: number | null): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function positionRejectedMessage(error?: string) {

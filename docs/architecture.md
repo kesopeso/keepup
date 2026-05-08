@@ -57,6 +57,8 @@ docker-compose.yml
 - The authenticated route screen opens an authenticated WebSocket live connection for active routes with saved member access
 - Active tracking viewers stream browser geolocation samples as `position_update` messages over the live connection
 - Incoming `position_updated` events update the in-memory map state so live markers and paths move without refetching the snapshot
+- Browser position access is isolated behind `apps/web/lib/navigation-service.ts`
+- In development, the navigation service emits the first real browser position, then broadcasts simulated movement every 2 seconds in roughly 10m direction-biased steps with small random turns
 - Map rendering is behind a framework-neutral `RouteMapRenderer` interface in `apps/web/lib/map`
 - Snapshot DTOs are converted to a map-specific `RouteMapState` before reaching the renderer
 - The renderer factory returns a MapLibre adapter that consumes route paths and latest member points from `RouteMapState`
