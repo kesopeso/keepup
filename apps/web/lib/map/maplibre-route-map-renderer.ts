@@ -15,6 +15,9 @@ import type {
 } from "./route-map-types";
 
 type GeoJsonFeatureCollection = GeoJSON.FeatureCollection<GeoJSON.Geometry>;
+type MapInteractionEvent = {
+  originalEvent?: MouseEvent | TouchEvent | WheelEvent;
+};
 
 const pathSourceId = "route-paths";
 const markerSourceId = "route-markers";
@@ -27,6 +30,8 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
   private mapElement: HTMLDivElement;
   private mapReady = false;
   private destroyed = false;
+  private pendingUserMapInteraction = false;
+  private userMapInteractionReset: ReturnType<typeof setTimeout> | null = null;
   private state: RouteMapState = {
     members: [],
     viewportMode: "fit_route",
@@ -39,6 +44,11 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
   ) {
     this.mapElement = document.createElement("div");
     this.mapElement.className = "maplibre-route-map";
+    this.mapElement.addEventListener("pointerdown", this.markUserMapInteraction);
+    this.mapElement.addEventListener("wheel", this.markUserMapInteraction);
+    this.mapElement.addEventListener("touchstart", this.markUserMapInteraction);
+    this.mapElement.addEventListener("dblclick", this.markUserMapInteraction);
+    this.mapElement.addEventListener("keydown", this.markUserMapInteraction);
     this.container.prepend(this.mapElement);
     this.initPromise = this.initMap();
   }
@@ -98,6 +108,16 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
     delete this.container.dataset.viewportMode;
     delete this.container.dataset.pointCount;
     delete this.container.dataset.memberCount;
+    this.mapElement.removeEventListener("pointerdown", this.markUserMapInteraction);
+    this.mapElement.removeEventListener("wheel", this.markUserMapInteraction);
+    this.mapElement.removeEventListener("touchstart", this.markUserMapInteraction);
+    this.mapElement.removeEventListener("dblclick", this.markUserMapInteraction);
+    this.mapElement.removeEventListener("keydown", this.markUserMapInteraction);
+
+    if (this.userMapInteractionReset) {
+      clearTimeout(this.userMapInteractionReset);
+      this.userMapInteractionReset = null;
+    }
 
     if (this.map) {
       this.map.remove();
@@ -127,10 +147,10 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
       "bottom-left",
     );
 
-    this.map.on("dragstart", () => this.handleMapInteraction());
-    this.map.on("zoomstart", () => this.handleMapInteraction());
-    this.map.on("rotatestart", () => this.handleMapInteraction());
-    this.map.on("pitchstart", () => this.handleMapInteraction());
+    this.map.on("dragstart", (event) => this.handleMapInteraction(event));
+    this.map.on("zoomstart", (event) => this.handleMapInteraction(event));
+    this.map.on("rotatestart", (event) => this.handleMapInteraction(event));
+    this.map.on("pitchstart", (event) => this.handleMapInteraction(event));
 
     this.map.on("load", () => {
       if (!this.map || this.destroyed) {
@@ -275,7 +295,11 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
     });
   }
 
-  private handleMapInteraction(): void {
+  private handleMapInteraction(event: MapInteractionEvent): void {
+    if (!event.originalEvent && !this.pendingUserMapInteraction) {
+      return;
+    }
+
     if (this.state.viewportMode === "manual") {
       return;
     }
@@ -287,6 +311,19 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
     this.callbacks.onMapInteraction?.();
     this.callbacks.onViewportChanged?.("manual");
   }
+
+  private readonly markUserMapInteraction = (): void => {
+    this.pendingUserMapInteraction = true;
+
+    if (this.userMapInteractionReset) {
+      clearTimeout(this.userMapInteractionReset);
+    }
+
+    this.userMapInteractionReset = setTimeout(() => {
+      this.pendingUserMapInteraction = false;
+      this.userMapInteractionReset = null;
+    }, 1000);
+  };
 
   private handleMarkerClick(event: MapLayerMouseEvent): void {
     const memberId = event.features?.[0]?.properties?.memberId;

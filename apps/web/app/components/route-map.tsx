@@ -65,7 +65,10 @@ export function RouteMap({ state }: { state: RouteMapState }) {
         </div>
         <div className="map-tools" aria-label="Map controls">
           <button
-            onClick={() => rendererRef.current?.fitToRoute()}
+            onClick={() => {
+              setViewportMode("fit_route");
+              rendererRef.current?.fitToRoute();
+            }}
             type="button"
           >
             Fit
