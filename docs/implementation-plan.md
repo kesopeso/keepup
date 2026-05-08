@@ -161,7 +161,7 @@ The backend foundation and first route lifecycle slice are complete:
    - snapshot paths render as member-colored polylines
    - latest member points render as member-colored markers
    - initial and auto-follow viewport mode fits visible route geometry
-   - manual map interaction disables auto-follow
+   - manual map interaction disables auto-follow across live position updates until `Fit` is pressed again
 14. Backend WebSocket authentication and route room subscription are implemented:
    - `GET /ws` upgrades to WebSocket
    - client must send first-message auth with `{ "type": "authenticate", "memberToken": "..." }`

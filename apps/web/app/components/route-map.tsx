@@ -14,6 +14,13 @@ export function RouteMap({ state }: { state: RouteMapState }) {
   const [viewportMode, setViewportMode] = useState<RouteMapViewportMode>(
     state.viewportMode,
   );
+  const renderedState = useMemo(
+    () => ({
+      ...state,
+      viewportMode,
+    }),
+    [state, viewportMode],
+  );
 
   const pointCount = useMemo(
     () =>
@@ -38,7 +45,6 @@ export function RouteMap({ state }: { state: RouteMapState }) {
       onViewportChanged: setViewportMode,
     });
     rendererRef.current = renderer;
-    renderer.render(state);
 
     return () => {
       renderer.destroy();
@@ -47,9 +53,8 @@ export function RouteMap({ state }: { state: RouteMapState }) {
   }, []);
 
   useEffect(() => {
-    rendererRef.current?.render(state);
-    setViewportMode(state.viewportMode);
-  }, [state]);
+    rendererRef.current?.render(renderedState);
+  }, [renderedState]);
 
   return (
     <section className="map-stage" aria-label="Route map">

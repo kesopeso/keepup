@@ -184,7 +184,8 @@ Current API naming:
 - Initial load fits full known route history plus active markers
 - Default live viewport mode auto-fits group/route
 - Manual pan/zoom disables auto-follow
-- User can re-center/re-fit
+- Live position updates preserve manual pan/zoom until the user presses `Fit`
+- User can re-center/re-fit with the map `Fit` control
 - Path polyline and live marker are separate render states
 - Show:
   - polyline for historical path

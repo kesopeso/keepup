@@ -64,7 +64,7 @@ docker-compose.yml
 - Snapshot DTOs are converted to a map-specific `RouteMapState` before reaching the renderer
 - The renderer factory returns a MapLibre adapter that consumes route paths and latest member points from `RouteMapState`
 - Tile provider configuration lives separately from the renderer in `apps/web/lib/map/tile-provider.ts`
-- The MapLibre adapter renders historical path polylines and latest member point markers, fits the initial viewport to visible route geometry, and switches to manual viewport mode on map interaction
+- The MapLibre adapter renders historical path polylines and latest member point markers, fits the initial viewport to visible route geometry, and switches to manual viewport mode on map interaction so live updates do not reset user pan/zoom until `Fit` is pressed again
 - The helper owns local storage access for:
   - stable `clientId`
   - saved `displayName`

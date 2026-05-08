@@ -4,8 +4,7 @@
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
     "build": "next build",
-    "start": "next start --hostname 0.0.0.0 --port 3000",
-    "lint": "next lint"
+    "start": "next start --hostname 0.0.0.0 --port 3000"
   },
   "dependencies": {
     "maplibre-gl": "^5.24.0",
