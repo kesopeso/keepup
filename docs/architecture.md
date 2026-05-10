@@ -17,6 +17,8 @@ docker-compose.yml
 - `docker compose up` starts the main local stack: web, api, and postgres.
 - One-off web pnpm commands can run through `bin/web-pnpm.sh`, which uses the dependency-free `web-helper` Compose service.
 - Example: `./bin/web-pnpm.sh build`
+- Database migrations run through `bin/migrate.sh`, which wraps the tools-profile `migrate` Compose service, mounts `db/migrations`, and waits for the Postgres healthcheck.
+- Examples: `./bin/migrate.sh up`, `./bin/migrate.sh down 1`, `./bin/migrate.sh down -all`
 
 ## Frontend
 
@@ -99,6 +101,7 @@ docker-compose.yml
 - `/healthz` checks database reachability
 - HTTP server shutdown is tied to process signal cancellation
 - Migrations are manual and are not applied automatically on API startup
+- The local Compose stack provides a tools-profile `migrate` service using the `migrate/migrate:4` image for manual migration commands
 
 ## Ubiquitous Language
 

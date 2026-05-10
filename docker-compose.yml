@@ -27,6 +27,21 @@ services:
     profiles:
       - tools
 
+  migrate:
+    image: migrate/migrate:4
+    entrypoint:
+      - migrate
+      - -path=/migrations
+      - -database=postgres://keepup:keepup@postgres:5432/keepup?sslmode=disable
+    command: ["up"]
+    volumes:
+      - ./db/migrations:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - tools
+
   api:
     build:
       context: .
