@@ -26,8 +26,6 @@ import {
   getRouteSnapshot,
   joinRoute,
   routeWebSocketUrl,
-  startSharing,
-  stopSharing,
   type RouteAccess,
   type MemberSummary,
   type PathSegment,
@@ -328,6 +326,7 @@ function RouteSnapshotShell({
   );
   const [sharingError, setSharingError] = useState("");
   const [liveTrackingError, setLiveTrackingError] = useState("");
+  const [liveConnectionRejected, setLiveConnectionRejected] = useState(false);
   const websocketRef = useRef<WebSocket | null>(null);
   const snapshotRef = useRef(snapshot);
   const [mapState, setMapState] = useState(() => routeSnapshotToMapState(snapshot));
@@ -392,9 +391,28 @@ function RouteSnapshotShell({
         return;
       }
 
+      if (liveEvent.type === "live_connection_rejected") {
+        setLiveConnectionRejected(true);
+        return;
+      }
+
+      if (liveEvent.type === "command_ack") {
+        setSharingAction(null);
+        return;
+      }
+
+      if (liveEvent.type === "command_rejected") {
+        setSharingAction(null);
+        setSharingError(commandRejectedMessage(liveEvent.reason));
+        return;
+      }
+
       if (
         liveEvent.type === "member_started_sharing" ||
-        liveEvent.type === "member_stopped_sharing"
+        liveEvent.type === "member_stopped_sharing" ||
+        liveEvent.type === "member_became_stale" ||
+        liveEvent.type === "member_back_online" ||
+        liveEvent.type === "member_went_offline"
       ) {
         onSnapshotChange(
           snapshotWithUpdatedSharingMember(
@@ -468,23 +486,13 @@ function RouteSnapshotShell({
 
     try {
       if (shouldStartSharing) {
-        const result = await startSharing(code, memberToken);
-        onSnapshotChange(
-          snapshotWithUpdatedSharingMember(snapshot, result.member, result.segment),
-        );
-        setMapState((current) =>
-          updateMapMemberStatus(current, result.member.id, result.member.status),
-        );
+        await navigationService.requestPermission();
+        sendLiveCommand("start_sharing");
       } else {
-        const result = await stopSharing(code, memberToken);
-        onSnapshotChange(
-          snapshotWithUpdatedSharingMember(snapshot, result.member),
-        );
-        setMapState((current) =>
-          updateMapMemberStatus(current, result.member.id, result.member.status),
-        );
+        sendLiveCommand("stop_sharing");
       }
     } catch (caughtError) {
+      setSharingAction(null);
       if (
         caughtError instanceof ApiError &&
         caughtError.code === "unauthorized"
@@ -492,14 +500,36 @@ function RouteSnapshotShell({
         clearRouteAuth(code);
       }
 
-      setSharingError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Could not update sharing.",
-      );
-    } finally {
-      setSharingAction(null);
+      setSharingError(caughtError instanceof Error ? caughtError.message : "Could not update sharing.");
     }
+  }
+
+  function sendLiveCommand(type: "start_sharing" | "stop_sharing") {
+    const socket = websocketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      setSharingAction(null);
+      throw new Error("Live route connection is unavailable.");
+    }
+
+    socket.send(
+      JSON.stringify({
+        type,
+        requestId: crypto.randomUUID(),
+      }),
+    );
+  }
+
+  if (liveConnectionRejected) {
+    return (
+      <section className="route-shell">
+        <RouteHeader code={code} label="Route" title={snapshot.route.name} />
+        <div className="route-panel">
+          <p className="form-error" role="alert">
+            This route is already open in another tab or device.
+          </p>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -643,6 +673,26 @@ type LiveEvent =
       member: MemberSummary;
     }
   | {
+      type: "member_became_stale" | "member_back_online" | "member_went_offline";
+      member: MemberSummary;
+      segment?: PathSegment;
+    }
+  | {
+      type: "command_ack";
+      requestId?: string;
+      command?: string;
+    }
+  | {
+      type: "command_rejected";
+      requestId?: string;
+      command?: string;
+      reason?: string;
+    }
+  | {
+      type: "live_connection_rejected";
+      reason?: string;
+    }
+  | {
       type: "position_updated";
       memberId: string;
       segmentId?: string;
@@ -683,8 +733,20 @@ function parseLiveEvent(payload: string | ArrayBufferLike | Blob): LiveEvent | n
     }
 
     if (
+      (event.type === "member_became_stale" ||
+        event.type === "member_back_online" ||
+        event.type === "member_went_offline") &&
+      isMemberStatusEvent(event)
+    ) {
+      return event;
+    }
+
+    if (
       event.type === "position_rejected" ||
       event.type === "message_rejected" ||
+      event.type === "command_ack" ||
+      event.type === "command_rejected" ||
+      event.type === "live_connection_rejected" ||
       event.type === "connection_established"
     ) {
       return event as LiveEvent;
@@ -728,6 +790,12 @@ function isSharingStoppedEvent(
   event: Partial<LiveEvent>,
 ): event is Extract<LiveEvent, { type: "member_stopped_sharing" }> {
   return event.type === "member_stopped_sharing" && isMemberSummary(event.member);
+}
+
+function isMemberStatusEvent(
+	event: Partial<LiveEvent>,
+): event is Extract<LiveEvent, { type: "member_became_stale" | "member_back_online" | "member_went_offline" }> {
+	return "member" in event && isMemberSummary(event.member);
 }
 
 function isMemberSummary(member: unknown): member is MemberSummary {
@@ -807,8 +875,10 @@ function viewerCapabilitiesForSharingMember(
   return {
     ...snapshot.viewer,
     status: member.status,
-    canStartSharing: canShare && member.status !== "tracking",
-    canStopSharing: canShare && member.status === "tracking",
+    canStartSharing:
+      canShare && (member.status === "spectating" || member.status === "stale"),
+    canStopSharing:
+      canShare && (member.status === "tracking" || member.status === "stale"),
   };
 }
 
@@ -839,6 +909,20 @@ function positionRejectedMessage(error?: string) {
   }
 
   return "The latest location update was rejected.";
+}
+
+function commandRejectedMessage(reason?: string) {
+  if (reason === "tracking_limit_reached") {
+    return "All tracking slots are currently in use.";
+  }
+  if (reason === "sharing_not_allowed") {
+    return "This route only allows the owner to share location.";
+  }
+  if (reason === "route_closed") {
+    return "This route is closed.";
+  }
+
+  return "Could not update sharing.";
 }
 
 function compareMembers(first: SnapshotMember, second: SnapshotMember) {

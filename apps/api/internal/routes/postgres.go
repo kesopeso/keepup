@@ -475,8 +475,8 @@ func (r *PostgresRepository) CountTrackingMembers(ctx context.Context, routeID s
 	if err := r.db.QueryRow(ctx, `
 		SELECT COUNT(*)
 		FROM route_members
-		WHERE route_id = $1 AND status = $2
-	`, routeID, MemberStatusTracking).Scan(&count); err != nil {
+		WHERE route_id = $1 AND status IN ($2, $3)
+	`, routeID, MemberStatusTracking, MemberStatusStale).Scan(&count); err != nil {
 		return 0, fmt.Errorf("count tracking members: %w", err)
 	}
 
@@ -521,9 +521,22 @@ func (r *PostgresRepository) StartTrackingMember(ctx context.Context, routeID, m
 	var segment PathSegment
 	var startedAt time.Time
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO path_segments (route_id, member_id)
-		VALUES ($1, $2)
-		RETURNING id, started_at, ended_at
+		WITH existing AS (
+			SELECT id, started_at, ended_at
+			FROM path_segments
+			WHERE route_id = $1 AND member_id = $2 AND ended_at IS NULL
+			ORDER BY started_at DESC
+			LIMIT 1
+		), inserted AS (
+			INSERT INTO path_segments (route_id, member_id)
+			SELECT $1, $2
+			WHERE NOT EXISTS (SELECT 1 FROM existing)
+			RETURNING id, started_at, ended_at
+		)
+		SELECT id, started_at, ended_at FROM existing
+		UNION ALL
+		SELECT id, started_at, ended_at FROM inserted
+		LIMIT 1
 	`, routeID, memberID).Scan(
 		&segment.ID,
 		&startedAt,
@@ -542,6 +555,21 @@ func (r *PostgresRepository) StartTrackingMember(ctx context.Context, routeID, m
 		Member:  member,
 		Segment: segment,
 	}, nil
+}
+
+// MarkMemberOnline marks an offline member as spectating.
+func (r *PostgresRepository) MarkMemberOnline(ctx context.Context, routeID, memberID string) (Member, bool, error) {
+	return r.updateMemberStatus(ctx, routeID, memberID, []string{MemberStatusOffline}, MemberStatusSpectating, "")
+}
+
+// MarkMemberStale marks a tracking member as stale.
+func (r *PostgresRepository) MarkMemberStale(ctx context.Context, routeID, memberID string) (Member, bool, error) {
+	return r.updateMemberStatus(ctx, routeID, memberID, []string{MemberStatusTracking}, MemberStatusStale, "")
+}
+
+// MarkMemberOffline marks an interrupted member offline and closes open segments.
+func (r *PostgresRepository) MarkMemberOffline(ctx context.Context, routeID, memberID string) (Member, bool, error) {
+	return r.updateMemberStatus(ctx, routeID, memberID, []string{MemberStatusSpectating, MemberStatusStale}, MemberStatusOffline, PathSegmentEndReasonDisconnected)
 }
 
 // StopTrackingMember marks a member as spectating and ends open path segments.
@@ -605,6 +633,7 @@ func (r *PostgresRepository) RecordPosition(ctx context.Context, params RecordPo
 	}()
 
 	var segmentID string
+	var recoveredMember *Member
 	if err := tx.QueryRow(ctx, `
 		SELECT id
 		FROM path_segments
@@ -618,6 +647,30 @@ func (r *PostgresRepository) RecordPosition(ctx context.Context, params RecordPo
 		}
 
 		return PositionUpdateResult{}, fmt.Errorf("load open path segment: %w", err)
+	}
+
+	var staleMember Member
+	err = tx.QueryRow(ctx, `
+		UPDATE route_members
+		SET status = $3
+		WHERE id = $1 AND route_id = $2 AND status = $4
+		RETURNING id, route_id, client_id, display_name, transport_mode, is_owner, status, color, joined_at, left_at
+	`, params.MemberID, params.RouteID, MemberStatusTracking, MemberStatusStale).Scan(
+		&staleMember.ID,
+		&staleMember.RouteID,
+		&staleMember.ClientID,
+		&staleMember.DisplayName,
+		&staleMember.TransportMode,
+		&staleMember.IsOwner,
+		&staleMember.Status,
+		&staleMember.Color,
+		&staleMember.JoinedAt,
+		&staleMember.LeftAt,
+	)
+	if err == nil {
+		recoveredMember = &staleMember
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return PositionUpdateResult{}, fmt.Errorf("recover stale member: %w", err)
 	}
 
 	var point RoutePoint
@@ -683,18 +736,26 @@ func (r *PostgresRepository) RecordPosition(ctx context.Context, params RecordPo
 	}
 
 	return PositionUpdateResult{
-		RouteID:   params.RouteID,
-		MemberID:  params.MemberID,
-		SegmentID: segmentID,
-		Point:     point,
+		RouteID:         params.RouteID,
+		MemberID:        params.MemberID,
+		SegmentID:       segmentID,
+		Point:           point,
+		RecoveredMember: recoveredMember,
 	}, nil
 }
 
 // UpdateRoute mutates route name, description, and/or status.
 func (r *PostgresRepository) UpdateRoute(ctx context.Context, routeID string, params UpdateRouteRepoParams) (Route, error) {
 	var route Route
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return Route{}, fmt.Errorf("begin update route tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
-	err := r.db.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		UPDATE routes
 		SET
 			name = COALESCE($2, name),
@@ -727,14 +788,44 @@ func (r *PostgresRepository) UpdateRoute(ctx context.Context, routeID string, pa
 		return Route{}, fmt.Errorf("update route row: %w", err)
 	}
 
+	if params.Status != nil && *params.Status == RouteStatusClosed {
+		if _, err := tx.Exec(ctx, `
+			UPDATE path_segments
+			SET ended_at = COALESCE(ended_at, NOW()), end_reason = COALESCE(end_reason, $2)
+			WHERE route_id = $1 AND ended_at IS NULL
+		`, routeID, PathSegmentEndReasonRouteClosed); err != nil {
+			return Route{}, fmt.Errorf("close route path segments: %w", err)
+		}
+
+		if _, err := tx.Exec(ctx, `
+			UPDATE route_members
+			SET status = $2
+			WHERE route_id = $1 AND status IN ($3, $4)
+		`, routeID, MemberStatusSpectating, MemberStatusTracking, MemberStatusStale); err != nil {
+			return Route{}, fmt.Errorf("close route active members: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Route{}, fmt.Errorf("commit update route tx: %w", err)
+	}
+
 	return route, nil
 }
 
 // LeaveMember marks a route member as left.
 func (r *PostgresRepository) LeaveMember(ctx context.Context, memberID string) (Member, error) {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return Member{}, fmt.Errorf("begin leave member tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
 	var member Member
 
-	err := r.db.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		UPDATE route_members
 		SET status = $2, left_at = COALESCE(left_at, NOW())
 		WHERE id = $1
@@ -757,6 +848,115 @@ func (r *PostgresRepository) LeaveMember(ctx context.Context, memberID string) (
 		}
 
 		return Member{}, fmt.Errorf("leave member row: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE path_segments
+		SET ended_at = COALESCE(ended_at, NOW()), end_reason = COALESCE(end_reason, $2)
+		WHERE member_id = $1 AND ended_at IS NULL
+	`, memberID, PathSegmentEndReasonLeft); err != nil {
+		return Member{}, fmt.Errorf("leave member path segments: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE member_tokens
+		SET revoked_at = COALESCE(revoked_at, NOW())
+		WHERE member_id = $1
+	`, memberID); err != nil {
+		return Member{}, fmt.Errorf("revoke member tokens: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE owner_tokens
+		SET revoked_at = COALESCE(revoked_at, NOW())
+		WHERE member_id = $1
+	`, memberID); err != nil {
+		return Member{}, fmt.Errorf("revoke owner tokens: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Member{}, fmt.Errorf("commit leave member tx: %w", err)
+	}
+
+	return member, nil
+}
+
+func (r *PostgresRepository) updateMemberStatus(ctx context.Context, routeID, memberID string, fromStatuses []string, toStatus, closeReason string) (Member, bool, error) {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return Member{}, false, fmt.Errorf("begin update member status tx: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	var member Member
+	err = tx.QueryRow(ctx, `
+		UPDATE route_members
+		SET status = $3
+		WHERE id = $1 AND route_id = $2 AND status = ANY($4)
+		RETURNING id, route_id, client_id, display_name, transport_mode, is_owner, status, color, joined_at, left_at
+	`, memberID, routeID, toStatus, fromStatuses).Scan(
+		&member.ID,
+		&member.RouteID,
+		&member.ClientID,
+		&member.DisplayName,
+		&member.TransportMode,
+		&member.IsOwner,
+		&member.Status,
+		&member.Color,
+		&member.JoinedAt,
+		&member.LeftAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			current, currentErr := r.getMemberByID(ctx, tx, routeID, memberID)
+			return current, false, currentErr
+		}
+
+		return Member{}, false, fmt.Errorf("update member status row: %w", err)
+	}
+
+	if closeReason != "" {
+		if _, err := tx.Exec(ctx, `
+			UPDATE path_segments
+			SET ended_at = COALESCE(ended_at, NOW()), end_reason = COALESCE(end_reason, $3)
+			WHERE route_id = $1 AND member_id = $2 AND ended_at IS NULL
+		`, routeID, memberID, closeReason); err != nil {
+			return Member{}, false, fmt.Errorf("close member path segments: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Member{}, false, fmt.Errorf("commit update member status tx: %w", err)
+	}
+
+	return member, true, nil
+}
+
+func (r *PostgresRepository) getMemberByID(ctx context.Context, tx pgx.Tx, routeID, memberID string) (Member, error) {
+	var member Member
+	if err := tx.QueryRow(ctx, `
+		SELECT id, route_id, client_id, display_name, transport_mode, is_owner, status, color, joined_at, left_at
+		FROM route_members
+		WHERE id = $1 AND route_id = $2
+	`, memberID, routeID).Scan(
+		&member.ID,
+		&member.RouteID,
+		&member.ClientID,
+		&member.DisplayName,
+		&member.TransportMode,
+		&member.IsOwner,
+		&member.Status,
+		&member.Color,
+		&member.JoinedAt,
+		&member.LeftAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Member{}, ErrUnauthorized
+		}
+
+		return Member{}, fmt.Errorf("get current member: %w", err)
 	}
 
 	return member, nil

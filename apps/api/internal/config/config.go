@@ -13,6 +13,9 @@ const (
 	defaultAppPort               = "8080"
 	defaultDatabaseStartupWindow = 20 * time.Second
 	defaultWebSocketAuthTimeout  = 5 * time.Second
+	defaultTrackingStaleAfter    = 20 * time.Second
+	defaultTrackingOfflineAfter  = 5 * time.Minute
+	defaultSpectatorOfflineAfter = 20 * time.Second
 	defaultMaxTrackingMembers    = 10
 )
 
@@ -25,9 +28,12 @@ type Config struct {
 
 // AppConfig contains HTTP server settings.
 type AppConfig struct {
-	Env                  string
-	Port                 string
-	WebSocketAuthTimeout time.Duration
+	Env                   string
+	Port                  string
+	WebSocketAuthTimeout  time.Duration
+	TrackingStaleAfter    time.Duration
+	TrackingOfflineAfter  time.Duration
+	SpectatorOfflineAfter time.Duration
 }
 
 // DatabaseConfig contains PostgreSQL connection settings.
@@ -78,6 +84,24 @@ func Load() (Config, error) {
 
 	cfg.App.WebSocketAuthTimeout = webSocketAuthTimeout
 
+	trackingStaleAfter, err := positiveDurationOrDefault("ROUTES_TRACKING_STALE_AFTER", defaultTrackingStaleAfter)
+	if err != nil {
+		return Config{}, fmt.Errorf("load config: %w", err)
+	}
+	cfg.App.TrackingStaleAfter = trackingStaleAfter
+
+	trackingOfflineAfter, err := positiveDurationOrDefault("ROUTES_TRACKING_OFFLINE_AFTER", defaultTrackingOfflineAfter)
+	if err != nil {
+		return Config{}, fmt.Errorf("load config: %w", err)
+	}
+	cfg.App.TrackingOfflineAfter = trackingOfflineAfter
+
+	spectatorOfflineAfter, err := positiveDurationOrDefault("ROUTES_SPECTATOR_OFFLINE_AFTER", defaultSpectatorOfflineAfter)
+	if err != nil {
+		return Config{}, fmt.Errorf("load config: %w", err)
+	}
+	cfg.App.SpectatorOfflineAfter = spectatorOfflineAfter
+
 	maxTrackingMembers, err := intOrDefault("DEFAULT_MAX_TRACKING_MEMBERS", defaultMaxTrackingMembers)
 	if err != nil {
 		return Config{}, fmt.Errorf("load config: %w", err)
@@ -90,6 +114,18 @@ func Load() (Config, error) {
 	cfg.Routes.DefaultMaxTrackingMembers = maxTrackingMembers
 
 	return cfg, nil
+}
+
+func positiveDurationOrDefault(key string, fallback time.Duration) (time.Duration, error) {
+	duration, err := durationOrDefault(key, fallback)
+	if err != nil {
+		return 0, err
+	}
+	if duration <= 0 {
+		return 0, fmt.Errorf("%s must be greater than zero", key)
+	}
+
+	return duration, nil
 }
 
 func valueOrDefault(key, fallback string) string {

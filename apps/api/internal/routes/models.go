@@ -22,7 +22,10 @@ const (
 	RoleOwner  = "owner"
 	RoleMember = "member"
 
-	PathSegmentEndReasonStopped = "stopped"
+	PathSegmentEndReasonStopped      = "stopped"
+	PathSegmentEndReasonDisconnected = "disconnected"
+	PathSegmentEndReasonLeft         = "left"
+	PathSegmentEndReasonRouteClosed  = "route_closed"
 )
 
 var validTransportModes = map[string]struct{}{
@@ -155,10 +158,11 @@ type PositionUpdateInput struct {
 
 // PositionUpdateResult contains the accepted and persisted route point.
 type PositionUpdateResult struct {
-	RouteID   string     `json:"-"`
-	MemberID  string     `json:"memberId"`
-	SegmentID string     `json:"segmentId"`
-	Point     RoutePoint `json:"point"`
+	RouteID         string     `json:"-"`
+	MemberID        string     `json:"memberId"`
+	SegmentID       string     `json:"segmentId"`
+	Point           RoutePoint `json:"point"`
+	RecoveredMember *Member    `json:"member,omitempty"`
 }
 
 // Snapshot contains the full route page bootstrap payload.

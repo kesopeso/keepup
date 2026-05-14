@@ -19,6 +19,9 @@ type stubRepository struct {
 	getRouteByCodeFn             func(context.Context, string) (Route, string, error)
 	startTrackingMemberFn        func(context.Context, string, string) (StartSharingRepoResult, error)
 	stopTrackingMemberFn         func(context.Context, string, string) (Member, error)
+	markMemberOnlineFn           func(context.Context, string, string) (Member, bool, error)
+	markMemberStaleFn            func(context.Context, string, string) (Member, bool, error)
+	markMemberOfflineFn          func(context.Context, string, string) (Member, bool, error)
 	recordPositionFn             func(context.Context, RecordPositionRepoParams) (PositionUpdateResult, error)
 	updateRouteFn                func(context.Context, string, UpdateRouteRepoParams) (Route, error)
 	leaveMemberFn                func(context.Context, string) (Member, error)
@@ -67,6 +70,30 @@ func (s stubRepository) StartTrackingMember(ctx context.Context, routeID, member
 
 func (s stubRepository) StopTrackingMember(ctx context.Context, routeID, memberID string) (Member, error) {
 	return s.stopTrackingMemberFn(ctx, routeID, memberID)
+}
+
+func (s stubRepository) MarkMemberOnline(ctx context.Context, routeID, memberID string) (Member, bool, error) {
+	if s.markMemberOnlineFn == nil {
+		return Member{}, false, nil
+	}
+
+	return s.markMemberOnlineFn(ctx, routeID, memberID)
+}
+
+func (s stubRepository) MarkMemberStale(ctx context.Context, routeID, memberID string) (Member, bool, error) {
+	if s.markMemberStaleFn == nil {
+		return Member{}, false, nil
+	}
+
+	return s.markMemberStaleFn(ctx, routeID, memberID)
+}
+
+func (s stubRepository) MarkMemberOffline(ctx context.Context, routeID, memberID string) (Member, bool, error) {
+	if s.markMemberOfflineFn == nil {
+		return Member{}, false, nil
+	}
+
+	return s.markMemberOfflineFn(ctx, routeID, memberID)
 }
 
 func (s stubRepository) RecordPosition(ctx context.Context, params RecordPositionRepoParams) (PositionUpdateResult, error) {

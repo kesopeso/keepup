@@ -55,11 +55,12 @@ docker-compose.yml
 - Unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
 - The authenticated route screen uses a route header, MapLibre-backed map surface, and member bottom sheet
 - The member bottom sheet renders route metadata, viewer capabilities, and the snapshot member list
-- The member bottom sheet uses viewer capabilities to show a start/stop sharing action, calls the sharing state endpoint, then updates local member/viewer state without refreshing the authenticated snapshot
+- The member bottom sheet uses viewer capabilities to show a start/stop sharing action, sends WebSocket sharing commands, then updates local member/viewer state from live events without refreshing the authenticated snapshot
 - The authenticated route screen opens an authenticated WebSocket live connection for active routes with saved member access
 - Active tracking viewers stream browser geolocation samples as `position_update` messages over the live connection
 - Incoming `position_updated` events update the in-memory map state so live markers and paths move without refetching the snapshot
-- Incoming sharing status events update local member/viewer state without replacing rendered route paths
+- Incoming sharing and presence status events update local member/viewer state without replacing rendered route paths
+- If a second tab/device opens the same active route with the same member token, the route screen shows a blocking notice instead of map/member content after `live_connection_rejected`
 - Browser position access is isolated behind `apps/web/lib/navigation-service.ts`
 - In development, the navigation service emits the first real browser position, then broadcasts simulated movement every 2 seconds in roughly 10m direction-biased steps with small random turns
 - Map rendering is behind a framework-neutral `RouteMapRenderer` interface in `apps/web/lib/map`
@@ -146,7 +147,6 @@ Current path shape:
 - `PATCH /routes/{code}`
 - `DELETE /routes/{code}`
 - `DELETE /routes/{code}/members/me`
-- `PUT /routes/{code}/members/me/sharing`
 
 ### WebSocket
 
@@ -164,19 +164,22 @@ Current live foundation:
 - A live connection must first send `{ "type": "authenticate", "memberToken": "..." }`
 - `WEBSOCKET_AUTH_TIMEOUT` controls the first-message auth deadline and defaults to `5s`
 - Authenticated live connections are registered in a route room keyed by route ID
+- The in-memory live hub allows only one active WebSocket subscription per route member
+- A second connection for the same route member is rejected before route room subscription with `live_connection_rejected` and reason `already_active_connection`
 - The server sends `connection_established` with route/member identity after successful auth
 - Each route room subscription owns a buffered live event channel
 - The live hub can broadcast live events to all active subscriptions in a route room
+- Authenticated WebSocket clients send `start_sharing` and `stop_sharing` commands for live sharing state changes; command responses are `command_ack` or `command_rejected`
 - Authenticated WebSocket clients send `position_update` messages for live tracking samples
 - Accepted position updates are persisted to the member's open path segment and broadcast as `position_updated`
+- Accepted position updates from `stale` members transition them back to `tracking` and broadcast `member_back_online` before `position_updated`
 - Invalid or disallowed position updates return `position_rejected` to the sending connection
 - REST lifecycle mutations currently broadcast:
   - `member_joined` after a successful join
   - `member_left` after a successful leave
   - `route_updated` after owner metadata updates
   - `route_closed` after owner close
-  - `member_started_sharing` after sharing is enabled
-  - `member_stopped_sharing` after sharing is disabled
+  - sharing state is now handled by WebSocket commands rather than REST
 - The current hub is single-process only; Redis-backed presence/pubsub remains deferred until horizontal scale is needed
 
 ## Data Model
@@ -287,13 +290,24 @@ Examples:
 - Tracking slot count is enforced server-side
 - Limit counts only active trackers
 - Spectators remain unlimited
-- Sharing state is currently updated through `PUT /routes/{code}/members/me/sharing` with an `enabled` boolean payload
+- Sharing state is updated through authenticated WebSocket `start_sharing` and `stop_sharing` commands
 - Enabling sharing updates the member to `tracking` and opens a path segment
 - Disabling sharing updates the member to `spectating` and ends open path segments with reason `stopped`
 - Position updates are ingested through the authenticated WebSocket, not a REST endpoint
-- Position ingestion requires an active route, a tracking member, valid latitude/longitude, and an open path segment
+- Position ingestion requires an active route, a `tracking` or `stale` member, valid latitude/longitude, and an open path segment
 - Reconnects inside the grace window keep the same segment
 - Prolonged disconnect ends the segment
+
+### Presence and Status Timers
+
+- `ROUTES_TRACKING_STALE_AFTER` defaults to `20s`.
+- `ROUTES_TRACKING_OFFLINE_AFTER` defaults to `5m`.
+- `ROUTES_SPECTATOR_OFFLINE_AFTER` defaults to `20s`.
+- `tracking -> stale` happens immediately on WebSocket close, or when no accepted position arrives before the tracking stale timer.
+- `stale -> tracking` happens when a valid position arrives or when the user sends `start_sharing` after restoring location permission.
+- `stale -> offline` closes open path segments with reason `disconnected`.
+- `spectating -> offline` is delayed by the spectator offline grace timer to avoid refresh flicker.
+- `tracking` and `stale` count toward active tracking slots; `spectating`, `offline`, and `left` do not.
 
 ## Map Abstraction
 

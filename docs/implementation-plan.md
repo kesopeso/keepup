@@ -175,16 +175,16 @@ The backend foundation and first route lifecycle slice are complete:
    - authenticated WebSocket connections forward broadcast events to clients
    - route join, leave, metadata update, and close mutations publish lifecycle events
 16. Backend sharing state mutation is implemented:
-   - `PUT /routes/{code}/members/me/sharing` accepts an `enabled` boolean payload
+   - authenticated WebSocket `start_sharing` and `stop_sharing` commands update sharing state
    - enabling sharing enforces route status, sharing policy, current member status, and tracking slot limits
    - enabling sharing updates the member to `tracking`, opens a path segment, and broadcasts `member_started_sharing`
    - disabling sharing updates the member to `spectating`, closes open path segments, and broadcasts `member_stopped_sharing`
-   - frontend route API helpers can call the sharing state endpoint
+   - the old REST sharing endpoint has been removed from the target MVP API
 17. Frontend tracking controls are wired to backend sharing state:
    - the authenticated route screen keeps the saved member token available while rendering a snapshot
    - the member bottom sheet shows a start/stop sharing action from viewer capabilities
-   - starting and stopping sharing call `PUT /routes/{code}/members/me/sharing`
-   - the screen updates local member/viewer state after each successful sharing state mutation without refreshing the snapshot
+   - starting and stopping sharing send WebSocket commands
+   - the screen updates local member/viewer state from live events without refreshing the snapshot
 18. Backend WebSocket position ingestion is implemented:
    - authenticated live clients send `position_update` messages over the existing route WebSocket
    - the route service validates active route status, current tracking state, coordinates, and open path segment persistence
@@ -199,9 +199,23 @@ The backend foundation and first route lifecycle slice are complete:
    - authenticated snapshots include persisted path segments
    - snapshot path segments include persisted position points ordered by sequence
    - route screen map state preserves already-rendered live points across local sharing status updates
+21. Realtime member presence and WebSocket sharing commands are implemented:
+   - active route screens use WebSocket `start_sharing` and `stop_sharing` commands instead of the old REST sharing endpoint
+   - command responses use `command_ack` and `command_rejected`
+   - the live hub rejects a second active live connection for the same route member
+   - offline members become spectating after live authentication and emit `member_back_online`
+   - tracking members become stale immediately on live disconnect or after the configured accepted-position timeout
+   - stale members become offline after the configured stale timeout and close open path segments with reason `disconnected`
+   - stale members recover to tracking automatically when an accepted position arrives, with `member_back_online` broadcast before `position_updated`
+   - spectating members become offline after the configured spectator disconnect grace period
+   - active-route owners cannot leave; they must close/delete the route instead
 
 ## Immediate Next Step
 
-When work resumes, continue the realtime tracking slice:
+When work resumes, continue the realtime tracking slice with frontend recovery polish and edge-case hardening:
 
-1. add stale/disconnect handling
+1. add the current-viewer stale recovery prompt:
+   - Resume sharing
+   - Continue as spectator
+2. add explicit close/delete confirmations
+3. add clearer offline/stale visual treatment in the member sheet

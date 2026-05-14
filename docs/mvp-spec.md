@@ -64,7 +64,6 @@ Current API naming:
 - `PATCH /routes/{code}`
 - `DELETE /routes/{code}`
 - `DELETE /routes/{code}/members/me`
-- `PUT /routes/{code}/members/me/sharing`
 
 ## Membership and Identity
 
@@ -79,12 +78,14 @@ Current API naming:
 - Every viewer becomes a route member, including spectators
 - Members can leave the route
 - Leaving preserves history and keeps the member visible as `Left`
+- `Left` is terminal for that membership, revokes the member token, and does not block alias reuse
+- Active-route owners cannot leave; they can stop sharing, close the route, or delete the route
 
 ## Owner Rules
 
 - Owner is a role, not an automatically tracked participant
 - Owner may spectate or track
-- Owner may leave and return later
+- Owner cannot leave an active route in the MVP; they can close or delete it
 - Owner authority persists via owner token
 - Owner can:
   - edit route name/description
@@ -108,12 +109,13 @@ Current API naming:
 - Starting sharing requires usable location access
 - Route creation does not require location access
 - Stopping sharing returns member to spectator state
-- Current backend sharing state updates use `PUT /routes/{code}/members/me/sharing` with `{ "enabled": true }` to start sharing and `{ "enabled": false }` to stop sharing
+- Sharing state updates are live WebSocket commands: `start_sharing` and `stop_sharing`
 - Starting sharing updates member status to `tracking` and opens a path segment
 - Stopping sharing updates member status to `spectating` and closes open path segments
 - Active trackers send live position samples over the authenticated WebSocket as `position_update` messages
-- The backend accepts WebSocket position updates only from members who are currently `tracking`
+- The backend accepts WebSocket position updates from members who are currently `tracking` or `stale`
 - Accepted WebSocket position updates are persisted to the open path segment and broadcast as `position_updated`
+- Accepted position updates from `stale` members automatically recover them to `tracking`; the server broadcasts `member_back_online` before `position_updated`
 - On refresh, if a member was previously sharing:
   - rejoin route automatically
   - show prompt:
@@ -201,6 +203,14 @@ Current API naming:
 - `Offline`
 - `Left`
 
+Persistent member status semantics:
+
+- `spectating`: active membership, connected/recent enough, not sharing location
+- `tracking`: active membership, sharing location successfully
+- `stale`: active membership, intended to share, but live connection or accepted position flow is interrupted
+- `offline`: active membership, no active live connection/presence
+- `left`: terminal membership created by explicit leave; token is revoked
+
 Member sort order on active route:
 
 1. Owner
@@ -239,14 +249,26 @@ Live stream includes:
 - `member_stopped_sharing`
 - `member_became_stale`
 - `member_back_online`
+- `member_went_offline`
 - `position_updated`
 - `route_updated`
 - `route_closed`
 
 Current backend broadcasts `member_joined`, `member_left`, `route_updated`, and `route_closed` over authenticated WebSocket route rooms.
-Current backend also broadcasts `member_started_sharing` and `member_stopped_sharing` after successful sharing state updates.
+Current backend also broadcasts `member_started_sharing`, `member_stopped_sharing`, `member_became_stale`, `member_back_online`, and `member_went_offline` after successful live status updates.
 Current backend accepts authenticated WebSocket `position_update` messages and broadcasts accepted points as `position_updated`.
-Current frontend connects to the authenticated WebSocket for active routes, sends `position_update` messages while the viewer is tracking, applies `position_updated` events to the displayed map state, and applies sharing status events without refreshing the route snapshot.
+Current frontend connects to the authenticated WebSocket for active routes, sends `start_sharing`/`stop_sharing` commands, sends `position_update` messages while the viewer is tracking, applies `position_updated` events to the displayed map state, and applies sharing/status events without refreshing the route snapshot.
+
+Live connection rules:
+
+- Active routes attempt one authenticated WebSocket per member.
+- A second live connection for the same member is rejected with `live_connection_rejected` and reason `already_active_connection`; the existing connection remains active.
+- Closed route archive screens do not open WebSockets.
+- `offline -> spectating` happens after successful live authentication and broadcasts `member_back_online`.
+- `tracking -> stale` happens immediately on live connection close, or after `ROUTES_TRACKING_STALE_AFTER` without accepted positions.
+- `stale -> offline` happens after `ROUTES_TRACKING_OFFLINE_AFTER` spent stale and closes open segments with reason `disconnected`.
+- `spectating -> offline` happens after `ROUTES_SPECTATOR_OFFLINE_AFTER` without reconnect.
+- Default timing values are `20s`, `5m`, and `20s` respectively.
 
 ## Persistence Rules
 

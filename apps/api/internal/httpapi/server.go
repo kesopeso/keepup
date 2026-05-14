@@ -46,6 +46,9 @@ type RouteService interface {
 	Snapshot(context.Context, string, string) (routes.Snapshot, error)
 	StartSharing(context.Context, string, string) (routes.StartSharingResult, error)
 	StopSharing(context.Context, string, string) (routes.StopSharingResult, error)
+	MarkMemberOnline(context.Context, string, string) (routes.Member, bool, error)
+	MarkMemberStale(context.Context, string, string) (routes.Member, bool, error)
+	MarkMemberOffline(context.Context, string, string) (routes.Member, bool, error)
 	RecordPosition(context.Context, string, routes.PositionUpdateInput) (routes.PositionUpdateResult, error)
 	UpdateRoute(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
 	LeaveRoute(context.Context, string, string) (routes.LeaveRouteResult, error)
@@ -76,7 +79,6 @@ func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, rou
 	mux.HandleFunc("PATCH /routes/{code}", server.handleUpdateRoute)
 	mux.HandleFunc("DELETE /routes/{code}", server.handleDeleteRoute)
 	mux.HandleFunc("DELETE /routes/{code}/members/me", server.handleLeaveRoute)
-	mux.HandleFunc("PUT /routes/{code}/members/me/sharing", server.handleMemberSharing)
 	mux.HandleFunc("GET /ws", server.handleWebSocket)
 
 	return server.withCORS(server.withLogging(mux))
@@ -269,54 +271,6 @@ func (s *Server) handleLeaveRoute(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, result)
 }
 
-func (s *Server) handleMemberSharing(w http.ResponseWriter, r *http.Request) {
-	token := bearerToken(r.Header.Get("Authorization"))
-	if token == "" {
-		s.writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-
-	var request struct {
-		Enabled *bool `json:"enabled"`
-	}
-	if err := decodeJSON(r.Body, &request); err != nil {
-		s.writeError(w, http.StatusBadRequest, "invalid_json")
-		return
-	}
-	if request.Enabled == nil {
-		s.writeError(w, http.StatusBadRequest, "invalid_input")
-		return
-	}
-
-	if *request.Enabled {
-		result, err := s.routes.StartSharing(r.Context(), r.PathValue("code"), token)
-		if err != nil {
-			s.writeRouteError(w, err)
-			return
-		}
-
-		s.broadcastLiveEvent(result.Member.RouteID, live.Event{
-			"type":    "member_started_sharing",
-			"member":  result.Member,
-			"segment": result.Segment,
-		})
-		s.writeJSON(w, http.StatusOK, result)
-		return
-	}
-
-	result, err := s.routes.StopSharing(r.Context(), r.PathValue("code"), token)
-	if err != nil {
-		s.writeRouteError(w, err)
-		return
-	}
-
-	s.broadcastLiveEvent(result.Member.RouteID, live.Event{
-		"type":   "member_stopped_sharing",
-		"member": result.Member,
-	})
-	s.writeJSON(w, http.StatusOK, result)
-}
-
 func (s *Server) handleDeleteRoute(w http.ResponseWriter, r *http.Request) {
 	token := bearerToken(r.Header.Get("Authorization"))
 	if token == "" {
@@ -359,6 +313,22 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		_ = connection.Close(websocket.StatusPolicyViolation, "unauthorized")
 		return
 	}
+	if authorized.Route.Status != routes.RouteStatusActive {
+		_ = writeWebSocketJSON(r.Context(), connection, live.Event{
+			"type":   "live_connection_rejected",
+			"reason": "route_closed",
+		})
+		_ = connection.Close(websocket.StatusPolicyViolation, "route closed")
+		return
+	}
+	if s.liveHub.HasMemberConnection(authorized.Route.ID, authorized.Member.ID) {
+		_ = writeWebSocketJSON(r.Context(), connection, live.Event{
+			"type":   "live_connection_rejected",
+			"reason": "already_active_connection",
+		})
+		_ = connection.Close(websocket.StatusPolicyViolation, "already active")
+		return
+	}
 
 	subscription := s.liveHub.Subscribe(authorized.Route.ID, authorized.Member.ID)
 	defer subscription.Close()
@@ -386,8 +356,24 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	disconnectedStatus := authorized.Member.Status
+	if member, changed, err := s.routes.MarkMemberOnline(r.Context(), authorized.Route.ID, authorized.Member.ID); err != nil {
+		s.logger.Error("mark websocket member online failed", "error", err)
+	} else if changed {
+		disconnectedStatus = member.Status
+		s.broadcastLiveEvent(authorized.Route.ID, live.Event{
+			"type":   "member_back_online",
+			"member": member,
+		})
+	}
+
 	readErrCh := make(chan error, 1)
 	outboundEventCh := make(chan live.Event, 16)
+	trackingHealthCh := make(chan struct{}, 1)
+	staleOfflineCh := make(chan struct{}, 1)
+	defer func() {
+		s.handleDisconnectedMember(context.Background(), authorized.Route.ID, authorized.Member.ID, disconnectedStatus)
+	}()
 	go func() {
 		for {
 			var rawMessage json.RawMessage
@@ -402,6 +388,54 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 
 			switch message.Type {
+			case "start_sharing":
+				wasTracking := disconnectedStatus == routes.MemberStatusTracking
+				result, err := s.routes.StartSharing(r.Context(), authorized.Route.Code, authMessage.MemberToken)
+				if err != nil {
+					if !enqueueLiveEvent(r.Context(), outboundEventCh, commandRejectedEvent(message, "start_sharing", err)) {
+						return
+					}
+					continue
+				}
+
+				if !enqueueLiveEvent(r.Context(), outboundEventCh, commandAckEvent(message, "start_sharing")) {
+					return
+				}
+				if wasTracking {
+					continue
+				}
+				eventType := "member_started_sharing"
+				if disconnectedStatus == routes.MemberStatusStale {
+					eventType = "member_back_online"
+				}
+				disconnectedStatus = result.Member.Status
+				resetTimer(trackingHealthCh)
+				s.broadcastLiveEvent(result.Member.RouteID, live.Event{
+					"type":    eventType,
+					"member":  result.Member,
+					"segment": result.Segment,
+				})
+			case "stop_sharing":
+				wasSpectating := disconnectedStatus == routes.MemberStatusSpectating
+				result, err := s.routes.StopSharing(r.Context(), authorized.Route.Code, authMessage.MemberToken)
+				if err != nil {
+					if !enqueueLiveEvent(r.Context(), outboundEventCh, commandRejectedEvent(message, "stop_sharing", err)) {
+						return
+					}
+					continue
+				}
+
+				if !enqueueLiveEvent(r.Context(), outboundEventCh, commandAckEvent(message, "stop_sharing")) {
+					return
+				}
+				if wasSpectating {
+					continue
+				}
+				disconnectedStatus = result.Member.Status
+				s.broadcastLiveEvent(result.Member.RouteID, live.Event{
+					"type":   "member_stopped_sharing",
+					"member": result.Member,
+				})
 			case "position_update":
 				input, err := positionUpdateInput(message, rawMessage)
 				if err != nil {
@@ -425,6 +459,14 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
+				if result.RecoveredMember != nil {
+					disconnectedStatus = result.RecoveredMember.Status
+					s.broadcastLiveEvent(result.RouteID, live.Event{
+						"type":   "member_back_online",
+						"member": result.RecoveredMember,
+					})
+				}
+				resetTimer(trackingHealthCh)
 				s.broadcastLiveEvent(result.RouteID, live.Event{
 					"type":      "position_updated",
 					"memberId":  result.MemberID,
@@ -441,6 +483,13 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
+	go s.runTrackingHealthTimer(r.Context(), authorized.Route.ID, authorized.Member.ID, trackingHealthCh, staleOfflineCh, &disconnectedStatus)
+	if authorized.Member.Status == routes.MemberStatusTracking {
+		resetTimer(trackingHealthCh)
+	}
+	if authorized.Member.Status == routes.MemberStatusStale {
+		go s.markOfflineAfter(context.Background(), authorized.Route.ID, authorized.Member.ID, s.appConfig.TrackingOfflineAfter)
+	}
 
 	for {
 		select {
@@ -474,6 +523,135 @@ func (s *Server) broadcastLiveEvent(routeID string, event live.Event) {
 	delivered := s.liveHub.Broadcast(routeID, event)
 	if delivered > 0 {
 		s.logger.Debug("broadcast live event", "route_id", routeID, "type", event["type"], "delivered", delivered)
+	}
+}
+
+func (s *Server) runTrackingHealthTimer(ctx context.Context, routeID, memberID string, resetCh <-chan struct{}, _ <-chan struct{}, disconnectedStatus *string) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-resetCh:
+		}
+
+		timer := time.NewTimer(s.appConfig.TrackingStaleAfter)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-resetCh:
+			timer.Stop()
+			continue
+		case <-timer.C:
+		}
+
+		member, changed, err := s.routes.MarkMemberStale(context.Background(), routeID, memberID)
+		if err != nil {
+			s.logger.Error("tracking stale transition failed", "error", err)
+			continue
+		}
+		if !changed {
+			continue
+		}
+
+		*disconnectedStatus = member.Status
+		s.broadcastLiveEvent(routeID, live.Event{
+			"type":   "member_became_stale",
+			"member": member,
+		})
+
+		offlineTimer := time.NewTimer(s.appConfig.TrackingOfflineAfter)
+		select {
+		case <-ctx.Done():
+			offlineTimer.Stop()
+			return
+		case <-resetCh:
+			offlineTimer.Stop()
+			continue
+		case <-offlineTimer.C:
+		}
+
+		offlineMember, offlineChanged, err := s.routes.MarkMemberOffline(context.Background(), routeID, memberID)
+		if err != nil {
+			s.logger.Error("tracking offline transition failed", "error", err)
+			continue
+		}
+		if offlineChanged {
+			*disconnectedStatus = offlineMember.Status
+			s.broadcastLiveEvent(routeID, live.Event{
+				"type":   "member_went_offline",
+				"member": offlineMember,
+			})
+		}
+	}
+}
+
+func (s *Server) handleDisconnectedMember(ctx context.Context, routeID, memberID, status string) {
+	switch status {
+	case routes.MemberStatusTracking:
+		member, changed, err := s.routes.MarkMemberStale(ctx, routeID, memberID)
+		if err != nil {
+			s.logger.Error("disconnect stale transition failed", "error", err)
+			return
+		}
+		if changed {
+			s.broadcastLiveEvent(routeID, live.Event{
+				"type":   "member_became_stale",
+				"member": member,
+			})
+			go s.markOfflineAfter(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
+		}
+	case routes.MemberStatusSpectating:
+		go s.markOfflineAfter(ctx, routeID, memberID, s.appConfig.SpectatorOfflineAfter)
+	case routes.MemberStatusStale:
+		go s.markOfflineAfter(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
+	}
+}
+
+func (s *Server) markOfflineAfter(ctx context.Context, routeID, memberID string, delay time.Duration) {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-timer.C:
+	}
+
+	member, changed, err := s.routes.MarkMemberOffline(context.Background(), routeID, memberID)
+	if err != nil {
+		s.logger.Error("offline transition failed", "error", err)
+		return
+	}
+	if changed {
+		s.broadcastLiveEvent(routeID, live.Event{
+			"type":   "member_went_offline",
+			"member": member,
+		})
+	}
+}
+
+func resetTimer(resetCh chan<- struct{}) {
+	select {
+	case resetCh <- struct{}{}:
+	default:
+	}
+}
+
+func commandAckEvent(message webSocketClientMessage, command string) live.Event {
+	return live.Event{
+		"type":      "command_ack",
+		"requestId": message.RequestID,
+		"command":   command,
+	}
+}
+
+func commandRejectedEvent(message webSocketClientMessage, command string, err error) live.Event {
+	return live.Event{
+		"type":      "command_rejected",
+		"requestId": message.RequestID,
+		"command":   command,
+		"reason":    routeErrorReason(err),
 	}
 }
 
@@ -620,6 +798,7 @@ type webSocketAuthMessage struct {
 
 type webSocketClientMessage struct {
 	Type             string     `json:"type"`
+	RequestID        string     `json:"requestId"`
 	Latitude         *float64   `json:"latitude"`
 	Longitude        *float64   `json:"longitude"`
 	AccuracyM        *float64   `json:"accuracyM"`

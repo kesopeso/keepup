@@ -37,6 +37,9 @@ type stubRouteService struct {
 	snapshotFn        func(context.Context, string, string) (routes.Snapshot, error)
 	startSharingFn    func(context.Context, string, string) (routes.StartSharingResult, error)
 	stopSharingFn     func(context.Context, string, string) (routes.StopSharingResult, error)
+	markOnlineFn      func(context.Context, string, string) (routes.Member, bool, error)
+	markStaleFn       func(context.Context, string, string) (routes.Member, bool, error)
+	markOfflineFn     func(context.Context, string, string) (routes.Member, bool, error)
 	recordPositionFn  func(context.Context, string, routes.PositionUpdateInput) (routes.PositionUpdateResult, error)
 	updateRouteFn     func(context.Context, string, string, routes.UpdateRouteInput) (routes.Route, error)
 }
@@ -95,6 +98,30 @@ func (s stubRouteService) StopSharing(ctx context.Context, code, memberToken str
 	}
 
 	return s.stopSharingFn(ctx, code, memberToken)
+}
+
+func (s stubRouteService) MarkMemberOnline(ctx context.Context, routeID, memberID string) (routes.Member, bool, error) {
+	if s.markOnlineFn == nil {
+		return routes.Member{}, false, nil
+	}
+
+	return s.markOnlineFn(ctx, routeID, memberID)
+}
+
+func (s stubRouteService) MarkMemberStale(ctx context.Context, routeID, memberID string) (routes.Member, bool, error) {
+	if s.markStaleFn == nil {
+		return routes.Member{}, false, nil
+	}
+
+	return s.markStaleFn(ctx, routeID, memberID)
+}
+
+func (s stubRouteService) MarkMemberOffline(ctx context.Context, routeID, memberID string) (routes.Member, bool, error) {
+	if s.markOfflineFn == nil {
+		return routes.Member{}, false, nil
+	}
+
+	return s.markOfflineFn(ctx, routeID, memberID)
 }
 
 func (s stubRouteService) RecordPosition(ctx context.Context, memberToken string, input routes.PositionUpdateInput) (routes.PositionUpdateResult, error) {
@@ -544,92 +571,6 @@ func TestLeaveRouteHandler(t *testing.T) {
 
 	if !strings.Contains(recorder.Body.String(), `"status":"left"`) {
 		t.Fatalf("ServeHTTP() body = %q, want left status", recorder.Body.String())
-	}
-}
-
-func TestMemberSharingHandlerStartsSharing(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now().UTC()
-	handler := NewHandler(
-		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
-		config.AppConfig{Env: "test", Port: "8080"},
-		stubHealthChecker{},
-		stubRouteService{
-			startSharingFn: func(_ context.Context, code, token string) (routes.StartSharingResult, error) {
-				if code != "K7P9QD" || token != "member-token" {
-					t.Fatalf("StartSharing() got code=%q token=%q", code, token)
-				}
-
-				return routes.StartSharingResult{
-					Member: routes.Member{
-						ID:      "member-2",
-						RouteID: "route-1",
-						Status:  routes.MemberStatusTracking,
-					},
-					Segment: routes.PathSegment{
-						ID:        "segment-1",
-						StartedAt: &now,
-						Points:    []routes.RoutePoint{},
-					},
-				}, nil
-			},
-		},
-	)
-
-	request := httptest.NewRequest(http.MethodPut, "/routes/K7P9QD/members/me/sharing", strings.NewReader(`{"enabled":true}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer member-token")
-	recorder := httptest.NewRecorder()
-
-	handler.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
-	}
-
-	if !strings.Contains(recorder.Body.String(), `"status":"tracking"`) {
-		t.Fatalf("ServeHTTP() body = %q, want tracking status", recorder.Body.String())
-	}
-}
-
-func TestMemberSharingHandlerStopsSharing(t *testing.T) {
-	t.Parallel()
-
-	handler := NewHandler(
-		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
-		config.AppConfig{Env: "test", Port: "8080"},
-		stubHealthChecker{},
-		stubRouteService{
-			stopSharingFn: func(_ context.Context, code, token string) (routes.StopSharingResult, error) {
-				if code != "K7P9QD" || token != "member-token" {
-					t.Fatalf("StopSharing() got code=%q token=%q", code, token)
-				}
-
-				return routes.StopSharingResult{
-					Member: routes.Member{
-						ID:      "member-2",
-						RouteID: "route-1",
-						Status:  routes.MemberStatusSpectating,
-					},
-				}, nil
-			},
-		},
-	)
-
-	request := httptest.NewRequest(http.MethodPut, "/routes/K7P9QD/members/me/sharing", strings.NewReader(`{"enabled":false}`))
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer member-token")
-	recorder := httptest.NewRecorder()
-
-	handler.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("ServeHTTP() status = %d, want %d", recorder.Code, http.StatusOK)
-	}
-
-	if !strings.Contains(recorder.Body.String(), `"status":"spectating"`) {
-		t.Fatalf("ServeHTTP() body = %q, want spectating status", recorder.Body.String())
 	}
 }
 

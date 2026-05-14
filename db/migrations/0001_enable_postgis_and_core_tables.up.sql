@@ -31,7 +31,8 @@ CREATE TABLE route_members (
 );
 
 CREATE UNIQUE INDEX route_members_route_alias_unique_idx
-    ON route_members (route_id, LOWER(display_name));
+    ON route_members (route_id, LOWER(display_name))
+    WHERE status <> 'left';
 
 CREATE TABLE path_segments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -39,7 +40,7 @@ CREATE TABLE path_segments (
     member_id UUID NOT NULL REFERENCES route_members(id) ON DELETE CASCADE,
     started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ended_at TIMESTAMPTZ,
-    end_reason TEXT CHECK (end_reason IN ('stopped', 'disconnected', 'route_closed'))
+    end_reason TEXT CHECK (end_reason IN ('stopped', 'disconnected', 'left', 'route_closed'))
 );
 
 CREATE TABLE position_points (

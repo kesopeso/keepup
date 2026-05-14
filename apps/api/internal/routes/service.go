@@ -65,6 +65,9 @@ type Repository interface {
 	CountTrackingMembers(context.Context, string) (int, error)
 	StartTrackingMember(context.Context, string, string) (StartSharingRepoResult, error)
 	StopTrackingMember(context.Context, string, string) (Member, error)
+	MarkMemberOnline(context.Context, string, string) (Member, bool, error)
+	MarkMemberStale(context.Context, string, string) (Member, bool, error)
+	MarkMemberOffline(context.Context, string, string) (Member, bool, error)
 	RecordPosition(context.Context, RecordPositionRepoParams) (PositionUpdateResult, error)
 	UpdateRoute(context.Context, string, UpdateRouteRepoParams) (Route, error)
 	LeaveMember(context.Context, string) (Member, error)
@@ -363,6 +366,10 @@ func (s *Service) LeaveRoute(ctx context.Context, code, memberToken string) (Lea
 		return LeaveRouteResult{}, ErrUnauthorized
 	}
 
+	if authorized.Route.Status == RouteStatusActive && authorized.Member.IsOwner {
+		return LeaveRouteResult{}, ErrInvalidInput
+	}
+
 	member, err := s.repo.LeaveMember(ctx, authorized.Member.ID)
 	if err != nil {
 		return LeaveRouteResult{}, fmt.Errorf("leave route: %w", err)
@@ -390,8 +397,12 @@ func (s *Service) StartSharing(ctx context.Context, code, memberToken string) (S
 		return StartSharingResult{}, ErrRouteClosed
 	}
 
-	if authorized.Member.Status == MemberStatusLeft || authorized.Member.Status == MemberStatusTracking {
+	if authorized.Member.Status == MemberStatusLeft || authorized.Member.Status == MemberStatusOffline {
 		return StartSharingResult{}, ErrInvalidInput
+	}
+
+	if authorized.Member.Status == MemberStatusTracking {
+		return StartSharingResult{Member: authorized.Member}, nil
 	}
 
 	if !authorized.Member.IsOwner && authorized.Route.SharingPolicy != SharingPolicyEveryoneCanShare {
@@ -403,7 +414,7 @@ func (s *Service) StartSharing(ctx context.Context, code, memberToken string) (S
 		return StartSharingResult{}, fmt.Errorf("start sharing count tracking members: %w", err)
 	}
 
-	if trackingCount >= authorized.Route.MaxTrackingMembers {
+	if authorized.Member.Status != MemberStatusStale && trackingCount >= authorized.Route.MaxTrackingMembers {
 		return StartSharingResult{}, ErrTrackingLimitReached
 	}
 
@@ -434,7 +445,11 @@ func (s *Service) StopSharing(ctx context.Context, code, memberToken string) (St
 		return StopSharingResult{}, ErrRouteClosed
 	}
 
-	if authorized.Member.Status != MemberStatusTracking {
+	if authorized.Member.Status == MemberStatusSpectating {
+		return StopSharingResult{Member: authorized.Member}, nil
+	}
+
+	if authorized.Member.Status != MemberStatusTracking && authorized.Member.Status != MemberStatusStale {
 		return StopSharingResult{}, ErrInvalidInput
 	}
 
@@ -466,7 +481,7 @@ func (s *Service) RecordPosition(ctx context.Context, memberToken string, input 
 		return PositionUpdateResult{}, ErrRouteClosed
 	}
 
-	if authorized.Member.Status != MemberStatusTracking {
+	if authorized.Member.Status != MemberStatusTracking && authorized.Member.Status != MemberStatusStale {
 		return PositionUpdateResult{}, ErrInvalidInput
 	}
 
@@ -487,6 +502,36 @@ func (s *Service) RecordPosition(ctx context.Context, memberToken string, input 
 	}
 
 	return result, nil
+}
+
+// MarkMemberOnline marks an offline member as spectating after live authentication.
+func (s *Service) MarkMemberOnline(ctx context.Context, routeID, memberID string) (Member, bool, error) {
+	member, changed, err := s.repo.MarkMemberOnline(ctx, routeID, memberID)
+	if err != nil {
+		return Member{}, false, fmt.Errorf("mark member online: %w", err)
+	}
+
+	return member, changed, nil
+}
+
+// MarkMemberStale marks a tracking member as stale.
+func (s *Service) MarkMemberStale(ctx context.Context, routeID, memberID string) (Member, bool, error) {
+	member, changed, err := s.repo.MarkMemberStale(ctx, routeID, memberID)
+	if err != nil {
+		return Member{}, false, fmt.Errorf("mark member stale: %w", err)
+	}
+
+	return member, changed, nil
+}
+
+// MarkMemberOffline marks a stale or spectating member as offline.
+func (s *Service) MarkMemberOffline(ctx context.Context, routeID, memberID string) (Member, bool, error) {
+	member, changed, err := s.repo.MarkMemberOffline(ctx, routeID, memberID)
+	if err != nil {
+		return Member{}, false, fmt.Errorf("mark member offline: %w", err)
+	}
+
+	return member, changed, nil
 }
 
 // DeleteRoute removes a route owned by the authenticated owner token.
@@ -521,6 +566,9 @@ func (s *Service) AuthorizeMember(ctx context.Context, memberToken string) (Auth
 	if err != nil {
 		return AuthorizedMember{}, err
 	}
+	if authorized.Member.Status == MemberStatusLeft {
+		return AuthorizedMember{}, ErrUnauthorized
+	}
 
 	return authorized, nil
 }
@@ -534,6 +582,9 @@ func (s *Service) Snapshot(ctx context.Context, code, memberToken string) (Snaps
 	authorized, err := s.repo.GetAuthorizedMemberByTokenHash(ctx, tokenHash(memberToken))
 	if err != nil {
 		return Snapshot{}, err
+	}
+	if authorized.Member.Status == MemberStatusLeft {
+		return Snapshot{}, ErrUnauthorized
 	}
 
 	if normalizeCode(code) != authorized.Route.Code {
@@ -592,9 +643,10 @@ func buildViewerCapabilities(authorized AuthorizedMember, trackingCount int) Vie
 		role = RoleOwner
 	}
 
+	hasTrackingSlot := trackingCount < authorized.Route.MaxTrackingMembers || authorized.Member.Status == MemberStatusStale
 	canStartSharing := authorized.Route.Status == RouteStatusActive &&
-		authorized.Member.Status != MemberStatusTracking &&
-		trackingCount < authorized.Route.MaxTrackingMembers &&
+		(authorized.Member.Status == MemberStatusSpectating || authorized.Member.Status == MemberStatusStale) &&
+		hasTrackingSlot &&
 		(authorized.Member.IsOwner || authorized.Route.SharingPolicy == SharingPolicyEveryoneCanShare)
 
 	return ViewerCapabilities{
@@ -602,8 +654,8 @@ func buildViewerCapabilities(authorized AuthorizedMember, trackingCount int) Vie
 		Role:            role,
 		Status:          authorized.Member.Status,
 		CanStartSharing: canStartSharing,
-		CanStopSharing:  authorized.Route.Status == RouteStatusActive && authorized.Member.Status == MemberStatusTracking,
-		CanLeaveRoute:   authorized.Member.Status != MemberStatusLeft,
+		CanStopSharing:  authorized.Route.Status == RouteStatusActive && (authorized.Member.Status == MemberStatusTracking || authorized.Member.Status == MemberStatusStale),
+		CanLeaveRoute:   authorized.Member.Status != MemberStatusLeft && !(authorized.Route.Status == RouteStatusActive && authorized.Member.IsOwner),
 		CanCloseRoute:   authorized.Member.IsOwner && authorized.Route.Status == RouteStatusActive,
 		CanDeleteRoute:  authorized.Member.IsOwner,
 		CanEditRoute:    authorized.Member.IsOwner,

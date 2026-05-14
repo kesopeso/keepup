@@ -50,6 +50,20 @@ func (h *Hub) Subscribe(routeID, memberID string) *Subscription {
 	return subscription
 }
 
+// HasMemberConnection reports whether a member already has an active subscription.
+func (h *Hub) HasMemberConnection(routeID, memberID string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for subscription := range h.rooms[routeID] {
+		if subscription.memberID == memberID && !subscription.closed {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Close removes the subscription from its route room.
 func (s *Subscription) Close() {
 	s.hub.mu.Lock()

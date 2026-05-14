@@ -9,6 +9,7 @@ export type NavigationPosition = {
 };
 
 export type NavigationService = {
+  requestPermission: () => Promise<void>;
   watchPosition: (
     onPosition: (position: NavigationPosition) => void,
     onError: () => void,
@@ -33,6 +34,9 @@ export const navigationService: NavigationService =
 
 function createBrowserNavigationService(): NavigationService {
   return {
+    requestPermission() {
+      return requestBrowserLocationPermission();
+    },
     watchPosition(onPosition, onError) {
       if (!("geolocation" in navigator)) {
         onError();
@@ -62,6 +66,9 @@ function createDevelopmentNavigationService(): NavigationService {
   const browserNavigationService = createBrowserNavigationService();
 
   return {
+    requestPermission() {
+      return browserNavigationService.requestPermission();
+    },
     watchPosition(onPosition, onError) {
       let fakeRouteState: FakeRouteState | null = null;
       let fakePositionTimer: ReturnType<typeof setInterval> | null = null;
@@ -97,6 +104,24 @@ function createDevelopmentNavigationService(): NavigationService {
       };
     },
   };
+}
+
+function requestBrowserLocationPermission(): Promise<void> {
+  if (!("geolocation" in navigator)) {
+    return Promise.reject(new Error("geolocation_unavailable"));
+  }
+
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      () => resolve(),
+      () => reject(new Error("geolocation_denied")),
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5_000,
+        timeout: 20_000,
+      },
+    );
+  });
 }
 
 function navigationPositionFromGeolocation(
