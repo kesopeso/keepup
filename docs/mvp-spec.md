@@ -107,6 +107,7 @@ Current API naming:
 
 - Members explicitly press `Start sharing location`
 - Starting sharing requires usable location access
+- Location permission failures show actionable browser/device guidance and distinguish blocked permission, unavailable location, and timeout failures
 - Route creation does not require location access
 - Stopping sharing returns member to spectator state
 - Sharing state updates are live WebSocket commands: `start_sharing` and `stop_sharing`
@@ -119,8 +120,12 @@ Current API naming:
 - On refresh, if a member was previously sharing:
   - rejoin route automatically
   - show prompt:
-    - Continue sharing
+    - Resume sharing
     - Continue as spectator
+- The stale recovery prompt waits for the authenticated live connection before enabling either action
+- Resume sharing requests browser location permission, then sends `start_sharing`
+- Continue as spectator sends `stop_sharing`
+- The prompt remains visible until the server broadcasts the viewer's resulting member status
 - No offline buffering in MVP
 - No road/path snapping in MVP
 - Path rendering is point-to-point between accepted positions
@@ -258,6 +263,7 @@ Current backend broadcasts `member_joined`, `member_left`, `route_updated`, and 
 Current backend also broadcasts `member_started_sharing`, `member_stopped_sharing`, `member_became_stale`, `member_back_online`, and `member_went_offline` after successful live status updates.
 Current backend accepts authenticated WebSocket `position_update` messages and broadcasts accepted points as `position_updated`.
 Current frontend connects to the authenticated WebSocket for active routes, sends `start_sharing`/`stop_sharing` commands, sends `position_update` messages while the viewer is tracking, applies `position_updated` events to the displayed map state, and applies sharing/status events without refreshing the route snapshot.
+Current frontend shows a blocking stale recovery prompt when an active route initially loads with the viewer as `stale`, with explicit resume-sharing and continue-as-spectator actions. A viewer who becomes stale during an existing live session can still recover automatically when accepted positions resume.
 
 Live connection rules:
 

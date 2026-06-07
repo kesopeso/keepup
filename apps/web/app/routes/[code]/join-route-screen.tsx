@@ -327,6 +327,10 @@ function RouteSnapshotShell({
   const [sharingError, setSharingError] = useState("");
   const [liveTrackingError, setLiveTrackingError] = useState("");
   const [liveConnectionRejected, setLiveConnectionRejected] = useState(false);
+  const [liveConnectionReady, setLiveConnectionReady] = useState(false);
+  const [showStaleRecovery, setShowStaleRecovery] = useState(
+    () => snapshot.route.status === "active" && snapshot.viewer.status === "stale",
+  );
   const websocketRef = useRef<WebSocket | null>(null);
   const snapshotRef = useRef(snapshot);
   const [mapState, setMapState] = useState(() => routeSnapshotToMapState(snapshot));
@@ -334,6 +338,7 @@ function RouteSnapshotShell({
   const canUseSharingControl =
     memberToken !== "" &&
     snapshot.route.status === "active" &&
+    liveConnectionReady &&
     !sharingAction &&
     (snapshot.viewer.canStartSharing || snapshot.viewer.canStopSharing);
   const sharingControlLabel = snapshot.viewer.canStopSharing
@@ -349,6 +354,9 @@ function RouteSnapshotShell({
   useEffect(() => {
     snapshotRef.current = snapshot;
     setMapState((current) => mergeSnapshotIntoMapState(current, snapshot));
+    if (snapshot.viewer.status !== "stale") {
+      setShowStaleRecovery(false);
+    }
   }, [snapshot]);
 
   useEffect(() => {
@@ -396,8 +404,15 @@ function RouteSnapshotShell({
         return;
       }
 
+      if (liveEvent.type === "connection_established") {
+        setLiveConnectionReady(true);
+        return;
+      }
+
       if (liveEvent.type === "command_ack") {
-        setSharingAction(null);
+        if (snapshotRef.current.viewer.status !== "stale") {
+          setSharingAction(null);
+        }
         return;
       }
 
@@ -414,6 +429,9 @@ function RouteSnapshotShell({
         liveEvent.type === "member_back_online" ||
         liveEvent.type === "member_went_offline"
       ) {
+        if (liveEvent.member.id === snapshotRef.current.viewer.memberId) {
+          setSharingAction(null);
+        }
         onSnapshotChange(
           snapshotWithUpdatedSharingMember(
             snapshotRef.current,
@@ -437,6 +455,9 @@ function RouteSnapshotShell({
       if (websocketRef.current === socket) {
         websocketRef.current = null;
       }
+      if (isCurrent) {
+        setLiveConnectionReady(false);
+      }
     });
 
     socket.addEventListener("error", () => {
@@ -447,6 +468,7 @@ function RouteSnapshotShell({
 
     return () => {
       isCurrent = false;
+      setLiveConnectionReady(false);
       if (websocketRef.current === socket) {
         websocketRef.current = null;
       }
@@ -469,8 +491,8 @@ function RouteSnapshotShell({
 
         socket.send(JSON.stringify(positionUpdatePayload(position)));
       },
-      () => {
-        setLiveTrackingError("Location sharing needs browser location access.");
+      (locationError) => {
+        setLiveTrackingError(locationErrorMessage(locationError));
       },
     );
   }, [isViewerTracking]);
@@ -480,12 +502,24 @@ function RouteSnapshotShell({
       return;
     }
 
-    setSharingError("");
     const shouldStartSharing = snapshot.viewer.canStartSharing;
-    setSharingAction(shouldStartSharing ? "start" : "stop");
+    await updateSharing(shouldStartSharing ? "start" : "stop");
+  }
+
+  async function handleStaleRecovery(action: "start" | "stop") {
+    if (!canUseSharingControl) {
+      return;
+    }
+
+    await updateSharing(action);
+  }
+
+  async function updateSharing(action: "start" | "stop") {
+    setSharingError("");
+    setSharingAction(action);
 
     try {
-      if (shouldStartSharing) {
+      if (action === "start") {
         await navigationService.requestPermission();
         sendLiveCommand("start_sharing");
       } else {
@@ -500,7 +534,7 @@ function RouteSnapshotShell({
         clearRouteAuth(code);
       }
 
-      setSharingError(caughtError instanceof Error ? caughtError.message : "Could not update sharing.");
+      setSharingError(locationErrorMessage(caughtError));
     }
   }
 
@@ -550,6 +584,62 @@ function RouteSnapshotShell({
       </header>
 
       <RouteMap state={mapState} />
+
+      {showStaleRecovery ? (
+        <div className="recovery-backdrop">
+          <section
+            aria-describedby="stale-recovery-description"
+            aria-labelledby="stale-recovery-title"
+            aria-modal="true"
+            className="recovery-dialog"
+            role="dialog"
+          >
+            <p className="eyebrow">Sharing interrupted</p>
+            <h2 id="stale-recovery-title">Continue sharing your location?</h2>
+            <p id="stale-recovery-description">
+              Your previous sharing session was interrupted. Choose how to
+              continue on this route.
+            </p>
+
+            <div className="recovery-actions">
+              <button
+                className="primary-action"
+                disabled={!canUseSharingControl}
+                onClick={() => handleStaleRecovery("start")}
+                type="button"
+              >
+                {sharingAction === "start" ? "Resuming..." : "Resume sharing"}
+              </button>
+              <button
+                className="secondary-action"
+                disabled={!canUseSharingControl}
+                onClick={() => handleStaleRecovery("stop")}
+                type="button"
+              >
+                {sharingAction === "stop"
+                  ? "Continuing..."
+                  : "Continue as spectator"}
+              </button>
+            </div>
+
+            {!liveConnectionReady && !sharingError && !liveTrackingError ? (
+              <p className="route-status">Connecting to the live route...</p>
+            ) : null}
+
+            {sharingError ? (
+              <p className="form-error" role="alert">
+                {sharingError}
+              </p>
+            ) : null}
+
+            {!sharingError && liveTrackingError ? (
+              <p className="form-error" role="alert">
+                {liveTrackingError}
+              </p>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
 
       <aside className="member-sheet" aria-label="Route members">
         <div className="sheet-handle" aria-hidden="true" />
@@ -920,6 +1010,27 @@ function commandRejectedMessage(reason?: string) {
   }
   if (reason === "route_closed") {
     return "This route is closed.";
+  }
+
+  return "Could not update sharing.";
+}
+
+function locationErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    if (error.message === "geolocation_denied") {
+      return "Location permission is blocked. Allow location access for this site in your browser settings, then try again.";
+    }
+    if (error.message === "geolocation_unavailable") {
+      return "Your device could not determine its location. Check location services and try again.";
+    }
+    if (error.message === "geolocation_timeout") {
+      return "Getting your location timed out. Move somewhere with a clearer signal and try again.";
+    }
+    if (error.message === "geolocation_failed") {
+      return "Could not get your location. Check browser and device location settings, then try again.";
+    }
+
+    return error.message;
   }
 
   return "Could not update sharing.";

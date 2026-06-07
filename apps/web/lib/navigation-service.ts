@@ -12,7 +12,7 @@ export type NavigationService = {
   requestPermission: () => Promise<void>;
   watchPosition: (
     onPosition: (position: NavigationPosition) => void,
-    onError: () => void,
+    onError: (error: Error) => void,
   ) => () => void;
 };
 
@@ -39,7 +39,7 @@ function createBrowserNavigationService(): NavigationService {
     },
     watchPosition(onPosition, onError) {
       if (!("geolocation" in navigator)) {
-        onError();
+        onError(new Error("geolocation_unavailable"));
         return () => {};
       }
 
@@ -47,7 +47,7 @@ function createBrowserNavigationService(): NavigationService {
         (position) => {
           onPosition(navigationPositionFromGeolocation(position));
         },
-        onError,
+        (error) => onError(browserLocationError(error)),
         {
           enableHighAccuracy: true,
           maximumAge: 5_000,
@@ -114,7 +114,7 @@ function requestBrowserLocationPermission(): Promise<void> {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       () => resolve(),
-      () => reject(new Error("geolocation_denied")),
+      (error) => reject(browserLocationError(error)),
       {
         enableHighAccuracy: true,
         maximumAge: 5_000,
@@ -122,6 +122,22 @@ function requestBrowserLocationPermission(): Promise<void> {
       },
     );
   });
+}
+
+function browserLocationError(error: GeolocationPositionError) {
+  if (error.code === error.PERMISSION_DENIED) {
+    return new Error("geolocation_denied");
+  }
+
+  if (error.code === error.POSITION_UNAVAILABLE) {
+    return new Error("geolocation_unavailable");
+  }
+
+  if (error.code === error.TIMEOUT) {
+    return new Error("geolocation_timeout");
+  }
+
+  return new Error("geolocation_failed");
 }
 
 function navigationPositionFromGeolocation(

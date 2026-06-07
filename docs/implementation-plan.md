@@ -209,13 +209,15 @@ The backend foundation and first route lifecycle slice are complete:
    - stale members recover to tracking automatically when an accepted position arrives, with `member_back_online` broadcast before `position_updated`
    - spectating members become offline after the configured spectator disconnect grace period
    - active-route owners cannot leave; they must close/delete the route instead
+22. Current-viewer stale recovery is implemented:
+   - active route snapshots initially loaded with a stale viewer show a blocking recovery prompt without interrupting later automatic stale recovery
+   - Resume sharing requests location permission and sends `start_sharing`
+   - Continue as spectator sends `stop_sharing`
+   - actions wait for the authenticated live connection and the prompt clears after the server broadcasts the resulting status
 
 ## Immediate Next Step
 
-When work resumes, continue the realtime tracking slice with frontend recovery polish and edge-case hardening:
+When work resumes, continue route lifecycle UX and presence visual polish:
 
-1. add the current-viewer stale recovery prompt:
-   - Resume sharing
-   - Continue as spectator
-2. add explicit close/delete confirmations
-3. add clearer offline/stale visual treatment in the member sheet
+1. add explicit close/delete confirmations
+2. add clearer offline/stale visual treatment in the member sheet

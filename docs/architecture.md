@@ -60,8 +60,12 @@ docker-compose.yml
 - Active tracking viewers stream browser geolocation samples as `position_update` messages over the live connection
 - Incoming `position_updated` events update the in-memory map state so live markers and paths move without refetching the snapshot
 - Incoming sharing and presence status events update local member/viewer state without replacing rendered route paths
+- Active route snapshots that initially load with a `stale` current viewer show a blocking recovery prompt; later stale events in the same live session do not trigger it
+- The recovery actions wait for `connection_established`; resume requests browser location permission and sends `start_sharing`, while continue-as-spectator sends `stop_sharing`
+- The stale recovery prompt is dismissed by the resulting member status event rather than optimistically on command acknowledgement
 - If a second tab/device opens the same active route with the same member token, the route screen shows a blocking notice instead of map/member content after `live_connection_rejected`
 - Browser position access is isolated behind `apps/web/lib/navigation-service.ts`
+- Browser geolocation failures are normalized by the navigation service into denied, unavailable, timeout, and generic failure codes before the route screen renders actionable guidance
 - In development, the navigation service emits the first real browser position, then broadcasts simulated movement every 2 seconds in roughly 10m direction-biased steps with small random turns
 - Map rendering is behind a framework-neutral `RouteMapRenderer` interface in `apps/web/lib/map`
 - Snapshot DTOs are converted to a map-specific `RouteMapState` before reaching the renderer

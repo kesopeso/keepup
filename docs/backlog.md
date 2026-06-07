@@ -2,10 +2,6 @@
 
 ## High Priority
 
-- Current-viewer stale recovery prompt
-  - Show when the authenticated viewer loads an active route while their persisted status is `stale`
-  - Actions: resume sharing or continue as spectator
-  - Automatic recovery still happens when accepted positions resume during an existing live session
 - Optional path snapping / map matching
   - Keep raw accepted points as source of truth
   - Generate snapped geometry as derived data

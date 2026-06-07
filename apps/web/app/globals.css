@@ -241,6 +241,7 @@ code {
 }
 
 .route-screen {
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(280px, 1fr) auto;
   gap: 12px;
@@ -438,6 +439,56 @@ code {
 }
 
 .sharing-action:disabled {
+  opacity: 0.48;
+}
+
+.recovery-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(5, 10, 14, 0.76);
+  backdrop-filter: blur(6px);
+}
+
+.recovery-dialog {
+  display: grid;
+  gap: 14px;
+  width: min(100%, 460px);
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: 0 24px 72px rgba(0, 0, 0, 0.52);
+}
+
+.recovery-dialog h2,
+.recovery-dialog p {
+  margin: 0;
+}
+
+.recovery-dialog > p:not(.eyebrow, .form-error) {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.recovery-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.secondary-action {
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font-weight: 800;
+}
+
+.secondary-action:disabled {
   opacity: 0.48;
 }
 
