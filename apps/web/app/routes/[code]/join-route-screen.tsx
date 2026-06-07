@@ -1,6 +1,7 @@
 "use client";
 
 import { SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   clearRouteAuth,
   getProfile,
@@ -22,6 +23,8 @@ import {
 } from "../../../lib/navigation-service";
 import {
   ApiError,
+  closeRoute,
+  deleteRoute,
   getRouteAccess,
   getRouteSnapshot,
   joinRoute,
@@ -31,6 +34,7 @@ import {
   type PathSegment,
   type RoutePoint,
   type RouteSnapshot,
+  type RouteSummary,
   type SnapshotMember,
 } from "../../../lib/routes-api";
 import { RouteMap } from "../../components/route-map";
@@ -46,6 +50,7 @@ const transportLabels: Record<TransportMode, string> = {
 };
 
 export function JoinRouteScreen({ code }: { code: string }) {
+  const router = useRouter();
   const [access, setAccess] = useState<RouteAccess | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [transportMode, setTransportMode] = useState<TransportMode>("car");
@@ -54,6 +59,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
   const [memberToken, setMemberToken] = useState("");
+  const [ownerToken, setOwnerToken] = useState("");
   const [snapshot, setSnapshot] = useState<RouteSnapshot | null>(null);
 
   useEffect(() => {
@@ -64,6 +70,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
     setTransportMode(profile.transportMode);
 
     const routeAuth = getRouteAuth(code);
+    setOwnerToken(routeAuth?.ownerToken ?? "");
     if (routeAuth?.memberToken) {
       setMemberToken(routeAuth.memberToken);
       getRouteSnapshot(code, routeAuth.memberToken)
@@ -185,6 +192,8 @@ export function JoinRouteScreen({ code }: { code: string }) {
       <RouteSnapshotShell
         code={code}
         memberToken={memberToken}
+        ownerToken={ownerToken}
+        onDeleted={() => router.replace("/")}
         onSnapshotChange={setSnapshot}
         snapshot={snapshot}
       />
@@ -313,11 +322,15 @@ function loadRouteAccess(
 function RouteSnapshotShell({
   code,
   memberToken,
+  ownerToken,
+  onDeleted,
   onSnapshotChange,
   snapshot,
 }: {
   code: string;
   memberToken: string;
+  ownerToken: string;
+  onDeleted: () => void;
   onSnapshotChange: (snapshot: RouteSnapshot) => void;
   snapshot: RouteSnapshot;
 }) {
@@ -331,6 +344,12 @@ function RouteSnapshotShell({
   const [showStaleRecovery, setShowStaleRecovery] = useState(
     () => snapshot.route.status === "active" && snapshot.viewer.status === "stale",
   );
+  const [lifecycleAction, setLifecycleAction] = useState<"close" | "delete" | null>(
+    null,
+  );
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [lifecycleError, setLifecycleError] = useState("");
+  const [isLifecycleSubmitting, setIsLifecycleSubmitting] = useState(false);
   const websocketRef = useRef<WebSocket | null>(null);
   const snapshotRef = useRef(snapshot);
   const [mapState, setMapState] = useState(() => routeSnapshotToMapState(snapshot));
@@ -406,6 +425,11 @@ function RouteSnapshotShell({
 
       if (liveEvent.type === "connection_established") {
         setLiveConnectionReady(true);
+        return;
+      }
+
+      if (liveEvent.type === "route_closed") {
+        onSnapshotChange(snapshotWithClosedRoute(snapshotRef.current, liveEvent.route));
         return;
       }
 
@@ -538,6 +562,63 @@ function RouteSnapshotShell({
     }
   }
 
+  async function handleCloseRoute() {
+    if (!snapshot.viewer.canCloseRoute || ownerToken === "") {
+      return;
+    }
+
+    setLifecycleError("");
+    setIsLifecycleSubmitting(true);
+
+    try {
+      const route = await closeRoute(code, ownerToken);
+      onSnapshotChange(snapshotWithClosedRoute(snapshotRef.current, route));
+      setLifecycleAction(null);
+    } catch (caughtError) {
+      setLifecycleError(routeLifecycleErrorMessage(caughtError));
+    } finally {
+      setIsLifecycleSubmitting(false);
+    }
+  }
+
+  async function handleDeleteRoute() {
+    if (
+      !snapshot.viewer.canDeleteRoute ||
+      ownerToken === "" ||
+      deleteConfirmation.trim().toUpperCase() !== snapshot.route.code
+    ) {
+      return;
+    }
+
+    setLifecycleError("");
+    setIsLifecycleSubmitting(true);
+
+    try {
+      await deleteRoute(code, ownerToken);
+      clearRouteAuth(code);
+      onDeleted();
+    } catch (caughtError) {
+      setLifecycleError(routeLifecycleErrorMessage(caughtError));
+      setIsLifecycleSubmitting(false);
+    }
+  }
+
+  function openLifecycleDialog(action: "close" | "delete") {
+    setLifecycleError("");
+    setDeleteConfirmation("");
+    setLifecycleAction(action);
+  }
+
+  function closeLifecycleDialog() {
+    if (isLifecycleSubmitting) {
+      return;
+    }
+
+    setLifecycleAction(null);
+    setLifecycleError("");
+    setDeleteConfirmation("");
+  }
+
   function sendLiveCommand(type: "start_sharing" | "stop_sharing") {
     const socket = websocketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -641,6 +722,84 @@ function RouteSnapshotShell({
         </div>
       ) : null}
 
+      {lifecycleAction ? (
+        <div className="recovery-backdrop">
+          <section
+            aria-describedby="route-lifecycle-description"
+            aria-labelledby="route-lifecycle-title"
+            aria-modal="true"
+            className="recovery-dialog"
+            role="dialog"
+          >
+            <p className="eyebrow">Owner action</p>
+            <h2 id="route-lifecycle-title">
+              {lifecycleAction === "close"
+                ? "Close this route?"
+                : "Permanently delete this route?"}
+            </h2>
+            <p id="route-lifecycle-description">
+              {lifecycleAction === "close"
+                ? "Closing stops all location sharing and turns this route into a read-only archive. It cannot be reopened."
+                : "Deleting permanently removes the route, members, and all recorded paths. This cannot be undone."}
+            </p>
+
+            {lifecycleAction === "delete" ? (
+              <label className="field">
+                <span>
+                  Type <strong>{snapshot.route.code}</strong> to confirm
+                </span>
+                <input
+                  autoComplete="off"
+                  disabled={isLifecycleSubmitting}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  value={deleteConfirmation}
+                />
+              </label>
+            ) : null}
+
+            <div className="recovery-actions">
+              <button
+                className="danger-action"
+                disabled={
+                  isLifecycleSubmitting ||
+                  (lifecycleAction === "delete" &&
+                    deleteConfirmation.trim().toUpperCase() !==
+                      snapshot.route.code)
+                }
+                onClick={
+                  lifecycleAction === "close"
+                    ? handleCloseRoute
+                    : handleDeleteRoute
+                }
+                type="button"
+              >
+                {isLifecycleSubmitting
+                  ? lifecycleAction === "close"
+                    ? "Closing..."
+                    : "Deleting..."
+                  : lifecycleAction === "close"
+                    ? "Close route"
+                    : "Delete route permanently"}
+              </button>
+              <button
+                className="secondary-action"
+                disabled={isLifecycleSubmitting}
+                onClick={closeLifecycleDialog}
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {lifecycleError ? (
+              <p className="form-error" role="alert">
+                {lifecycleError}
+              </p>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
+
       <aside className="member-sheet" aria-label="Route members">
         <div className="sheet-handle" aria-hidden="true" />
 
@@ -658,6 +817,37 @@ function RouteSnapshotShell({
             <p className="route-description">{snapshot.route.description}</p>
           ) : null}
         </div>
+
+        {snapshot.viewer.canCloseRoute || snapshot.viewer.canDeleteRoute ? (
+          <div className="sheet-section">
+            <div className="sheet-heading">
+              <h2>Manage route</h2>
+              <span>Owner</span>
+            </div>
+            <div className="management-actions">
+              {snapshot.viewer.canCloseRoute ? (
+                <button
+                  className="secondary-action"
+                  disabled={ownerToken === ""}
+                  onClick={() => openLifecycleDialog("close")}
+                  type="button"
+                >
+                  Close route
+                </button>
+              ) : null}
+              {snapshot.viewer.canDeleteRoute ? (
+                <button
+                  className="danger-action danger-action-subtle"
+                  disabled={ownerToken === ""}
+                  onClick={() => openLifecycleDialog("delete")}
+                  type="button"
+                >
+                  Delete route
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className="sheet-section">
           <div className="sheet-heading">
@@ -793,6 +983,10 @@ type LiveEvent =
       error?: string;
     }
   | {
+      type: "route_closed";
+      route: RouteSummary;
+    }
+  | {
       type: "message_rejected";
       error?: string;
     };
@@ -805,6 +999,10 @@ function parseLiveEvent(payload: string | ArrayBufferLike | Blob): LiveEvent | n
   try {
     const event = JSON.parse(payload) as Partial<LiveEvent>;
     if (event.type === "position_updated" && isPositionUpdatedEvent(event)) {
+      return event;
+    }
+
+    if (isRouteClosedEvent(event)) {
       return event;
     }
 
@@ -902,6 +1100,54 @@ function isMemberSummary(member: unknown): member is MemberSummary {
     typeof candidate.color === "string" &&
     typeof candidate.joinedAt === "string"
   );
+}
+
+function isRouteSummary(route: unknown): route is RouteSummary {
+  if (!route || typeof route !== "object") {
+    return false;
+  }
+
+  const candidate = route as Partial<RouteSummary>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.code === "string" &&
+    typeof candidate.name === "string" &&
+    candidate.status === "closed"
+  );
+}
+
+function isRouteClosedEvent(
+  event: Partial<LiveEvent>,
+): event is Extract<LiveEvent, { type: "route_closed" }> {
+  return event.type === "route_closed" && isRouteSummary(event.route);
+}
+
+function snapshotWithClosedRoute(
+  snapshot: RouteSnapshot,
+  route: RouteSummary,
+): RouteSnapshot {
+  return {
+    ...snapshot,
+    route,
+    members: snapshot.members.map((member) => ({
+      ...member,
+      status:
+        member.status === "tracking" || member.status === "stale"
+          ? "spectating"
+          : member.status,
+    })),
+    viewer: {
+      ...snapshot.viewer,
+      status:
+        snapshot.viewer.status === "tracking" ||
+        snapshot.viewer.status === "stale"
+          ? "spectating"
+          : snapshot.viewer.status,
+      canStartSharing: false,
+      canStopSharing: false,
+      canCloseRoute: false,
+    },
+  };
 }
 
 function snapshotWithUpdatedSharingMember(
@@ -1034,6 +1280,16 @@ function locationErrorMessage(error: unknown) {
   }
 
   return "Could not update sharing.";
+}
+
+function routeLifecycleErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.code === "unauthorized") {
+    return "Owner access expired. This route can no longer be managed from this browser.";
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "Could not update this route.";
 }
 
 function compareMembers(first: SnapshotMember, second: SnapshotMember) {

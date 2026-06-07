@@ -492,6 +492,28 @@ code {
   opacity: 0.48;
 }
 
+.management-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.danger-action {
+  min-height: 48px;
+  border: 1px solid rgba(248, 113, 113, 0.58);
+  border-radius: 8px;
+  background: #dc2626;
+  color: #fff;
+  font-weight: 800;
+}
+
+.danger-action-subtle {
+  background: rgba(127, 29, 29, 0.34);
+}
+
+.danger-action:disabled {
+  opacity: 0.48;
+}
+
 .member-list {
   display: grid;
   gap: 10px;

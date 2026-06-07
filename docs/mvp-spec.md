@@ -93,6 +93,9 @@ Current API naming:
   - delete route
 - Closing requires confirmation
 - Deleting requires stronger confirmation
+- Current owner controls show a close confirmation explaining the permanent archive transition
+- Current delete confirmation requires typing the exact route code before deletion is enabled
+- Successful deletion clears route-scoped browser credentials and returns the deleting owner to the create screen
 - Closed routes cannot be reopened
 
 ## Sharing Policies
@@ -183,6 +186,8 @@ Current API naming:
 - Current tracking viewers stream browser geolocation samples over the authenticated WebSocket
 - Current map surface applies accepted `position_updated` events directly to live marker and path state
 - Current route snapshots include persisted path segments and position points for route history recovery
+- Current owner route screens expose close/delete controls from viewer capabilities
+- Incoming `route_closed` events transition connected route screens into archive mode without a snapshot refresh
 - Route code is visible but secondary to share action
 - Share uses native Web Share API when available, with copy-link fallback
 

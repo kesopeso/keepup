@@ -63,6 +63,8 @@ docker-compose.yml
 - Active route snapshots that initially load with a `stale` current viewer show a blocking recovery prompt; later stale events in the same live session do not trigger it
 - The recovery actions wait for `connection_established`; resume requests browser location permission and sends `start_sharing`, while continue-as-spectator sends `stop_sharing`
 - The stale recovery prompt is dismissed by the resulting member status event rather than optimistically on command acknowledgement
+- Owner route management uses the route-scoped owner token with `PATCH /routes/{code}` for close and `DELETE /routes/{code}` for permanent deletion
+- Close uses an explicit confirmation and applies the resulting `route_closed` event to connected clients; delete requires exact route-code confirmation, clears local route auth, and navigates the deleting owner to the create screen
 - If a second tab/device opens the same active route with the same member token, the route screen shows a blocking notice instead of map/member content after `live_connection_rejected`
 - Browser position access is isolated behind `apps/web/lib/navigation-service.ts`
 - Browser geolocation failures are normalized by the navigation service into denied, unavailable, timeout, and generic failure codes before the route screen renders actionable guidance

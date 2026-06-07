@@ -214,10 +214,14 @@ The backend foundation and first route lifecycle slice are complete:
    - Resume sharing requests location permission and sends `start_sharing`
    - Continue as spectator sends `stop_sharing`
    - actions wait for the authenticated live connection and the prompt clears after the server broadcasts the resulting status
+23. Owner close/delete confirmations are implemented:
+   - owner capabilities expose route management controls in the member sheet
+   - close requires explicit confirmation and transitions connected viewers into archive mode through `route_closed`
+   - delete requires typing the exact route code before permanent deletion
+   - successful deletion clears local route auth and returns the owner to the create screen
 
 ## Immediate Next Step
 
-When work resumes, continue route lifecycle UX and presence visual polish:
+When work resumes, continue presence visual polish:
 
-1. add explicit close/delete confirmations
-2. add clearer offline/stale visual treatment in the member sheet
+1. add clearer offline/stale visual treatment in the member sheet

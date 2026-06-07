@@ -241,6 +241,55 @@ export async function getRouteSnapshot(
   return (await response.json()) as RouteSnapshot;
 }
 
+export async function closeRoute(
+  code: string,
+  ownerToken: string,
+): Promise<RouteSummary> {
+  const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${ownerToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status: "closed" }),
+  });
+
+  if (!response.ok) {
+    throw await routeApiError(response);
+  }
+
+  return (await response.json()) as RouteSummary;
+}
+
+export async function deleteRoute(code: string, ownerToken: string): Promise<void> {
+  const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${ownerToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw await routeApiError(response);
+  }
+}
+
+async function routeApiError(response: Response): Promise<ApiError> {
+  let errorCode: string | undefined;
+  try {
+    const payload = (await response.json()) as { error?: string };
+    errorCode = payload.error;
+  } catch {
+    errorCode = undefined;
+  }
+
+  return new ApiError(
+    routeErrorMessage(response.status, errorCode),
+    response.status,
+    errorCode,
+  );
+}
+
 function routeErrorMessage(status: number, code?: string): string {
   if (code === "invalid_input" || status === 400) {
     return "Check the details and try again.";
