@@ -17,7 +17,7 @@ Start with [agent routing](../../AGENTS.md) and the [knowledge-base contract](..
 
 ## Process
 
-Read [agent rules](../../AGENTS.md), [Compose](../../docker-compose.yml), [Makefile](../../Makefile), [migration helper](../../bin/migrate.sh), and [web helper](../../bin/web-pnpm.sh) for workflow changes.
+Read [agent rules](../../AGENTS.md), [Compose](../../docker-compose.yml), [proxy configuration](../../apps/proxy/nginx.conf), [Makefile](../../Makefile), [migration helper](../../bin/migrate.sh), and [web helper](../../bin/web-pnpm.sh) for workflow changes.
 
 ## Outputs
 

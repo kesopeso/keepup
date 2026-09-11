@@ -51,7 +51,7 @@ The image has no environment-specific API or WebSocket URL settings. Browser RES
 
 ## Same-origin proxy
 
-[Compose](../../docker-compose.yml) publishes Nginx on port 3000; web and API listen only inside the Compose network. The [Nginx configuration](../../nginx.conf) routes requests as follows:
+[Compose](../../docker-compose.yml) publishes Nginx on port 3000; web and API listen only inside the Compose network. The [Nginx configuration](../../apps/proxy/nginx.conf) routes requests as follows:
 
 | Browser path | Container destination |
 |---|---|
