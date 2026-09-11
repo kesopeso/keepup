@@ -17,11 +17,10 @@ KeepUp is a mobile-first web app for live route sharing. A route owner creates a
 - [Implementation Plan](./docs/implementation-plan.md)
 - [Backlog](./docs/backlog.md)
 
-## Database Migrations
+## Development
 
-Migrations are manual and use `golang-migrate`.
+Use [the development workflow](docs/workflow/development.md) for Docker Compose, application tooling, and manual migration commands.
 
-- `make migrate-up`
-- `make migrate-down`
-- `make migrate-drop`
-- `make migrate-version`
+## Knowledge Base
+
+[Start at the ICM catalog](docs/CONTEXT.md), or use the [change-impact guide](docs/system/change-impact.md) before editing code.

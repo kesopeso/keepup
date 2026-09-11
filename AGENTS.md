@@ -1,19 +1,17 @@
-# KeepUp Agent Notes
+# KeepUp agent entry
 
-## Documentation Discipline
+KeepUp is a mobile-first live route-sharing application. This file routes work; linked contracts own the instructions.
 
-- Treat files in `docs/` as project memory and source-of-truth planning artifacts. Inspect every file in this folder on session start, to learn about this project.
-- On completion of any meaningful task, update the relevant files in `docs/` in the same change.
-- Do not wait for the user to remind you to refresh docs after implementation, architecture, API, workflow, or scope changes.
-- If a change affects product behavior, update `docs/mvp-spec.md`.
-- If a change affects system design, data flow, API shape, or infrastructure workflow, update `docs/architecture.md`.
-- If a change affects sequencing or what should be built next, update `docs/implementation-plan.md`.
-- If a change defers work or introduces future work, update `docs/backlog.md`.
+Read [documentation discipline](docs/workflow/documentation.md) and [development workflow](docs/workflow/development.md) before working. Preserve the session-start requirement to inspect every file in `docs/`.
 
-## Current Workflow
+| Task | Start here |
+|---|---|
+| Orient in the knowledge base | [Bundle contract](docs/CONTEXT.md) |
+| Product behavior | [MVP spec](docs/mvp-spec.md) |
+| System design / API / change impact | [Architecture](docs/architecture.md), [edit map](docs/system/change-impact.md) |
+| Current progress and next task | [Implementation plan](docs/implementation-plan.md) |
+| Deferred work | [Backlog](docs/backlog.md) |
+| Domain language | [Glossary](docs/product/glossary.md) |
+| New knowledge note | [Templates](docs/_templates/CONTEXT.md) |
 
-- Local development runs via `docker compose up`.
-- All application tooling runs through Docker Compose services.
-- Do not run host `pnpm`, `npm`, Go, or other app toolchain commands directly; use Docker Compose instead.
-- Database migrations are manual via `golang-migrate`.
-- The API must not auto-apply migrations on startup.
+Source locations: [web](apps/web/), [API](apps/api/), [migrations](db/migrations/).

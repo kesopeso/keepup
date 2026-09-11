@@ -1,313 +1,84 @@
-# KeepUp MVP Spec
+---
+type: catalog
+status: active
+---
+
+# KeepUp MVP spec
+
+Stable entry point. Edit the linked owning document when its subject changes.
 
 ## Product Summary
 
-KeepUp is a mobile-first web app for live route sharing between friends, groups, or coordinators monitoring participants across different vehicles. Users join routes via shareable links/codes and can watch live progress or share their own location when allowed.
-
-## Core Concepts
-
-- Route owner: user who creates and manages the route
-- Route member: any user who joins the route
-- Spectator: joined member who is not sharing location
-- Tracker: joined member who is actively sharing location
-- Route archive: closed route that remains viewable but no longer live
-
-## Ubiquitous Language
-
-- Route: one shareable tracking session
-- Route code: the short human-enterable identifier used in URLs and manual entry
-- Route owner: the member with management authority over the route
-- Route member: a browser/device-specific participant record within a route
-- Membership: the relationship created when a browser joins a route
-- Spectator: a member who is present but not sharing location
-- Tracker: a member who is actively sharing location
-- Sharing policy: the rule that determines who may start sharing location
-- Access metadata: the public pre-join route data returned by the access endpoint
-- Snapshot: the authenticated full route bootstrap payload for rendering the route screen
-- Archive: a closed, read-only route that preserves historical data
-- Live connection: one authenticated WebSocket connection for a route member
-- First-message authentication: the required first WebSocket message that authenticates a live connection with a member token
-- WebSocket authentication timeout: the maximum time a live connection may remain unauthenticated after opening
-- Live hub: the server-side coordinator that tracks live connections by route room
-- Route room: the live fan-out group for all live connections subscribed to one route
-- Route room subscription: the membership of one live connection in one route room
-- Live event: a server-published realtime fact sent to route room subscribers
-- Position update: a live event carrying one accepted location point for a tracker
+See [Product Summary](product/routes.md).
 
 ## Route Access
 
-- Routes are accessible only by share link/code
-- Route code is human-friendly, uppercase, case-insensitive
-- Route names are required and not unique
-- Route descriptions are optional
-- Routes may be:
-  - open by link/code
-  - password-protected
-- Password is required only to gain membership
-- Returning browsers with valid member tokens do not re-enter the password
-- Closed routes remain accessible by link/code and password if protected
-- Creating a route collects the owner's display name and transport mode
-- Successful route creation stores member and owner tokens for that route in the browser
-- Successful route creation takes the owner to the route page for the new route code
-- Opening a route page without saved member access fetches access metadata and shows the join flow
-- Joining a route collects display name, transport mode, and password when required
-- Successful join stores the member token for that route in the browser
-- Opening a route page with saved member access fetches the authenticated route snapshot
-- Expired or invalid saved member access is cleared and the browser returns to the join flow
-
-Current API naming:
-
-- `POST /routes`
-- `GET /routes/{code}/access`
-- `POST /routes/{code}/members`
-- `GET /routes/{code}`
-- `PATCH /routes/{code}`
-- `DELETE /routes/{code}`
-- `DELETE /routes/{code}/members/me`
+See [Route Access](product/routes.md).
 
 ## Membership and Identity
 
-- Users are anonymous for MVP
-- Browser stores:
-  - `clientId`
-  - `displayName`
-  - preferred `transportMode`
-  - per-route member/owner tokens
-- Alias must be unique within a route
-- Membership is browser/device-specific
-- Every viewer becomes a route member, including spectators
-- Members can leave the route
-- Leaving preserves history and keeps the member visible as `Left`
-- `Left` is terminal for that membership, revokes the member token, and does not block alias reuse
-- Active-route owners cannot leave; they can stop sharing, close the route, or delete the route
+See [Membership and Identity](product/routes.md).
 
 ## Owner Rules
 
-- Owner is a role, not an automatically tracked participant
-- Owner may spectate or track
-- Owner cannot leave an active route in the MVP; they can close or delete it
-- Owner authority persists via owner token
-- Owner can:
-  - edit route name/description
-  - close route
-  - delete route
-- Closing requires confirmation
-- Deleting requires stronger confirmation
-- Current owner controls show a close confirmation explaining the permanent archive transition
-- Current delete confirmation requires typing the exact route code before deletion is enabled
-- Successful deletion clears route-scoped browser credentials and returns the deleting owner to the create screen
-- Closed routes cannot be reopened
+See [Owner Rules](product/routes.md).
 
 ## Sharing Policies
 
-- `everyone_can_share`
-  - any joined member may start sharing if tracking slots are available
-- `joiners_can_view_only`
-  - non-owner members are spectators only
-  - owner may still choose to track or spectate
-
-## Tracking
-
-- Members explicitly press `Start sharing location`
-- Starting sharing requires usable location access
-- Location permission failures show actionable browser/device guidance and distinguish blocked permission, unavailable location, and timeout failures
-- Route creation does not require location access
-- Stopping sharing returns member to spectator state
-- Sharing state updates are live WebSocket commands: `start_sharing` and `stop_sharing`
-- Starting sharing updates member status to `tracking` and opens a path segment
-- Stopping sharing updates member status to `spectating` and closes open path segments
-- Active trackers send live position samples over the authenticated WebSocket as `position_update` messages
-- The backend accepts WebSocket position updates from members who are currently `tracking` or `stale`
-- Accepted WebSocket position updates are persisted to the open path segment and broadcast as `position_updated`
-- Accepted position updates from `stale` members automatically recover them to `tracking`; the server broadcasts `member_back_online` before `position_updated`
-- On refresh, if a member was previously sharing:
-  - rejoin route automatically
-  - show prompt:
-    - Resume sharing
-    - Continue as spectator
-- The stale recovery prompt waits for the authenticated live connection before enabling either action
-- Resume sharing requests browser location permission, then sends `start_sharing`
-- Continue as spectator sends `stop_sharing`
-- The prompt remains visible until the server broadcasts the viewer's resulting member status
-- No offline buffering in MVP
-- No road/path snapping in MVP
-- Path rendering is point-to-point between accepted positions
+See [Sharing Policies](product/routes.md).
 
 ## Transport Modes
 
-- Selected per member on create/join
-- Allowed values:
-  - `walking`
-  - `bicycle`
-  - `car`
-  - `bus`
-  - `train`
-  - `boat`
-  - `airplane`
-- Transport mode is fixed for MVP
+See [Transport Modes](product/routes.md).
 
 ## Limits
 
-- No spectator limit
-- Active tracking member limit exists
-- Default active tracking member limit: `10`
-- Limit counts only active trackers
-- Owner counts only if actively tracking
-- If limit is reached, members remain spectators and see an error
+See [Limits](product/routes.md).
 
 ## Route Lifecycle
 
-- Active route:
-  - members can join
-  - live updates run
-  - tracking allowed depending on route policy and available slots
-- Closed route:
-  - no live updates
-  - no new tracking sessions
-  - read-only archive
-  - still viewable by anyone with link/code and password if required
-- Deleted route:
-  - all related data removed permanently
+See [Route Lifecycle](product/routes.md).
 
-## Map and UI
+## Tracking
 
-- Mobile-first
-- Balanced dark UI
-- Map style should remain readable outdoors
-- Same route screen structure for active and closed routes
-- Route screen includes:
-  - route header
-  - map
-  - member bottom sheet
-- Current route screen renders a stable MapLibre-backed map surface and the member bottom sheet from snapshot data
-- Current member bottom sheet renders start/stop sharing controls from viewer capabilities and updates local member state after sharing changes
-- Current map surface renders snapshot path polylines and latest member point markers through the map adapter
-- Current route screen opens an authenticated WebSocket live connection for active routes after authenticated snapshot load
-- Current tracking viewers stream browser geolocation samples over the authenticated WebSocket
-- Current map surface applies accepted `position_updated` events directly to live marker and path state
-- Current route snapshots include persisted path segments and position points for route history recovery
-- Current owner route screens expose close/delete controls from viewer capabilities
-- Incoming `route_closed` events transition connected route screens into archive mode without a snapshot refresh
-- Route code is visible but secondary to share action
-- Share uses native Web Share API when available, with copy-link fallback
-
-## Map Behavior
-
-- Initial load fits full known route history plus active markers
-- Default live viewport mode auto-fits group/route
-- Manual pan/zoom disables auto-follow
-- Live position updates preserve manual pan/zoom until the user presses `Fit`
-- User can re-center/re-fit with the map `Fit` control
-- Path polyline and live marker are separate render states
-- Show:
-  - polyline for historical path
-  - live marker for active trackers
-- Do not show per-segment start/end markers in MVP
+See [Tracking](product/tracking.md).
 
 ## Member Statuses
 
-- `Owner`
-- `Tracking`
-- `Stale`
-- `Spectating`
-- `Offline`
-- `Left`
-
-Persistent member status semantics:
-
-- `spectating`: active membership, connected/recent enough, not sharing location
-- `tracking`: active membership, sharing location successfully
-- `stale`: active membership, intended to share, but live connection or accepted position flow is interrupted
-- `offline`: active membership, no active live connection/presence
-- `left`: terminal membership created by explicit leave; token is revoked
-
-Member sort order on active route:
-
-1. Owner
-2. Tracking
-3. Stale
-4. Spectating
-5. Offline
-6. Left
-
-Within the same status group, sort by join time.
-
-## Data and Timing
-
-- Store exact timestamps in UTC
-- Client displays localized times
-- API snapshot returns full route history and current statuses
-- Snapshot also returns current viewer capability booleans
-- Return full snapshot for MVP; no chunked history yet
-
-## Live Protocol
-
-WebSocket authentication:
-
-- Client connects to `GET /ws`
-- Client sends first message:
-  - `{ "type": "authenticate", "memberToken": "..." }`
-- Server closes the live connection if authentication does not arrive before the configured timeout
-- Default first-message authentication timeout: `5s`
-- Server sends `connection_established` after successful authentication and route room subscription
-
-Live stream includes:
-
-- `member_joined`
-- `member_left`
-- `member_started_sharing`
-- `member_stopped_sharing`
-- `member_became_stale`
-- `member_back_online`
-- `member_went_offline`
-- `position_updated`
-- `route_updated`
-- `route_closed`
-
-Current backend broadcasts `member_joined`, `member_left`, `route_updated`, and `route_closed` over authenticated WebSocket route rooms.
-Current backend also broadcasts `member_started_sharing`, `member_stopped_sharing`, `member_became_stale`, `member_back_online`, and `member_went_offline` after successful live status updates.
-Current backend accepts authenticated WebSocket `position_update` messages and broadcasts accepted points as `position_updated`.
-Current frontend connects to the authenticated WebSocket for active routes, sends `start_sharing`/`stop_sharing` commands, sends `position_update` messages while the viewer is tracking, applies `position_updated` events to the displayed map state, and applies sharing/status events without refreshing the route snapshot.
-Current frontend shows a blocking stale recovery prompt when an active route initially loads with the viewer as `stale`, with explicit resume-sharing and continue-as-spectator actions. A viewer who becomes stale during an existing live session can still recover automatically when accepted positions resume.
-
-Live connection rules:
-
-- Active routes attempt one authenticated WebSocket per member.
-- A second live connection for the same member is rejected with `live_connection_rejected` and reason `already_active_connection`; the existing connection remains active.
-- Closed route archive screens do not open WebSockets.
-- `offline -> spectating` happens after successful live authentication and broadcasts `member_back_online`.
-- `tracking -> stale` happens immediately on live connection close, or after `ROUTES_TRACKING_STALE_AFTER` without accepted positions.
-- `stale -> offline` happens after `ROUTES_TRACKING_OFFLINE_AFTER` spent stale and closes open segments with reason `disconnected`.
-- `spectating -> offline` happens after `ROUTES_SPECTATOR_OFFLINE_AFTER` without reconnect.
-- Default timing values are `20s`, `5m`, and `20s` respectively.
-
-## Persistence Rules
-
-- Store accepted raw GPS readings as source of truth
-- Preserve browser payload for accepted points
-- Store:
-  - server canonical timestamp
-  - client timestamp if available
-- Canonical ordering uses server receive time
-- Brief reconnects within grace window keep the same path segment
-- Prolonged disconnects end the segment
+See [Member Statuses](product/tracking.md).
 
 ## GPS Validation
 
-- Reject invalid coordinates
-- Reject too-inaccurate first/live points based on configurable threshold
-- Reject duplicate timestamp duplicates
-- Reject impossible jumps using a generous speed threshold
-- Do not store rejected points in MVP
+See [GPS Validation](product/tracking.md).
+
+## Map and UI
+
+See [Map and UI](product/experience.md).
+
+## Map Behavior
+
+See [Map Behavior](product/experience.md).
+
+## Data and Timing
+
+See [Data and Timing](product/experience.md).
+
+## Core Concepts
+
+See [Core Concepts](product/glossary.md).
+
+## Ubiquitous Language
+
+See [Ubiquitous Language](product/glossary.md).
+
+## Live Protocol
+
+See [Live Protocol](system/api-and-live.md).
+
+## Persistence Rules
+
+See [Persistence Rules](system/data.md).
 
 ## Dev and Deployment
 
-- One monorepo
-- Everything containerized
-- Local development runs via `docker compose up`
-- Services:
-  - web
-  - api
-  - postgres/postgis
-- Production MVP targets a single VPS with containers
-- HTTPS required in production
+See [Dev and Deployment](workflow/development.md).
