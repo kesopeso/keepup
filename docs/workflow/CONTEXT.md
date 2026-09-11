@@ -11,6 +11,10 @@ Own development and knowledge-maintenance instructions.
 
 [Development](development.md), [documentation maintenance](documentation.md).
 
+## Contributor entry
+
+Start with [agent routing](../../AGENTS.md) and the [knowledge-base contract](../CONTEXT.md). Use the development and documentation references above, the [change-impact guide](../system/change-impact.md) before editing code, and the [implementation plan](../implementation-plan.md) to select current work.
+
 ## Process
 
 Read [agent rules](../../AGENTS.md), [Compose](../../docker-compose.yml), [Makefile](../../Makefile), [migration helper](../../bin/migrate.sh), and [web helper](../../bin/web-pnpm.sh) for workflow changes.

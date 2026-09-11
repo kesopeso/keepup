@@ -1,26 +1,14 @@
 # KeepUp
 
-KeepUp is a mobile-first web app for live route sharing. A route owner creates a route, shares a link/code, and other members can join as spectators or trackers depending on route policy. Active routes show live positions and path history on a map; closed routes remain available as read-only archives.
+KeepUp is a mobile-first web app for live route sharing.
 
-## Stack
+## Documentation
 
-- Frontend: Next.js, TypeScript
-- Backend: Go
-- Database: PostgreSQL + PostGIS
-- Realtime: WebSockets
-- Local development: Docker Compose
-
-## Docs
-
-- [MVP Spec](./docs/mvp-spec.md)
-- [Architecture](./docs/architecture.md)
-- [Implementation Plan](./docs/implementation-plan.md)
-- [Backlog](./docs/backlog.md)
-
-## Development
-
-Use [the development workflow](docs/workflow/development.md) for Docker Compose, application tooling, and manual migration commands.
-
-## Knowledge Base
-
-[Start at the ICM catalog](docs/CONTEXT.md), or use the [change-impact guide](docs/system/change-impact.md) before editing code.
+- [Knowledge-base catalog](docs/CONTEXT.md)
+- [Product behavior](docs/mvp-spec.md)
+- [Architecture and stack](docs/architecture.md)
+- [Domain language](docs/product/glossary.md)
+- [Implementation plan](docs/implementation-plan.md)
+- [Backlog](docs/backlog.md)
+- [Contributing](docs/workflow/CONTEXT.md#contributor-entry)
+- [Development workflow](docs/workflow/development.md)
