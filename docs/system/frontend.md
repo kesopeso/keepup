@@ -13,6 +13,10 @@ status: active
 - Mobile-first route experience
 - Native share integration where available
 
+Production packaging uses [Next.js standalone output](../../apps/web/next.config.ts) and a [multi-stage Dockerfile](../../apps/web/Dockerfile). See the [build and deployment commands](../workflow/development.md#production-web-image).
+
+Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` from the browser origin when opening a connection, using `wss` on HTTPS pages. Nginx owns [upstream routing](../workflow/development.md#same-origin-proxy), so frontend images need no environment-specific URL configuration.
+
 ### Main Screens
 
 - Create route

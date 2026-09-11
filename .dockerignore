@@ -22,3 +22,7 @@
 # Ignore local env files (don't bake secrets into images!)
 **/.env
 **/.env.local
+
+**/.env.*
+!**/.env.example
+**/*.tsbuildinfo

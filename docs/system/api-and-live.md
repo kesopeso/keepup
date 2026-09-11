@@ -18,6 +18,8 @@ status: active
 - close route
 - delete route
 
+The public Nginx proxy strips `/api` from browser REST requests and forwards `/ws` unchanged. Paths below are backend paths; see [proxy routing](../workflow/development.md#same-origin-proxy).
+
 Current path shape:
 
 - `POST /routes`

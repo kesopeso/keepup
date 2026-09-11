@@ -1,4 +1,14 @@
 services:
+  proxy:
+    image: nginx:stable-alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web
+      - api
+
   web:
     build:
       context: .
@@ -7,11 +17,6 @@ services:
     command: >
       sh -c "pnpm --filter '@keepup/web' install &&
              pnpm --filter '@keepup/web' dev"
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
-      NEXT_PUBLIC_WS_URL: ws://localhost:8080/ws
-    ports:
-      - "3000:3000"
     volumes:
       - .:/workspace
     depends_on:
@@ -55,8 +60,6 @@ services:
       DATABASE_STARTUP_TIMEOUT: 20s
       WEBSOCKET_AUTH_TIMEOUT: 5s
       DEFAULT_MAX_TRACKING_MEMBERS: 10
-    ports:
-      - "8080:8080"
     volumes:
       - .:/workspace
       - go_pkg_mod:/go/pkg/mod

@@ -384,7 +384,7 @@ function RouteSnapshotShell({
     }
 
     let isCurrent = true;
-    const socket = new WebSocket(routeWebSocketUrl);
+    const socket = new WebSocket(routeWebSocketUrl());
     websocketRef.current = socket;
 
     socket.addEventListener("open", () => {

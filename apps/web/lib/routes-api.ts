@@ -113,10 +113,13 @@ export type RouteSnapshot = {
   viewer: ViewerCapabilities;
 };
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const apiUrl = "/api";
 
-export const routeWebSocketUrl =
-  process.env.NEXT_PUBLIC_WS_URL ?? webSocketUrl(apiUrl);
+export function routeWebSocketUrl(): string {
+  const url = new URL("/ws", window.location.origin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
 
 export class ApiError extends Error {
   constructor(
@@ -328,13 +331,4 @@ function routeErrorMessage(status: number, code?: string): string {
   }
 
   return "Could not load the route.";
-}
-
-function webSocketUrl(baseUrl: string): string {
-  const url = new URL(baseUrl);
-  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = "/ws";
-  url.search = "";
-  url.hash = "";
-  return url.toString();
 }
