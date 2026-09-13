@@ -34,18 +34,27 @@ All application tooling runs through Docker Compose. Do not run host pnpm, npm, 
 - Production MVP targets a single VPS with containers
 - HTTPS required in production
 
-## Build and publish both images
+## Deploy to the production server
 
-Use [the build-and-push helper](../../bin/build-and-push.sh) with the registry password as its single argument. It logs in as `kesopeso`:
+Run [the deployment helper](../../bin/deploy.sh) with the registry password and server IP:
 
 ```sh
-./bin/build-and-push.sh 'your-password'
-PLATFORM=linux/amd64 ./bin/build-and-push.sh 'your-password'
+./bin/deploy.sh 'your-password' 203.0.113.10
+PLATFORM=linux/amd64 ./bin/deploy.sh 'your-password' 203.0.113.10
 ```
 
-> **Warning:** Passing the password as a command-line argument can leave it in your shell history and expose it in process arguments. This helper accepts that tradeoff; `--password-stdin` keeps the password out of the Docker login command's arguments.
+The script resolves the repository root from its own location and performs these steps:
 
-The helper logs in to `docker-registry.kesopeso.eu` using Docker's `--password-stdin`, then builds both production Dockerfiles before pushing `keepup-web:latest` and `keepup-api:latest`. It resolves the repository root from its own location and stops on errors, including login failures. Pushes are sequential; if the second push fails, the first image is already published.
+1. Log in to `docker-registry.kesopeso.eu` as `kesopeso` using Docker's `--password-stdin`.
+2. Build both production Dockerfiles, then push `keepup-web:latest` and `keepup-api:latest`. Optional `PLATFORM` selects the build architecture.
+3. Copy all regular files (including hidden files, except `.gitkeep`) directly in `db/migrations/` to `/home/keso/projects/active-sites/keepup/db/migrations` as SSH user `keso`.
+4. Run `/home/keso/projects/active-sites/keepup/restart` from its containing directory.
+
+The remote migrations directory must already exist. Remote migration files are not deleted. Each step must succeed before the next runs; a failure does not roll back published images or copied files. Both builds finish before either push, but pushes are sequential: if the second push fails, the first image is already published. The remote restart file must be executable and owns the server-side restart procedure.
+
+SSH/SCP use batch mode and strict host-key checking. Authorize the SSH key for `keso` and verify/trust the server host key before running the script.
+
+> **Warning:** Passing the password as a command-line argument can leave it in your shell history and expose it in process arguments. This script accepts that tradeoff; `--password-stdin` keeps the password out of the Docker login command's arguments.
 
 ## Production web image
 
