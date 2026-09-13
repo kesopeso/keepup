@@ -23,7 +23,7 @@ esac
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 server_ip=$2
-remote_dir=/home/keso/projects/active-sites/keepup
+remote_dir=/home/keso/projects/active-sites/keepup.kesopeso.eu
 
 registry=docker-registry.kesopeso.eu
 printf '%s' "$1" | docker login "$registry" --username kesopeso --password-stdin
