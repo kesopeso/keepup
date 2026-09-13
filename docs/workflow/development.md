@@ -36,23 +36,25 @@ All application tooling runs through Docker Compose. Do not run host pnpm, npm, 
 
 ## Deploy to the production server
 
-Run [the deployment helper](../../bin/deploy.sh) with the registry password and server IP:
+Run [the deployment helper](../../bin/deploy.sh) with registry credentials (`username:password`) and an SSH connection (`username@host`):
 
 ```sh
-./bin/deploy.sh 'your-password' 203.0.113.10
-PLATFORM=linux/amd64 ./bin/deploy.sh 'your-password' 203.0.113.10
+./bin/deploy.sh 'registry-user:your-password' deploy@203.0.113.10
+PLATFORM=linux/amd64 ./bin/deploy.sh 'registry-user:your-password' deploy@203.0.113.10
 ```
 
 The script resolves the repository root from its own location and performs these steps:
 
-1. Log in to `docker-registry.kesopeso.eu` as `kesopeso` using Docker's `--password-stdin`.
+1. Log in to `docker-registry.kesopeso.eu` as the supplied registry user using Docker's `--password-stdin`.
 2. Build both production Dockerfiles, then push `keepup-web:latest` and `keepup-api:latest`. Optional `PLATFORM` selects the build architecture.
-3. Copy all regular files (including hidden files, except `.gitkeep`) directly in `db/migrations/` to `/home/keso/projects/active-sites/keepup.kesopeso.eu/db/migrations` as SSH user `keso`.
-4. Run `/home/keso/projects/active-sites/keepup.kesopeso.eu/restart` from its containing directory.
+3. Copy all regular files (including hidden files, except `.gitkeep`) directly in `db/migrations/` to `/home/<ssh-username>/projects/active-sites/keepup.kesopeso.eu/db/migrations` as the supplied SSH user.
+4. Run `/home/<ssh-username>/projects/active-sites/keepup.kesopeso.eu/restart` from its containing directory.
+
+Registry credentials split at the first colon; the password may contain additional colons. Both parts must be nonempty. The SSH host may be an IPv4 address, a hostname, or an IPv6 address (bare or bracketed, for example `deploy@[2001:db8::10]`). The SSH username determines the remote `/home/<ssh-username>` path.
 
 The remote migrations directory must already exist. Remote migration files are not deleted. Each step must succeed before the next runs; a failure does not roll back published images or copied files. Both builds finish before either push, but pushes are sequential: if the second push fails, the first image is already published. The remote restart file must be executable and owns the server-side restart procedure.
 
-SSH/SCP use batch mode and strict host-key checking. Authorize the SSH key for `keso` and verify/trust the server host key before running the script.
+SSH/SCP use batch mode and strict host-key checking. Authorize the SSH key for the supplied SSH user and verify/trust the server host key before running the script.
 
 > **Warning:** Passing the password as a command-line argument can leave it in your shell history and expose it in process arguments. This script accepts that tradeoff; `--password-stdin` keeps the password out of the Docker login command's arguments.
 
