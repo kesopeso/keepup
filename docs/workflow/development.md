@@ -34,6 +34,19 @@ All application tooling runs through Docker Compose. Do not run host pnpm, npm, 
 - Production MVP targets a single VPS with containers
 - HTTPS required in production
 
+## Build and publish both images
+
+Use [the build-and-push helper](../../bin/build-and-push.sh) with the registry password as its single argument. It logs in as `kesopeso`:
+
+```sh
+./bin/build-and-push.sh 'your-password'
+PLATFORM=linux/amd64 ./bin/build-and-push.sh 'your-password'
+```
+
+> **Warning:** Passing the password as a command-line argument can leave it in your shell history and expose it in process arguments. This helper accepts that tradeoff; `--password-stdin` keeps the password out of the Docker login command's arguments.
+
+The helper logs in to `docker-registry.kesopeso.eu` using Docker's `--password-stdin`, then builds both production Dockerfiles before pushing `keepup-web:latest` and `keepup-api:latest`. It resolves the repository root from its own location and stops on errors, including login failures. Pushes are sequential; if the second push fails, the first image is already published.
+
 ## Production web image
 
 The [web Dockerfile](../../apps/web/Dockerfile) uses Node 24 Alpine, a frozen pnpm lockfile, and Next.js standalone output. Its final stage contains the traced server dependencies and static/public assets and runs as the non-root `node` user on port 3000. Build from the repository root so the workspace manifests are available.
@@ -49,6 +62,20 @@ docker push registry.example.com/keepup/web:1.0.0
 
 The image has no environment-specific API or WebSocket URL settings. Browser REST requests use `/api`; live connections derive `ws://` or `wss://` from the page origin and use `/ws`. The same image can be promoted across environments without rebuilding for a different hostname. Environment files are excluded from the build context.
 
+## Production API image
+
+The [API Dockerfile](../../apps/api/Dockerfile) builds a static binary with Go 1.25 Alpine and copies it into a `scratch` runtime with CA certificates for outbound TLS, including encrypted database connections. It runs as non-root UID/GID `65532`, defaults to `APP_ENV=production` and `APP_PORT=8080`, and starts the binary directly so shutdown signals reach the API.
+
+Build from the repository root, replacing the registry and tag:
+
+```sh
+docker build -f apps/api/Dockerfile \
+  -t registry.example.com/keepup/api:1.0.0 .
+docker push registry.example.com/keepup/api:1.0.0
+```
+
+Supply `DATABASE_URL` at runtime; credentials are not baked into the image. Optional timing and tracker-limit settings are defined in [API config](../../apps/api/internal/config/config.go). Attach the API to the application proxy's network as `api` on port 8080. The API serves HTTP behind the proxy. Apply database migrations separately before serving application traffic; the image contains neither migration tooling nor development tools. `/livez` and `/healthz` can be probed externally; the minimal runtime contains no shell or HTTP client. Development Compose continues to use `Dockerfile.dev`.
+
 ## Same-origin proxy
 
 [Compose](../../docker-compose.yml) publishes Nginx on port 3000; web and API listen only inside the Compose network. The [Nginx configuration](../../apps/proxy/nginx.conf) routes requests as follows:
@@ -61,7 +88,7 @@ The image has no environment-specific API or WebSocket URL settings. Browser RES
 
 Quiet live connections have a 24-hour proxy idle timeout. Backend REST paths remain unchanged; for example, browser `/api/routes` reaches Go `/routes` and `/api/healthz` reaches `/healthz`.
 
-Production must provide the same routing contract behind HTTPS, with WebSocket upgrade support. The checked-in Compose file remains a development stack; when deploying the production web image, route Nginx's `web:3000` upstream to that container and `api:8080` to the separately deployed API. Configure TLS at the public proxy (and preserve the original scheme in forwarded headers if TLS terminates upstream). Build for the deployment host's architecture (for example, add `--platform linux/amd64` when needed).
+Production must provide the same routing contract behind HTTPS, with WebSocket upgrade support. The checked-in Compose file remains a development stack; when deploying the production web image, route Nginx's `web:3000` upstream to that container and `api:8080` to the separately deployed API. The production public `nginxproxy/nginx-proxy` terminates TLS using certificates managed by ACME companion. Mount [nginx.prod.conf](../../apps/proxy/nginx.prod.conf) at `/etc/nginx/conf.d/default.conf` in the application proxy; development Compose continues to mount `nginx.conf`. The production application proxy listens on HTTP port 80 and preserves the public proxy's `X-Forwarded-Proto` header instead of replacing it with its internal HTTP scheme. Keep this application proxy accessible only through the trusted public proxy on the container network, since it trusts that forwarded header. Certificates and HTTPS redirects belong to the public proxy; the `api:8080` and `web:3000` upstreams remain HTTP. Build for the deployment host's architecture (for example, add `--platform linux/amd64` when needed).
 
 Proxy forwarding follows the [Nginx WebSocket documentation](https://nginx.org/en/docs/http/websocket.html).
 

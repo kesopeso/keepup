@@ -20,6 +20,8 @@ status: active
 - Logging: `slog`
 - Manual migration tooling: [development workflow](../workflow/development.md)
 
+Production packaging uses a [multi-stage Dockerfile](../../apps/api/Dockerfile) with a static binary, CA certificates, and a non-root runtime. See [production API deployment](../workflow/development.md#production-api-image) for build commands and runtime configuration.
+
 ### Current Backend Foundation
 
 - API config is loaded from environment variables
