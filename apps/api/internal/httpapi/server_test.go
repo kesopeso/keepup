@@ -1038,6 +1038,151 @@ func TestWebSocketRejectsInvalidFirstMessageToken(t *testing.T) {
 	}
 }
 
+func TestWebSocketBroadcastsTrackingStaleAndOfflineTransitions(t *testing.T) {
+	staleAfter := 20 * time.Millisecond
+	offlineAfter := 20 * time.Millisecond
+	tracker := routes.Member{
+		ID:            "member-2",
+		RouteID:       "route-1",
+		ClientID:      "client-2",
+		DisplayName:   "Matej",
+		TransportMode: "train",
+		Status:        routes.MemberStatusTracking,
+		Color:         "#2563eb",
+		JoinedAt:      time.Now().UTC(),
+	}
+
+	handler := NewHandler(
+		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		config.AppConfig{
+			Env:                   "test",
+			Port:                  "8080",
+			WebSocketAuthTimeout:  time.Second,
+			TrackingStaleAfter:    staleAfter,
+			TrackingOfflineAfter:  offlineAfter,
+			SpectatorOfflineAfter: time.Hour,
+		},
+		stubHealthChecker{},
+		stubRouteService{
+			authorizeMemberFn: func(_ context.Context, token string) (routes.AuthorizedMember, error) {
+				member := routes.Member{
+					ID:            "member-1",
+					RouteID:       "route-1",
+					ClientID:      "client-1",
+					DisplayName:   "Ana",
+					TransportMode: "car",
+					IsOwner:       true,
+					Status:        routes.MemberStatusSpectating,
+					Color:         "#22c55e",
+					JoinedAt:      tracker.JoinedAt.Add(-time.Minute),
+				}
+				if token == "tracker-token" {
+					member = tracker
+				}
+				return routes.AuthorizedMember{
+					Route: routes.Route{
+						ID:     "route-1",
+						Code:   "K7P9QD",
+						Status: routes.RouteStatusActive,
+					},
+					Member: member,
+				}, nil
+			},
+			markStaleFn: func(_ context.Context, routeID, memberID string) (routes.Member, bool, error) {
+				if routeID != "route-1" || memberID != tracker.ID {
+					t.Fatalf("MarkMemberStale() got route=%q member=%q", routeID, memberID)
+				}
+				staleMember := tracker
+				staleMember.Status = routes.MemberStatusStale
+				return staleMember, true, nil
+			},
+			markOfflineFn: func(_ context.Context, routeID, memberID string) (routes.Member, bool, error) {
+				if routeID != "route-1" || memberID != tracker.ID {
+					t.Fatalf("MarkMemberOffline() got route=%q member=%q", routeID, memberID)
+				}
+				offlineMember := tracker
+				offlineMember.Status = routes.MemberStatusOffline
+				return offlineMember, true, nil
+			},
+		},
+	)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	observer := dialAuthenticatedWebSocket(t, ctx, server.URL, "observer-token")
+	defer func() {
+		_ = observer.Close(websocket.StatusNormalClosure, "test complete")
+	}()
+	trackerConnection := dialAuthenticatedWebSocket(t, ctx, server.URL, "tracker-token")
+	defer func() {
+		_ = trackerConnection.Close(websocket.StatusNormalClosure, "test complete")
+	}()
+
+	wantEvents := []struct {
+		eventType string
+		status    string
+	}{
+		{eventType: "member_became_stale", status: routes.MemberStatusStale},
+		{eventType: "member_went_offline", status: routes.MemberStatusOffline},
+	}
+	for _, want := range wantEvents {
+		var event struct {
+			Type   string        `json:"type"`
+			Member routes.Member `json:"member"`
+		}
+		if err := wsjson.Read(ctx, observer, &event); err != nil {
+			t.Fatalf("observer read %s event error = %v", want.eventType, err)
+		}
+		if event.Type != want.eventType {
+			t.Fatalf("event type = %q, want %q", event.Type, want.eventType)
+		}
+		if event.Member.ID != tracker.ID || event.Member.Status != want.status {
+			t.Fatalf("event member = %#v, want %s with status %q", event.Member, tracker.ID, want.status)
+		}
+		if event.Member.DisplayName == "" || event.Member.JoinedAt.IsZero() {
+			t.Fatalf("event member = %#v, want frontend-consumable member summary", event.Member)
+		}
+	}
+}
+
+func dialAuthenticatedWebSocket(
+	t *testing.T,
+	ctx context.Context,
+	serverURL string,
+	memberToken string,
+) *websocket.Conn {
+	t.Helper()
+
+	connection, _, err := websocket.Dial(ctx, webSocketURL(serverURL), nil)
+	if err != nil {
+		t.Fatalf("websocket.Dial() error = %v", err)
+	}
+	if err := wsjson.Write(ctx, connection, map[string]string{
+		"type":        "authenticate",
+		"memberToken": memberToken,
+	}); err != nil {
+		_ = connection.Close(websocket.StatusInternalError, "authentication failed")
+		t.Fatalf("write authenticate error = %v", err)
+	}
+
+	var established struct {
+		Type string `json:"type"`
+	}
+	if err := wsjson.Read(ctx, connection, &established); err != nil {
+		_ = connection.Close(websocket.StatusInternalError, "authentication failed")
+		t.Fatalf("read connection_established error = %v", err)
+	}
+	if established.Type != "connection_established" {
+		_ = connection.Close(websocket.StatusInternalError, "authentication failed")
+		t.Fatalf("event type = %q, want connection_established", established.Type)
+	}
+
+	return connection
+}
+
 func webSocketURL(serverURL string) string {
 	return "ws" + strings.TrimPrefix(serverURL, "http") + "/ws"
 }

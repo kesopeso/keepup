@@ -12,6 +12,11 @@ import {
   type TransportMode,
 } from "../../../lib/identity-storage";
 import {
+  applyMemberLiveEvent,
+  isMemberLiveEvent,
+  parseLiveEvent,
+} from "../../../lib/live-route-state";
+import {
   appendLiveRoutePoint,
   mergeSnapshotIntoMapState,
   routeSnapshotToMapState,
@@ -30,9 +35,6 @@ import {
   joinRoute,
   routeWebSocketUrl,
   type RouteAccess,
-  type MemberSummary,
-  type PathSegment,
-  type RoutePoint,
   type RouteSnapshot,
   type RouteSummary,
   type SnapshotMember,
@@ -446,25 +448,16 @@ function RouteSnapshotShell({
         return;
       }
 
-      if (
-        liveEvent.type === "member_started_sharing" ||
-        liveEvent.type === "member_stopped_sharing" ||
-        liveEvent.type === "member_became_stale" ||
-        liveEvent.type === "member_back_online" ||
-        liveEvent.type === "member_went_offline"
-      ) {
+      if (isMemberLiveEvent(liveEvent)) {
         if (liveEvent.member.id === snapshotRef.current.viewer.memberId) {
           setSharingAction(null);
         }
-        onSnapshotChange(
-          snapshotWithUpdatedSharingMember(
-            snapshotRef.current,
-            liveEvent.member,
-            liveEvent.type === "member_started_sharing"
-              ? liveEvent.segment
-              : undefined,
-          ),
+        const updatedSnapshot = applyMemberLiveEvent(
+          snapshotRef.current,
+          liveEvent,
         );
+        snapshotRef.current = updatedSnapshot;
+        onSnapshotChange(updatedSnapshot);
         setMapState((current) =>
           updateMapMemberStatus(
             current,
@@ -472,6 +465,7 @@ function RouteSnapshotShell({
             liveEvent.member.status,
           ),
         );
+        return;
       }
     });
 
@@ -939,189 +933,6 @@ function MemberRow({ member }: { member: SnapshotMember }) {
   );
 }
 
-type LiveEvent =
-  | {
-      type: "connection_established";
-    }
-  | {
-      type: "member_started_sharing";
-      member: MemberSummary;
-      segment: PathSegment;
-    }
-  | {
-      type: "member_stopped_sharing";
-      member: MemberSummary;
-    }
-  | {
-      type: "member_became_stale" | "member_back_online" | "member_went_offline";
-      member: MemberSummary;
-      segment?: PathSegment;
-    }
-  | {
-      type: "command_ack";
-      requestId?: string;
-      command?: string;
-    }
-  | {
-      type: "command_rejected";
-      requestId?: string;
-      command?: string;
-      reason?: string;
-    }
-  | {
-      type: "live_connection_rejected";
-      reason?: string;
-    }
-  | {
-      type: "position_updated";
-      memberId: string;
-      segmentId?: string;
-      point: RoutePoint;
-    }
-  | {
-      type: "position_rejected";
-      error?: string;
-    }
-  | {
-      type: "route_closed";
-      route: RouteSummary;
-    }
-  | {
-      type: "message_rejected";
-      error?: string;
-    };
-
-function parseLiveEvent(payload: string | ArrayBufferLike | Blob): LiveEvent | null {
-  if (typeof payload !== "string") {
-    return null;
-  }
-
-  try {
-    const event = JSON.parse(payload) as Partial<LiveEvent>;
-    if (event.type === "position_updated" && isPositionUpdatedEvent(event)) {
-      return event;
-    }
-
-    if (isRouteClosedEvent(event)) {
-      return event;
-    }
-
-    if (
-      event.type === "member_started_sharing" &&
-      isSharingStartedEvent(event)
-    ) {
-      return event;
-    }
-
-    if (
-      event.type === "member_stopped_sharing" &&
-      isSharingStoppedEvent(event)
-    ) {
-      return event;
-    }
-
-    if (
-      (event.type === "member_became_stale" ||
-        event.type === "member_back_online" ||
-        event.type === "member_went_offline") &&
-      isMemberStatusEvent(event)
-    ) {
-      return event;
-    }
-
-    if (
-      event.type === "position_rejected" ||
-      event.type === "message_rejected" ||
-      event.type === "command_ack" ||
-      event.type === "command_rejected" ||
-      event.type === "live_connection_rejected" ||
-      event.type === "connection_established"
-    ) {
-      return event as LiveEvent;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-function isPositionUpdatedEvent(
-  event: Partial<LiveEvent>,
-): event is Extract<LiveEvent, { type: "position_updated" }> {
-  if (
-    event.type !== "position_updated" ||
-    typeof event.memberId !== "string" ||
-    !event.point
-  ) {
-    return false;
-  }
-
-  return (
-    typeof event.point.latitude === "number" &&
-    typeof event.point.longitude === "number" &&
-    typeof event.point.recordedAt === "string"
-  );
-}
-
-function isSharingStartedEvent(
-  event: Partial<LiveEvent>,
-): event is Extract<LiveEvent, { type: "member_started_sharing" }> {
-  return (
-    event.type === "member_started_sharing" &&
-    isMemberSummary(event.member) &&
-    Boolean(event.segment)
-  );
-}
-
-function isSharingStoppedEvent(
-  event: Partial<LiveEvent>,
-): event is Extract<LiveEvent, { type: "member_stopped_sharing" }> {
-  return event.type === "member_stopped_sharing" && isMemberSummary(event.member);
-}
-
-function isMemberStatusEvent(
-	event: Partial<LiveEvent>,
-): event is Extract<LiveEvent, { type: "member_became_stale" | "member_back_online" | "member_went_offline" }> {
-	return "member" in event && isMemberSummary(event.member);
-}
-
-function isMemberSummary(member: unknown): member is MemberSummary {
-  if (!member || typeof member !== "object") {
-    return false;
-  }
-
-  const candidate = member as Partial<MemberSummary>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.displayName === "string" &&
-    typeof candidate.transportMode === "string" &&
-    typeof candidate.status === "string" &&
-    typeof candidate.color === "string" &&
-    typeof candidate.joinedAt === "string"
-  );
-}
-
-function isRouteSummary(route: unknown): route is RouteSummary {
-  if (!route || typeof route !== "object") {
-    return false;
-  }
-
-  const candidate = route as Partial<RouteSummary>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.code === "string" &&
-    typeof candidate.name === "string" &&
-    candidate.status === "closed"
-  );
-}
-
-function isRouteClosedEvent(
-  event: Partial<LiveEvent>,
-): event is Extract<LiveEvent, { type: "route_closed" }> {
-  return event.type === "route_closed" && isRouteSummary(event.route);
-}
-
 function snapshotWithClosedRoute(
   snapshot: RouteSnapshot,
   route: RouteSummary,
@@ -1147,74 +958,6 @@ function snapshotWithClosedRoute(
       canStopSharing: false,
       canCloseRoute: false,
     },
-  };
-}
-
-function snapshotWithUpdatedSharingMember(
-  snapshot: RouteSnapshot,
-  member: MemberSummary,
-  segment?: PathSegment,
-): RouteSnapshot {
-  const members = snapshot.members.map((snapshotMember) => {
-    if (snapshotMember.id !== member.id) {
-      return snapshotMember;
-    }
-
-    return snapshotMemberFromMemberSummary(snapshotMember, member, segment);
-  });
-  const viewer =
-    snapshot.viewer.memberId === member.id
-      ? viewerCapabilitiesForSharingMember(snapshot, member)
-      : snapshot.viewer;
-
-  return {
-    ...snapshot,
-    members,
-    viewer,
-  };
-}
-
-function snapshotMemberFromMemberSummary(
-  snapshotMember: SnapshotMember,
-  member: MemberSummary,
-  segment?: PathSegment,
-): SnapshotMember {
-  const paths =
-    segment && !snapshotMember.paths.some((path) => path.id === segment.id)
-      ? [...snapshotMember.paths, segment]
-      : snapshotMember.paths;
-
-  return {
-    ...snapshotMember,
-    displayName: member.displayName,
-    transportMode: member.transportMode,
-    status: member.status,
-    color: member.color,
-    joinedAt: member.joinedAt,
-    leftAt: member.leftAt,
-    paths,
-  };
-}
-
-function viewerCapabilitiesForSharingMember(
-  snapshot: RouteSnapshot,
-  member: MemberSummary,
-) {
-  const canUseSharingPolicy =
-    snapshot.viewer.role === "owner" ||
-    snapshot.route.sharingPolicy === "everyone_can_share";
-  const canShare =
-    snapshot.route.status === "active" &&
-    member.status !== "left" &&
-    canUseSharingPolicy;
-
-  return {
-    ...snapshot.viewer,
-    status: member.status,
-    canStartSharing:
-      canShare && (member.status === "spectating" || member.status === "stale"),
-    canStopSharing:
-      canShare && (member.status === "tracking" || member.status === "stale"),
   };
 }
 
