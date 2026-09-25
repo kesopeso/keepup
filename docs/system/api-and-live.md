@@ -77,6 +77,7 @@ WebSocket authentication:
   - `{ "type": "authenticate", "memberToken": "..." }`
 - Server closes the live connection if authentication does not arrive before the configured timeout
 - Default first-message authentication timeout: `5s`
+- Server sends WebSocket ping frames every `30s` by default and requires a pong within `10s`; `WEBSOCKET_PING_INTERVAL` and `WEBSOCKET_PING_TIMEOUT` configure these values.
 - Server sends `connection_established` after successful authentication and route room subscription
 
 Live stream includes:
@@ -101,12 +102,14 @@ Current frontend shows a blocking stale recovery prompt when an active route ini
 Live connection rules:
 
 - Active routes attempt one authenticated WebSocket per member.
+- Clients reconnect unexpected closures with exponential backoff; an `already_active_connection` rejection during recovery is retried because the previous server-side connection may still be closing.
 - A second live connection for the same member is rejected with `live_connection_rejected` and reason `already_active_connection`; the existing connection remains active.
 - Closed route archive screens do not open WebSockets.
 - `offline -> spectating` happens after successful live authentication and broadcasts `member_back_online`.
 - `tracking -> stale` happens immediately on live connection close, or after `ROUTES_TRACKING_STALE_AFTER` without accepted positions.
 - `stale -> offline` happens after `ROUTES_TRACKING_OFFLINE_AFTER` spent stale and closes open segments with reason `disconnected`.
 - `spectating -> offline` happens after `ROUTES_SPECTATOR_OFFLINE_AFTER` without reconnect.
+- A disconnect-started offline timer does not transition the member if a replacement live connection exists when the timer expires.
 - Default timing values are `20s`, `5m`, and `20s` respectively.
 
 

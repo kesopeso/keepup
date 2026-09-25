@@ -13,6 +13,8 @@ const (
 	defaultAppPort               = "8080"
 	defaultDatabaseStartupWindow = 20 * time.Second
 	defaultWebSocketAuthTimeout  = 5 * time.Second
+	defaultWebSocketPingInterval = 30 * time.Second
+	defaultWebSocketPingTimeout  = 10 * time.Second
 	defaultTrackingStaleAfter    = 20 * time.Second
 	defaultTrackingOfflineAfter  = 5 * time.Minute
 	defaultSpectatorOfflineAfter = 20 * time.Second
@@ -31,6 +33,8 @@ type AppConfig struct {
 	Env                   string
 	Port                  string
 	WebSocketAuthTimeout  time.Duration
+	WebSocketPingInterval time.Duration
+	WebSocketPingTimeout  time.Duration
 	TrackingStaleAfter    time.Duration
 	TrackingOfflineAfter  time.Duration
 	SpectatorOfflineAfter time.Duration
@@ -83,6 +87,18 @@ func Load() (Config, error) {
 	}
 
 	cfg.App.WebSocketAuthTimeout = webSocketAuthTimeout
+
+	webSocketPingInterval, err := positiveDurationOrDefault("WEBSOCKET_PING_INTERVAL", defaultWebSocketPingInterval)
+	if err != nil {
+		return Config{}, fmt.Errorf("load config: %w", err)
+	}
+	cfg.App.WebSocketPingInterval = webSocketPingInterval
+
+	webSocketPingTimeout, err := positiveDurationOrDefault("WEBSOCKET_PING_TIMEOUT", defaultWebSocketPingTimeout)
+	if err != nil {
+		return Config{}, fmt.Errorf("load config: %w", err)
+	}
+	cfg.App.WebSocketPingTimeout = webSocketPingTimeout
 
 	trackingStaleAfter, err := positiveDurationOrDefault("ROUTES_TRACKING_STALE_AFTER", defaultTrackingStaleAfter)
 	if err != nil {

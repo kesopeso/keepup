@@ -85,7 +85,7 @@ docker build -f apps/api/Dockerfile \
 docker push registry.example.com/keepup/api:1.0.0
 ```
 
-Supply `DATABASE_URL` at runtime; credentials are not baked into the image. Optional timing and tracker-limit settings are defined in [API config](../../apps/api/internal/config/config.go). Attach the API to the application proxy's network as `api` on port 8080. The API serves HTTP behind the proxy. Apply database migrations separately before serving application traffic; the image contains neither migration tooling nor development tools. `/livez` and `/healthz` can be probed externally; the minimal runtime contains no shell or HTTP client. Development Compose continues to use `Dockerfile.dev`.
+Supply `DATABASE_URL` at runtime; credentials are not baked into the image. WebSocket keepalives default to a `30s` ping interval and `10s` pong timeout, configurable with `WEBSOCKET_PING_INTERVAL` and `WEBSOCKET_PING_TIMEOUT`. Other optional timing and tracker-limit settings are defined in [API config](../../apps/api/internal/config/config.go). Attach the API to the application proxy's network as `api` on port 8080. The API serves HTTP behind the proxy. Apply database migrations separately before serving application traffic; the image contains neither migration tooling nor development tools. `/livez` and `/healthz` can be probed externally; the minimal runtime contains no shell or HTTP client. Development Compose continues to use `Dockerfile.dev`.
 
 ## Same-origin proxy
 

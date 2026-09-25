@@ -12,6 +12,11 @@ import {
   type TransportMode,
 } from "../../../lib/identity-storage";
 import {
+  connectRouteLiveSocket,
+  type LiveSocket,
+  type RouteLiveSocketConnection,
+} from "../../../lib/live-connection";
+import {
   applyMemberLiveEvent,
   isMemberLiveEvent,
   parseLiveEvent,
@@ -352,7 +357,7 @@ function RouteSnapshotShell({
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [lifecycleError, setLifecycleError] = useState("");
   const [isLifecycleSubmitting, setIsLifecycleSubmitting] = useState(false);
-  const websocketRef = useRef<WebSocket | null>(null);
+  const websocketRef = useRef<LiveSocket | null>(null);
   const snapshotRef = useRef(snapshot);
   const [mapState, setMapState] = useState(() => routeSnapshotToMapState(snapshot));
   const sortedMembers = [...snapshot.members].sort(compareMembers);
@@ -385,112 +390,101 @@ function RouteSnapshotShell({
       return;
     }
 
-    let isCurrent = true;
-    const socket = new WebSocket(routeWebSocketUrl());
-    websocketRef.current = socket;
-
-    socket.addEventListener("open", () => {
-      socket.send(
-        JSON.stringify({
-          type: "authenticate",
-          memberToken,
-        }),
-      );
-    });
-
-    socket.addEventListener("message", (event) => {
-      const liveEvent = parseLiveEvent(event.data);
-      if (!liveEvent || !isCurrent) {
-        return;
-      }
-
-      if (liveEvent.type === "position_updated") {
-        setMapState((current) =>
-          appendLiveRoutePoint(current, {
-            memberId: liveEvent.memberId,
-            segmentId: liveEvent.segmentId,
-            point: liveEvent.point,
-          }),
-        );
-        return;
-      }
-
-      if (liveEvent.type === "position_rejected") {
-        setLiveTrackingError(positionRejectedMessage(liveEvent.error));
-        return;
-      }
-
-      if (liveEvent.type === "live_connection_rejected") {
-        setLiveConnectionRejected(true);
-        return;
-      }
-
-      if (liveEvent.type === "connection_established") {
-        setLiveConnectionReady(true);
-        return;
-      }
-
-      if (liveEvent.type === "route_closed") {
-        onSnapshotChange(snapshotWithClosedRoute(snapshotRef.current, liveEvent.route));
-        return;
-      }
-
-      if (liveEvent.type === "command_ack") {
-        if (snapshotRef.current.viewer.status !== "stale") {
-          setSharingAction(null);
-        }
-        return;
-      }
-
-      if (liveEvent.type === "command_rejected") {
-        setSharingAction(null);
-        setSharingError(commandRejectedMessage(liveEvent.reason));
-        return;
-      }
-
-      if (isMemberLiveEvent(liveEvent)) {
-        if (liveEvent.member.id === snapshotRef.current.viewer.memberId) {
-          setSharingAction(null);
-        }
-        const updatedSnapshot = applyMemberLiveEvent(
-          snapshotRef.current,
-          liveEvent,
-        );
-        snapshotRef.current = updatedSnapshot;
-        onSnapshotChange(updatedSnapshot);
-        setMapState((current) =>
-          updateMapMemberStatus(
-            current,
-            liveEvent.member.id,
-            liveEvent.member.status,
-          ),
-        );
-        return;
-      }
-    });
-
-    socket.addEventListener("close", () => {
-      if (websocketRef.current === socket) {
-        websocketRef.current = null;
-      }
-      if (isCurrent) {
+    let connection: RouteLiveSocketConnection;
+    connection = connectRouteLiveSocket({
+      url: routeWebSocketUrl(),
+      memberToken,
+      onSocketChange: (socket) => {
+        websocketRef.current = socket;
+      },
+      onDisconnected: () => {
         setLiveConnectionReady(false);
-      }
-    });
+      },
+      onMessage: (event) => {
+        const liveEvent = parseLiveEvent(event.data);
+        if (!liveEvent) {
+          return;
+        }
 
-    socket.addEventListener("error", () => {
-      if (isCurrent) {
-        setLiveTrackingError("Live route connection is unavailable.");
-      }
+        if (liveEvent.type === "position_updated") {
+          setMapState((current) =>
+            appendLiveRoutePoint(current, {
+              memberId: liveEvent.memberId,
+              segmentId: liveEvent.segmentId,
+              point: liveEvent.point,
+            }),
+          );
+          return;
+        }
+
+        if (liveEvent.type === "position_rejected") {
+          setLiveTrackingError(positionRejectedMessage(liveEvent.error));
+          return;
+        }
+
+        if (liveEvent.type === "live_connection_rejected") {
+          if (
+            connection.isRecovering() &&
+            liveEvent.reason === "already_active_connection"
+          ) {
+            return;
+          }
+
+          connection.stop();
+          setLiveConnectionRejected(true);
+          return;
+        }
+
+        if (liveEvent.type === "connection_established") {
+          connection.markEstablished();
+          setLiveConnectionReady(true);
+          return;
+        }
+
+        if (liveEvent.type === "route_closed") {
+          onSnapshotChange(
+            snapshotWithClosedRoute(snapshotRef.current, liveEvent.route),
+          );
+          return;
+        }
+
+        if (liveEvent.type === "command_ack") {
+          if (snapshotRef.current.viewer.status !== "stale") {
+            setSharingAction(null);
+          }
+          return;
+        }
+
+        if (liveEvent.type === "command_rejected") {
+          setSharingAction(null);
+          setSharingError(commandRejectedMessage(liveEvent.reason));
+          return;
+        }
+
+        if (isMemberLiveEvent(liveEvent)) {
+          if (liveEvent.member.id === snapshotRef.current.viewer.memberId) {
+            setSharingAction(null);
+          }
+          const updatedSnapshot = applyMemberLiveEvent(
+            snapshotRef.current,
+            liveEvent,
+          );
+          snapshotRef.current = updatedSnapshot;
+          onSnapshotChange(updatedSnapshot);
+          setMapState((current) =>
+            updateMapMemberStatus(
+              current,
+              liveEvent.member.id,
+              liveEvent.member.status,
+            ),
+          );
+        }
+      },
     });
 
     return () => {
-      isCurrent = false;
       setLiveConnectionReady(false);
-      if (websocketRef.current === socket) {
-        websocketRef.current = null;
-      }
-      socket.close();
+      connection.stop();
     };
   }, [memberToken, snapshot.route.status]);
 

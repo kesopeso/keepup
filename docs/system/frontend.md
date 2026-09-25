@@ -46,6 +46,7 @@ Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` 
 - The member bottom sheet renders route metadata, viewer capabilities, and the snapshot member list
 - The member bottom sheet uses viewer capabilities to show a start/stop sharing action, sends WebSocket sharing commands, then updates local member/viewer state from live events without refreshing the authenticated snapshot
 - The authenticated route screen opens an authenticated WebSocket live connection for active routes with saved member access
+- Unexpected live-connection closures reconnect with exponential backoff; sharing controls remain unavailable only until the replacement connection authenticates.
 - Active tracking viewers stream browser geolocation samples as `position_update` messages over the live connection
 - Incoming `position_updated` events update the in-memory map state so live markers and paths move without refetching the snapshot
 - Incoming `member_joined` events insert the new member into local snapshot/map state immediately; repeated member events upsert by member ID instead of creating duplicates

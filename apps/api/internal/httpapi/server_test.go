@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"keepup/apps/api/internal/config"
+	"keepup/apps/api/internal/live"
 	"keepup/apps/api/internal/routes"
 
 	"github.com/coder/websocket"
@@ -1146,6 +1147,93 @@ func TestWebSocketBroadcastsTrackingStaleAndOfflineTransitions(t *testing.T) {
 			t.Fatalf("event member = %#v, want frontend-consumable member summary", event.Member)
 		}
 	}
+}
+
+func TestWebSocketHeartbeatStopsWhenPeerDoesNotRespond(t *testing.T) {
+	wantErr := errors.New("ping failed")
+	pinger := stubWebSocketPinger{pingFn: func(context.Context) error {
+		return wantErr
+	}}
+
+	err := runWebSocketHeartbeat(context.Background(), pinger, time.Millisecond, time.Second)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("runWebSocketHeartbeat() error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestWebSocketHeartbeatStopsCleanlyWithContext(t *testing.T) {
+	pinged := make(chan struct{}, 1)
+	pinger := stubWebSocketPinger{pingFn: func(context.Context) error {
+		pinged <- struct{}{}
+		return nil
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- runWebSocketHeartbeat(ctx, pinger, time.Millisecond, time.Second)
+	}()
+
+	select {
+	case <-pinged:
+		cancel()
+	case <-time.After(time.Second):
+		t.Fatal("heartbeat did not ping")
+	}
+
+	if err := <-errCh; err != nil {
+		t.Fatalf("runWebSocketHeartbeat() error = %v, want nil", err)
+	}
+}
+
+func TestDisconnectedMemberDoesNotGoOfflineAfterReconnecting(t *testing.T) {
+	offlineCalled := make(chan struct{}, 1)
+	server := &Server{
+		appConfig: config.AppConfig{SpectatorOfflineAfter: time.Millisecond},
+		liveHub:   live.NewHub(),
+		logger:    slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		routes: stubRouteService{markOfflineFn: func(context.Context, string, string) (routes.Member, bool, error) {
+			offlineCalled <- struct{}{}
+			return routes.Member{}, true, nil
+		}},
+	}
+	subscription := server.liveHub.Subscribe("route-1", "member-1")
+	defer subscription.Close()
+
+	server.markDisconnectedMemberOfflineAfter(context.Background(), "route-1", "member-1", time.Millisecond)
+
+	select {
+	case <-offlineCalled:
+		t.Fatal("MarkMemberOffline() called for a reconnected member")
+	default:
+	}
+}
+
+func TestDisconnectedMemberGoesOfflineWithoutReplacementConnection(t *testing.T) {
+	offlineCalled := make(chan struct{}, 1)
+	server := &Server{
+		liveHub: live.NewHub(),
+		logger:  slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
+		routes: stubRouteService{markOfflineFn: func(context.Context, string, string) (routes.Member, bool, error) {
+			offlineCalled <- struct{}{}
+			return routes.Member{}, false, nil
+		}},
+	}
+
+	server.markDisconnectedMemberOfflineAfter(context.Background(), "route-1", "member-1", time.Millisecond)
+
+	select {
+	case <-offlineCalled:
+	case <-time.After(time.Second):
+		t.Fatal("MarkMemberOffline() was not called for a disconnected member")
+	}
+}
+
+type stubWebSocketPinger struct {
+	pingFn func(context.Context) error
+}
+
+func (s stubWebSocketPinger) Ping(ctx context.Context) error {
+	return s.pingFn(ctx)
 }
 
 func dialAuthenticatedWebSocket(

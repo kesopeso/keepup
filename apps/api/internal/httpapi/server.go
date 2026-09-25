@@ -22,9 +22,15 @@ import (
 
 const healthCheckTimeout = 2 * time.Second
 const defaultWebSocketAuthTimeout = 5 * time.Second
+const defaultWebSocketPingInterval = 30 * time.Second
+const defaultWebSocketPingTimeout = 10 * time.Second
 
 // HealthChecker reports whether the API dependencies are reachable.
 type HealthChecker interface {
+	Ping(context.Context) error
+}
+
+type webSocketPinger interface {
 	Ping(context.Context) error
 }
 
@@ -66,6 +72,12 @@ func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, rou
 	}
 	if server.appConfig.WebSocketAuthTimeout <= 0 {
 		server.appConfig.WebSocketAuthTimeout = defaultWebSocketAuthTimeout
+	}
+	if server.appConfig.WebSocketPingInterval <= 0 {
+		server.appConfig.WebSocketPingInterval = defaultWebSocketPingInterval
+	}
+	if server.appConfig.WebSocketPingTimeout <= 0 {
+		server.appConfig.WebSocketPingTimeout = defaultWebSocketPingTimeout
 	}
 
 	mux := http.NewServeMux()
@@ -484,6 +496,15 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 	go s.runTrackingHealthTimer(r.Context(), authorized.Route.ID, authorized.Member.ID, trackingHealthCh, staleOfflineCh, &disconnectedStatus)
+	heartbeatErrCh := make(chan error, 1)
+	go func() {
+		if err := runWebSocketHeartbeat(r.Context(), connection, s.appConfig.WebSocketPingInterval, s.appConfig.WebSocketPingTimeout); err != nil {
+			select {
+			case heartbeatErrCh <- err:
+			case <-r.Context().Done():
+			}
+		}
+	}()
 	if authorized.Member.Status == routes.MemberStatusTracking {
 		resetTimer(trackingHealthCh)
 	}
@@ -497,6 +518,9 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			return
 		case err := <-readErrCh:
 			s.logger.Debug("websocket read loop ended", "error", err)
+			return
+		case err := <-heartbeatErrCh:
+			s.logger.Debug("websocket heartbeat failed", "error", err)
 			return
 		case event := <-outboundEventCh:
 			if err := writeWebSocketJSON(r.Context(), connection, event); err != nil {
@@ -599,13 +623,30 @@ func (s *Server) handleDisconnectedMember(ctx context.Context, routeID, memberID
 				"type":   "member_became_stale",
 				"member": member,
 			})
-			go s.markOfflineAfter(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
+			go s.markDisconnectedMemberOfflineAfter(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
 		}
 	case routes.MemberStatusSpectating:
-		go s.markOfflineAfter(ctx, routeID, memberID, s.appConfig.SpectatorOfflineAfter)
+		go s.markDisconnectedMemberOfflineAfter(ctx, routeID, memberID, s.appConfig.SpectatorOfflineAfter)
 	case routes.MemberStatusStale:
-		go s.markOfflineAfter(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
+		go s.markDisconnectedMemberOfflineAfter(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
 	}
+}
+
+func (s *Server) markDisconnectedMemberOfflineAfter(ctx context.Context, routeID, memberID string, delay time.Duration) {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return
+	case <-timer.C:
+	}
+
+	if s.liveHub.HasMemberConnection(routeID, memberID) {
+		return
+	}
+
+	s.markMemberOffline(routeID, memberID)
 }
 
 func (s *Server) markOfflineAfter(ctx context.Context, routeID, memberID string, delay time.Duration) {
@@ -618,6 +659,10 @@ func (s *Server) markOfflineAfter(ctx context.Context, routeID, memberID string,
 	case <-timer.C:
 	}
 
+	s.markMemberOffline(routeID, memberID)
+}
+
+func (s *Server) markMemberOffline(routeID, memberID string) {
 	member, changed, err := s.routes.MarkMemberOffline(context.Background(), routeID, memberID)
 	if err != nil {
 		s.logger.Error("offline transition failed", "error", err)
@@ -628,6 +673,30 @@ func (s *Server) markOfflineAfter(ctx context.Context, routeID, memberID string,
 			"type":   "member_went_offline",
 			"member": member,
 		})
+	}
+}
+
+func runWebSocketHeartbeat(ctx context.Context, connection webSocketPinger, interval, timeout time.Duration) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+
+		pingCtx, cancel := context.WithTimeout(ctx, timeout)
+		err := connection.Ping(pingCtx)
+		cancel()
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+
+			return fmt.Errorf("ping websocket: %w", err)
+		}
 	}
 }
 

@@ -14,6 +14,8 @@ func TestLoad(t *testing.T) {
 		wantEnv                       string
 		wantTimeout                   time.Duration
 		wantWebSocketAuthTimeout      time.Duration
+		wantWebSocketPingInterval     time.Duration
+		wantWebSocketPingTimeout      time.Duration
 		wantDefaultMaxTrackingMembers int
 	}{
 		{
@@ -25,6 +27,8 @@ func TestLoad(t *testing.T) {
 			wantEnv:                       defaultAppEnv,
 			wantTimeout:                   defaultDatabaseStartupWindow,
 			wantWebSocketAuthTimeout:      defaultWebSocketAuthTimeout,
+			wantWebSocketPingInterval:     defaultWebSocketPingInterval,
+			wantWebSocketPingTimeout:      defaultWebSocketPingTimeout,
 			wantDefaultMaxTrackingMembers: defaultMaxTrackingMembers,
 		},
 		{
@@ -35,12 +39,16 @@ func TestLoad(t *testing.T) {
 				"DATABASE_URL":                 "postgres://keepup:keepup@postgres:5432/keepup?sslmode=disable",
 				"DATABASE_STARTUP_TIMEOUT":     "45s",
 				"WEBSOCKET_AUTH_TIMEOUT":       "3s",
+				"WEBSOCKET_PING_INTERVAL":      "25s",
+				"WEBSOCKET_PING_TIMEOUT":       "4s",
 				"DEFAULT_MAX_TRACKING_MEMBERS": "14",
 			},
 			wantPort:                      "9090",
 			wantEnv:                       "test",
 			wantTimeout:                   45 * time.Second,
 			wantWebSocketAuthTimeout:      3 * time.Second,
+			wantWebSocketPingInterval:     25 * time.Second,
+			wantWebSocketPingTimeout:      4 * time.Second,
 			wantDefaultMaxTrackingMembers: 14,
 		},
 		{
@@ -64,6 +72,22 @@ func TestLoad(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "fails on non-positive websocket ping interval",
+			env: map[string]string{
+				"DATABASE_URL":            "postgres://keepup:keepup@postgres:5432/keepup?sslmode=disable",
+				"WEBSOCKET_PING_INTERVAL": "0s",
+			},
+			wantErr: true,
+		},
+		{
+			name: "fails on non-positive websocket ping timeout",
+			env: map[string]string{
+				"DATABASE_URL":           "postgres://keepup:keepup@postgres:5432/keepup?sslmode=disable",
+				"WEBSOCKET_PING_TIMEOUT": "0s",
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -74,6 +98,8 @@ func TestLoad(t *testing.T) {
 			t.Setenv("DATABASE_URL", "")
 			t.Setenv("DATABASE_STARTUP_TIMEOUT", "")
 			t.Setenv("WEBSOCKET_AUTH_TIMEOUT", "")
+			t.Setenv("WEBSOCKET_PING_INTERVAL", "")
+			t.Setenv("WEBSOCKET_PING_TIMEOUT", "")
 			t.Setenv("DEFAULT_MAX_TRACKING_MEMBERS", "")
 
 			for key, value := range tc.env {
@@ -107,6 +133,14 @@ func TestLoad(t *testing.T) {
 
 			if cfg.App.WebSocketAuthTimeout != tc.wantWebSocketAuthTimeout {
 				t.Fatalf("Load() websocket auth timeout = %v, want %v", cfg.App.WebSocketAuthTimeout, tc.wantWebSocketAuthTimeout)
+			}
+
+			if cfg.App.WebSocketPingInterval != tc.wantWebSocketPingInterval {
+				t.Fatalf("Load() websocket ping interval = %v, want %v", cfg.App.WebSocketPingInterval, tc.wantWebSocketPingInterval)
+			}
+
+			if cfg.App.WebSocketPingTimeout != tc.wantWebSocketPingTimeout {
+				t.Fatalf("Load() websocket ping timeout = %v, want %v", cfg.App.WebSocketPingTimeout, tc.wantWebSocketPingTimeout)
 			}
 
 			if cfg.Routes.DefaultMaxTrackingMembers != tc.wantDefaultMaxTrackingMembers {
