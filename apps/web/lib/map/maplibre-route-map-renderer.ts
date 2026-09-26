@@ -37,6 +37,7 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
     viewportMode: "fit_route",
   };
   private initPromise: Promise<void>;
+  private resizeObserver: ResizeObserver;
 
   constructor(
     private readonly container: HTMLElement,
@@ -44,13 +45,26 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
   ) {
     this.mapElement = document.createElement("div");
     this.mapElement.className = "maplibre-route-map";
-    this.mapElement.addEventListener("pointerdown", this.markUserMapInteraction);
+    this.mapElement.addEventListener(
+      "pointerdown",
+      this.markUserMapInteraction,
+    );
     this.mapElement.addEventListener("wheel", this.markUserMapInteraction);
     this.mapElement.addEventListener("touchstart", this.markUserMapInteraction);
     this.mapElement.addEventListener("dblclick", this.markUserMapInteraction);
     this.mapElement.addEventListener("keydown", this.markUserMapInteraction);
     this.container.prepend(this.mapElement);
-    this.initPromise = this.initMap();
+    this.initPromise = this.initMap().catch(() => {
+      if (!this.destroyed) this.callbacks.onError?.();
+    });
+    this.resizeObserver = new ResizeObserver(() => {
+      if (!this.map || this.destroyed) return;
+      this.map.resize();
+      if (this.state.viewportMode === "fit_route") {
+        this.fitBoundsForPoints(allVisiblePoints(this.state));
+      }
+    });
+    this.resizeObserver.observe(this.container);
   }
 
   render(state: RouteMapState): void {
@@ -88,7 +102,9 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
     this.callbacks.onViewportChanged?.("manual");
     this.render(this.state);
 
-    const member = this.state.members.find((candidate) => candidate.id === memberId);
+    const member = this.state.members.find(
+      (candidate) => candidate.id === memberId,
+    );
     if (member) {
       this.fitBoundsForPoints(memberVisiblePoints(member));
     }
@@ -105,13 +121,23 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
 
   destroy(): void {
     this.destroyed = true;
+    this.resizeObserver.disconnect();
     delete this.container.dataset.viewportMode;
     delete this.container.dataset.pointCount;
     delete this.container.dataset.memberCount;
-    this.mapElement.removeEventListener("pointerdown", this.markUserMapInteraction);
+    this.mapElement.removeEventListener(
+      "pointerdown",
+      this.markUserMapInteraction,
+    );
     this.mapElement.removeEventListener("wheel", this.markUserMapInteraction);
-    this.mapElement.removeEventListener("touchstart", this.markUserMapInteraction);
-    this.mapElement.removeEventListener("dblclick", this.markUserMapInteraction);
+    this.mapElement.removeEventListener(
+      "touchstart",
+      this.markUserMapInteraction,
+    );
+    this.mapElement.removeEventListener(
+      "dblclick",
+      this.markUserMapInteraction,
+    );
     this.mapElement.removeEventListener("keydown", this.markUserMapInteraction);
 
     if (this.userMapInteractionReset) {
@@ -152,6 +178,10 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
     this.map.on("rotatestart", (event) => this.handleMapInteraction(event));
     this.map.on("pitchstart", (event) => this.handleMapInteraction(event));
 
+    this.map.on("error", () => {
+      if (!this.destroyed) this.callbacks.onError?.();
+    });
+
     this.map.on("load", () => {
       if (!this.map || this.destroyed) {
         return;
@@ -159,6 +189,7 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
 
       this.addRouteLayers();
       this.mapReady = true;
+      this.callbacks.onReady?.();
       this.renderCurrentState();
     });
   }
@@ -209,15 +240,7 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
       paint: {
         "line-color": ["coalesce", ["get", "color"], "#22c55e"],
         "line-opacity": 0.88,
-        "line-width": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          10,
-          3,
-          15,
-          6,
-        ],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 3, 15, 6],
       },
     });
 
@@ -228,15 +251,7 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
       paint: {
         "circle-color": "#071013",
         "circle-opacity": 0.86,
-        "circle-radius": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          10,
-          9,
-          15,
-          14,
-        ],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 9, 15, 14],
       },
     });
 
@@ -248,19 +263,13 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
         "circle-color": ["coalesce", ["get", "color"], "#22c55e"],
         "circle-stroke-color": "#f8fafc",
         "circle-stroke-width": 2,
-        "circle-radius": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          10,
-          6,
-          15,
-          9,
-        ],
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 6, 15, 9],
       },
     });
 
-    this.map.on("click", markerLayerId, (event) => this.handleMarkerClick(event));
+    this.map.on("click", markerLayerId, (event) =>
+      this.handleMarkerClick(event),
+    );
     this.map.on("mouseenter", markerLayerId, () => {
       if (this.map) {
         this.map.getCanvas().style.cursor = "pointer";
@@ -273,7 +282,10 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
     });
   }
 
-  private setSourceData(sourceId: string, data: GeoJsonFeatureCollection): void {
+  private setSourceData(
+    sourceId: string,
+    data: GeoJsonFeatureCollection,
+  ): void {
     const source = this.map?.getSource(sourceId) as GeoJSONSource | undefined;
     source?.setData(data);
   }
@@ -291,7 +303,9 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
     this.map.fitBounds(bounds, {
       maxZoom: points.length === 1 ? 15 : 16,
       padding: { top: 52, right: 36, bottom: 58, left: 36 },
-      duration: 350,
+      duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? 0
+        : 350,
     });
   }
 

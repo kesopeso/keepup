@@ -6,10 +6,10 @@ import {
   getProfile,
   saveProfile,
   saveRouteAuth,
-  transportModes,
   type TransportMode,
 } from "../lib/identity-storage";
 import { createRoute, type SharingPolicy } from "../lib/routes-api";
+import { Brand, TransportField } from "./components/ui";
 
 const sharingPolicyOptions: Array<{
   value: SharingPolicy;
@@ -19,24 +19,14 @@ const sharingPolicyOptions: Array<{
   {
     value: "everyone_can_share",
     label: "Everyone can share",
-    description: "Joined members may start tracking when slots are available.",
+    description: "Members choose when to share their location.",
   },
   {
     value: "joiners_can_view_only",
-    label: "Joiners view only",
+    label: "Only the owner can share",
     description: "Only the owner can choose to share location.",
   },
 ];
-
-const transportLabels: Record<TransportMode, string> = {
-  walking: "Walking",
-  bicycle: "Bicycle",
-  car: "Car",
-  bus: "Bus",
-  train: "Train",
-  boat: "Boat",
-  airplane: "Airplane",
-};
 
 export function CreateRouteForm() {
   const router = useRouter();
@@ -105,10 +95,18 @@ export function CreateRouteForm() {
   }
 
   return (
-    <form className="route-form" onSubmit={handleSubmit}>
+    <form
+      className="route-form"
+      onSubmit={handleSubmit}
+      aria-busy={isSubmitting}
+    >
+      <Brand />
       <div className="form-header">
-        <p className="eyebrow">KeepUp</p>
-        <h1>Create a route</h1>
+        <p className="eyebrow">Live route sharing</p>
+        <h1>Start a route together.</h1>
+        <p className="route-description">
+          Create a route, share the link, and see your group on the map.
+        </p>
       </div>
 
       <div className="field-grid">
@@ -137,68 +135,66 @@ export function CreateRouteForm() {
         </label>
       </div>
 
-      <label className="field">
-        <span>Description</span>
-        <textarea
-          name="description"
-          onChange={(event) => setDescription(event.target.value)}
-          placeholder="Optional"
-          rows={3}
-          value={description}
-        />
-      </label>
+      <TransportField value={transportMode} onChange={setTransportMode} />
 
-      <div className="field-grid">
-        <label className="field">
-          <span>Transport</span>
-          <select
-            name="transportMode"
-            onChange={(event) =>
-              setTransportMode(event.target.value as TransportMode)
-            }
-            value={transportMode}
-          >
-            {transportModes.map((mode) => (
-              <option key={mode} value={mode}>
-                {transportLabels[mode]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field">
-          <span>Password</span>
-          <input
-            autoComplete="new-password"
-            name="password"
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Optional"
-            type="password"
-            value={password}
-          />
-        </label>
-      </div>
-
-      <fieldset className="policy-group">
-        <legend>Sharing</legend>
-        <div className="policy-options">
-          {sharingPolicyOptions.map((option) => (
-            <label className="policy-option" key={option.value}>
-              <input
-                checked={sharingPolicy === option.value}
-                name="sharingPolicy"
-                onChange={() => setSharingPolicy(option.value)}
-                type="radio"
-                value={option.value}
-              />
-              <span>
-                <strong>{option.label}</strong>
-                <small>{option.description}</small>
-              </span>
-            </label>
-          ))}
+      <details className="route-settings">
+        <summary>
+          Route settings{" "}
+          <span>
+            {sharingPolicy === "everyone_can_share"
+              ? "Everyone can share"
+              : "Only the owner can share"}
+            {password ? " · Password protected" : ""}
+          </span>
+        </summary>
+        <div className="settings-fields">
+          <label className="field">
+            <span>
+              Description <small>Optional</small>
+            </span>
+            <textarea
+              name="description"
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Where is your group headed?"
+              rows={3}
+              value={description}
+            />
+          </label>
+          <label className="field">
+            <span>
+              Password <small>Optional</small>
+            </span>
+            <input
+              autoComplete="new-password"
+              name="password"
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Protect access to this route"
+              type="password"
+              value={password}
+            />
+          </label>
+          <fieldset className="policy-group">
+            <legend>Who can share location?</legend>
+            <div className="policy-options">
+              {sharingPolicyOptions.map((option) => (
+                <label className="policy-option" key={option.value}>
+                  <input
+                    checked={sharingPolicy === option.value}
+                    name="sharingPolicy"
+                    onChange={() => setSharingPolicy(option.value)}
+                    type="radio"
+                    value={option.value}
+                  />
+                  <span>
+                    <strong>{option.label}</strong>
+                    <small>{option.description}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
         </div>
-      </fieldset>
+      </details>
 
       {error ? (
         <p className="form-error" role="alert">
@@ -209,6 +205,9 @@ export function CreateRouteForm() {
       <button className="primary-action" disabled={!canSubmit} type="submit">
         {isSubmitting ? "Creating..." : "Create route"}
       </button>
+      <p className="privacy-note">
+        Your location stays private until you start sharing.
+      </p>
     </form>
   );
 }

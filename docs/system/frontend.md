@@ -43,7 +43,12 @@ Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` 
 - Browsers with saved member access fetch `GET /routes/{code}` with `Authorization: Bearer <memberToken>`
 - Unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
 - The authenticated route screen uses a route header, MapLibre-backed map surface, and member bottom sheet
-- The member bottom sheet renders route metadata, viewer capabilities, and the snapshot member list
+- The member bottom sheet renders sharing state/actions first, then a collapsible member list with initials, member colors, and explicit presence badges
+- Route details and owner controls live in a native modal dialog with keyboard focus containment and restoration
+- Shared brand, transport selector, status badge, and modal components live in `apps/web/app/components/ui.tsx`
+- Create uses a settings disclosure for description, password, and sharing policy; its collapsed summary shows the selected policy and password protection
+- The route header shares the route with native Web Share, clipboard fallback, or a selectable link if automatic sharing fails
+- The map wrapper shows a member/sharing summary, an empty-history message, and a `Fit group` control instead of a point counter
 - The member bottom sheet uses viewer capabilities to show a start/stop sharing action, sends WebSocket sharing commands, then updates local member/viewer state from live events without refreshing the authenticated snapshot
 - The authenticated route screen opens an authenticated WebSocket live connection for active routes with saved member access
 - Unexpected live-connection closures reconnect with exponential backoff; sharing controls remain unavailable only until the replacement connection authenticates.
@@ -63,8 +68,11 @@ Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` 
 - Map rendering is behind a framework-neutral `RouteMapRenderer` interface in `apps/web/lib/map`
 - Snapshot DTOs are converted to a map-specific `RouteMapState` before reaching the renderer
 - The renderer factory returns a MapLibre adapter that consumes route paths and latest member points from `RouteMapState`
+- A ResizeObserver in the MapLibre adapter resizes the map when the member sheet or viewport changes, preserves manual positioning, and refits only in automatic mode; it disconnects on renderer teardown
+- Optional renderer readiness/error callbacks let the map wrapper explain failed initialization or tile loading without an unhandled rejection
+- Map fit animations honor the browser reduced-motion preference
 - Tile provider configuration lives separately from the renderer in `apps/web/lib/map/tile-provider.ts`
-- The MapLibre adapter renders historical path polylines and latest member point markers, fits the initial viewport to visible route geometry, and switches to manual viewport mode on map interaction so live updates do not reset user pan/zoom until `Fit` is pressed again
+- The MapLibre adapter renders historical path polylines and latest member point markers, fits the initial viewport to visible route geometry, and switches to manual viewport mode on map interaction so live updates do not reset user pan/zoom until `Fit group` is pressed again
 - The helper owns local storage access for:
   - stable `clientId`
   - saved `displayName`

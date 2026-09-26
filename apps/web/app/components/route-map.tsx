@@ -8,7 +8,16 @@ import type {
   RouteMapViewportMode,
 } from "../../lib/map/route-map-types";
 
-export function RouteMap({ state }: { state: RouteMapState }) {
+export function RouteMap({
+  state,
+  archived,
+  sharingCount,
+}: {
+  state: RouteMapState;
+  archived: boolean;
+  sharingCount: number;
+}) {
+  const [mapError, setMapError] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<RouteMapRenderer | null>(null);
   const [viewportMode, setViewportMode] = useState<RouteMapViewportMode>(
@@ -43,6 +52,8 @@ export function RouteMap({ state }: { state: RouteMapState }) {
 
     const renderer = createRouteMapRenderer(containerRef.current, {
       onViewportChanged: setViewportMode,
+      onError: () => setMapError(true),
+      onReady: () => setMapError(false),
     });
     rendererRef.current = renderer;
 
@@ -59,10 +70,29 @@ export function RouteMap({ state }: { state: RouteMapState }) {
   return (
     <section className="map-stage" aria-label="Route map">
       <div className="map-surface" ref={containerRef}>
-        <div className="map-state">
-          <strong>{pointCount}</strong>
-          <span>{pointCount === 1 ? "point" : "points"}</span>
+        <div className="map-summary">
+          {archived
+            ? "Saved route history"
+            : `${sharingCount} sharing · ${state.members.length} ${state.members.length === 1 ? "member" : "members"}`}
         </div>
+        {mapError || pointCount === 0 ? (
+          <div className="map-empty" role="status">
+            <strong>
+              {mapError
+                ? "Map unavailable"
+                : archived
+                  ? "No recorded locations"
+                  : "The route starts here"}
+            </strong>
+            <span>
+              {mapError
+                ? "Check your connection and reload to try the map again."
+                : archived
+                  ? "No location history was saved for this route."
+                  : "Locations appear when a member starts sharing."}
+            </span>
+          </div>
+        ) : null}
         <div className="map-tools" aria-label="Map controls">
           <button
             onClick={() => {
@@ -71,9 +101,9 @@ export function RouteMap({ state }: { state: RouteMapState }) {
             }}
             type="button"
           >
-            Fit
+            Fit group
           </button>
-          <span>{viewportMode === "fit_route" ? "Auto" : "Manual"}</span>
+          {viewportMode === "manual" ? <span>Map moved</span> : null}
         </div>
       </div>
     </section>

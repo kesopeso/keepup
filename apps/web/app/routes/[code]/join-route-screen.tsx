@@ -8,7 +8,6 @@ import {
   getRouteAuth,
   saveProfile,
   saveRouteAuth,
-  transportModes,
   type TransportMode,
 } from "../../../lib/identity-storage";
 import {
@@ -45,16 +44,13 @@ import {
   type SnapshotMember,
 } from "../../../lib/routes-api";
 import { RouteMap } from "../../components/route-map";
-
-const transportLabels: Record<TransportMode, string> = {
-  walking: "Walking",
-  bicycle: "Bicycle",
-  car: "Car",
-  bus: "Bus",
-  train: "Train",
-  boat: "Boat",
-  airplane: "Airplane",
-};
+import {
+  Brand,
+  Modal,
+  StatusBadge,
+  TransportField,
+  transportLabels,
+} from "../../components/ui";
 
 export function JoinRouteScreen({ code }: { code: string }) {
   const router = useRouter();
@@ -120,13 +116,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
       return;
     }
 
-    loadRouteAccess(
-      code,
-      () => isMounted,
-      setAccess,
-      setError,
-      setIsLoading,
-    );
+    loadRouteAccess(code, () => isMounted, setAccess, setError, setIsLoading);
 
     return () => {
       isMounted = false;
@@ -189,7 +179,9 @@ export function JoinRouteScreen({ code }: { code: string }) {
     return (
       <section className="route-shell">
         <RouteHeader code={code} label="Route" />
-        <p className="route-status">Loading route...</p>
+        <p className="route-status loading-status" role="status">
+          Loading your route...
+        </p>
       </section>
     );
   }
@@ -221,7 +213,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
   }
 
   return (
-    <form className="route-form" onSubmit={handleSubmit}>
+    <form className="route-form" onSubmit={handleSubmit} aria-busy={isJoining}>
       <RouteHeader code={access.code} label="Join route" title={access.name} />
 
       {access.description ? (
@@ -251,22 +243,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
           />
         </label>
 
-        <label className="field">
-          <span>Transport</span>
-          <select
-            name="transportMode"
-            onChange={(event) =>
-              setTransportMode(event.target.value as TransportMode)
-            }
-            value={transportMode}
-          >
-            {transportModes.map((mode) => (
-              <option key={mode} value={mode}>
-                {transportLabels[mode]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <TransportField value={transportMode} onChange={setTransportMode} />
       </div>
 
       {access.requiresPassword ? (
@@ -290,8 +267,15 @@ export function JoinRouteScreen({ code }: { code: string }) {
       ) : null}
 
       <button className="primary-action" disabled={!canJoin} type="submit">
-        {isJoining ? "Joining..." : "Join route"}
+        {isJoining
+          ? "Joining..."
+          : access.status === "closed"
+            ? "View archive"
+            : "Join route"}
       </button>
+      <p className="privacy-note">
+        Your location stays private until you start sharing.
+      </p>
     </form>
   );
 }
@@ -344,22 +328,30 @@ function RouteSnapshotShell({
   const [sharingAction, setSharingAction] = useState<"start" | "stop" | null>(
     null,
   );
+  const [membersExpanded, setMembersExpanded] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [shareMessage, setShareMessage] = useState("");
+  const [manualShareUrl, setManualShareUrl] = useState("");
+  const [isSharingLink, setIsSharingLink] = useState(false);
   const [sharingError, setSharingError] = useState("");
   const [liveTrackingError, setLiveTrackingError] = useState("");
   const [liveConnectionRejected, setLiveConnectionRejected] = useState(false);
   const [liveConnectionReady, setLiveConnectionReady] = useState(false);
   const [showStaleRecovery, setShowStaleRecovery] = useState(
-    () => snapshot.route.status === "active" && snapshot.viewer.status === "stale",
+    () =>
+      snapshot.route.status === "active" && snapshot.viewer.status === "stale",
   );
-  const [lifecycleAction, setLifecycleAction] = useState<"close" | "delete" | null>(
-    null,
-  );
+  const [lifecycleAction, setLifecycleAction] = useState<
+    "close" | "delete" | null
+  >(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [lifecycleError, setLifecycleError] = useState("");
   const [isLifecycleSubmitting, setIsLifecycleSubmitting] = useState(false);
   const websocketRef = useRef<LiveSocket | null>(null);
   const snapshotRef = useRef(snapshot);
-  const [mapState, setMapState] = useState(() => routeSnapshotToMapState(snapshot));
+  const [mapState, setMapState] = useState(() =>
+    routeSnapshotToMapState(snapshot),
+  );
   const sortedMembers = [...snapshot.members].sort(compareMembers);
   const canUseSharingControl =
     memberToken !== "" &&
@@ -369,13 +361,70 @@ function RouteSnapshotShell({
     (snapshot.viewer.canStartSharing || snapshot.viewer.canStopSharing);
   const sharingControlLabel = snapshot.viewer.canStopSharing
     ? "Stop sharing"
-    : "Start sharing";
+    : "Start sharing location";
   const sharingControlBusyLabel =
     sharingAction === "stop" ? "Stopping..." : "Starting...";
   const isViewerTracking =
     memberToken !== "" &&
     snapshot.route.status === "active" &&
     snapshot.viewer.status === "tracking";
+
+  const isArchive = snapshot.route.status === "closed";
+  const sharingCount = snapshot.members.filter(
+    (member) => member.status === "tracking",
+  ).length;
+  const occupiedSlots = snapshot.members.filter(
+    (member) => member.status === "tracking" || member.status === "stale",
+  ).length;
+  const sharingTitle = isArchive
+    ? "Route archive"
+    : !liveConnectionReady
+      ? "Live connection unavailable"
+      : snapshot.viewer.status === "tracking"
+        ? "You're sharing location"
+        : snapshot.viewer.status === "stale"
+          ? "Location updates interrupted"
+          : "You're spectating";
+  const sharingDescription = isArchive
+    ? "This route is closed. Its recorded paths remain available."
+    : !liveConnectionReady
+      ? "Waiting for the live connection. If it does not connect, reload this page."
+      : snapshot.viewer.status === "tracking"
+        ? "Keep this page open. Sharing uses battery and mobile data."
+        : snapshot.viewer.status === "stale"
+          ? "Your last location may be out of date. You can stop sharing below."
+          : snapshot.route.sharingPolicy === "joiners_can_view_only" &&
+              snapshot.viewer.role !== "owner"
+            ? "Only the owner can share location on this route."
+            : occupiedSlots >= snapshot.route.maxTrackingMembers
+              ? "All tracking slots are in use. You can still follow the group."
+              : !snapshot.viewer.canStartSharing
+                ? "Location sharing is not available for your membership."
+                : "You can see the group without sharing your location.";
+
+  async function handleShareRoute() {
+    setIsSharingLink(true);
+    setShareMessage("");
+    setManualShareUrl("");
+    const url = new URL(
+      `/routes/${encodeURIComponent(code)}`,
+      window.location.origin,
+    ).href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: snapshot.route.name, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setShareMessage("Route link copied.");
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+      setManualShareUrl(url);
+      setShareMessage("Copy this link to share the route.");
+    } finally {
+      setIsSharingLink(false);
+    }
+  }
 
   useEffect(() => {
     snapshotRef.current = snapshot;
@@ -514,7 +563,7 @@ function RouteSnapshotShell({
       return;
     }
 
-    const shouldStartSharing = snapshot.viewer.canStartSharing;
+    const shouldStartSharing = !snapshot.viewer.canStopSharing;
     await updateSharing(shouldStartSharing ? "start" : "stop");
   }
 
@@ -639,180 +688,243 @@ function RouteSnapshotShell({
     <section className="route-screen">
       <header className="route-topbar">
         <div className="route-title-block">
-          <p className="eyebrow">
-            {snapshot.route.status === "closed" ? "Archive" : "Route"}
-          </p>
+          <p className="eyebrow">{isArchive ? "Closed route" : "Live route"}</p>
           <h1>{snapshot.route.name}</h1>
-          <p className="route-code">{snapshot.route.code}</p>
+          <p className="route-code">
+            Route code <span>{snapshot.route.code}</span>
+          </p>
         </div>
-
-        <div className="route-meta route-topbar-meta">
-          <span>{snapshot.route.status === "closed" ? "Closed" : "Active"}</span>
-          <span>{snapshot.members.length} members</span>
+        <div className="route-header-actions">
+          <button
+            className="primary-action compact-action"
+            disabled={isSharingLink}
+            onClick={handleShareRoute}
+            type="button"
+          >
+            {isSharingLink ? "Sharing..." : "Share"}
+          </button>
+          <button
+            className="secondary-action icon-action"
+            onClick={() => setShowSettings(true)}
+            type="button"
+            aria-haspopup="dialog"
+            aria-label="Route details"
+          >
+            <svg
+              aria-hidden="true"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <circle cx="5" cy="12" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="19" cy="12" r="2" />
+            </svg>
+          </button>
         </div>
+        {shareMessage ? (
+          <p className="share-message" role="status">
+            {shareMessage}
+          </p>
+        ) : null}
+        {manualShareUrl ? (
+          <label className="field share-fallback">
+            <span>Route link</span>
+            <input
+              readOnly
+              value={manualShareUrl}
+              onFocus={(event) => event.target.select()}
+            />
+          </label>
+        ) : null}
       </header>
 
-      <RouteMap state={mapState} />
+      <RouteMap
+        state={mapState}
+        archived={isArchive}
+        sharingCount={sharingCount}
+      />
 
       {showStaleRecovery ? (
-        <div className="recovery-backdrop">
-          <section
-            aria-describedby="stale-recovery-description"
-            aria-labelledby="stale-recovery-title"
-            aria-modal="true"
-            className="recovery-dialog"
-            role="dialog"
-          >
-            <p className="eyebrow">Sharing interrupted</p>
-            <h2 id="stale-recovery-title">Continue sharing your location?</h2>
-            <p id="stale-recovery-description">
-              Your previous sharing session was interrupted. Choose how to
-              continue on this route.
+        <Modal
+          describedBy="stale-recovery-description"
+          labelledBy="stale-recovery-title"
+        >
+          <p className="eyebrow">Sharing interrupted</p>
+          <h2 id="stale-recovery-title">Continue sharing your location?</h2>
+          <p id="stale-recovery-description">
+            Your previous sharing session was interrupted. Choose how to
+            continue on this route.
+          </p>
+
+          <div className="recovery-actions">
+            <button
+              className="primary-action"
+              disabled={!canUseSharingControl}
+              onClick={() => handleStaleRecovery("start")}
+              type="button"
+            >
+              {sharingAction === "start" ? "Resuming..." : "Resume sharing"}
+            </button>
+            <button
+              className="secondary-action"
+              disabled={!canUseSharingControl}
+              onClick={() => handleStaleRecovery("stop")}
+              type="button"
+            >
+              {sharingAction === "stop"
+                ? "Continuing..."
+                : "Continue as spectator"}
+            </button>
+          </div>
+
+          {!liveConnectionReady && !sharingError && !liveTrackingError ? (
+            <p className="route-status">Connecting to the live route...</p>
+          ) : null}
+
+          {sharingError ? (
+            <p className="form-error" role="alert">
+              {sharingError}
             </p>
+          ) : null}
 
-            <div className="recovery-actions">
-              <button
-                className="primary-action"
-                disabled={!canUseSharingControl}
-                onClick={() => handleStaleRecovery("start")}
-                type="button"
-              >
-                {sharingAction === "start" ? "Resuming..." : "Resume sharing"}
-              </button>
-              <button
-                className="secondary-action"
-                disabled={!canUseSharingControl}
-                onClick={() => handleStaleRecovery("stop")}
-                type="button"
-              >
-                {sharingAction === "stop"
-                  ? "Continuing..."
-                  : "Continue as spectator"}
-              </button>
-            </div>
-
-            {!liveConnectionReady && !sharingError && !liveTrackingError ? (
-              <p className="route-status">Connecting to the live route...</p>
-            ) : null}
-
-            {sharingError ? (
-              <p className="form-error" role="alert">
-                {sharingError}
-              </p>
-            ) : null}
-
-            {!sharingError && liveTrackingError ? (
-              <p className="form-error" role="alert">
-                {liveTrackingError}
-              </p>
-            ) : null}
-          </section>
-        </div>
+          {!sharingError && liveTrackingError ? (
+            <p className="form-error" role="alert">
+              {liveTrackingError}
+            </p>
+          ) : null}
+        </Modal>
       ) : null}
 
       {lifecycleAction ? (
-        <div className="recovery-backdrop">
-          <section
-            aria-describedby="route-lifecycle-description"
-            aria-labelledby="route-lifecycle-title"
-            aria-modal="true"
-            className="recovery-dialog"
-            role="dialog"
-          >
-            <p className="eyebrow">Owner action</p>
-            <h2 id="route-lifecycle-title">
-              {lifecycleAction === "close"
-                ? "Close this route?"
-                : "Permanently delete this route?"}
-            </h2>
-            <p id="route-lifecycle-description">
-              {lifecycleAction === "close"
-                ? "Closing stops all location sharing and turns this route into a read-only archive. It cannot be reopened."
-                : "Deleting permanently removes the route, members, and all recorded paths. This cannot be undone."}
-            </p>
+        <Modal
+          describedBy="route-lifecycle-description"
+          labelledBy="route-lifecycle-title"
+          onClose={closeLifecycleDialog}
+        >
+          <p className="eyebrow">Owner action</p>
+          <h2 id="route-lifecycle-title">
+            {lifecycleAction === "close"
+              ? "Close this route?"
+              : "Permanently delete this route?"}
+          </h2>
+          <p id="route-lifecycle-description">
+            {lifecycleAction === "close"
+              ? "Closing stops all location sharing and turns this route into a read-only archive. It cannot be reopened."
+              : "Deleting permanently removes the route, members, and all recorded paths. This cannot be undone."}
+          </p>
 
-            {lifecycleAction === "delete" ? (
-              <label className="field">
-                <span>
-                  Type <strong>{snapshot.route.code}</strong> to confirm
-                </span>
-                <input
-                  autoComplete="off"
-                  disabled={isLifecycleSubmitting}
-                  onChange={(event) => setDeleteConfirmation(event.target.value)}
-                  value={deleteConfirmation}
-                />
-              </label>
-            ) : null}
-
-            <div className="recovery-actions">
-              <button
-                className="danger-action"
-                disabled={
-                  isLifecycleSubmitting ||
-                  (lifecycleAction === "delete" &&
-                    deleteConfirmation.trim().toUpperCase() !==
-                      snapshot.route.code)
-                }
-                onClick={
-                  lifecycleAction === "close"
-                    ? handleCloseRoute
-                    : handleDeleteRoute
-                }
-                type="button"
-              >
-                {isLifecycleSubmitting
-                  ? lifecycleAction === "close"
-                    ? "Closing..."
-                    : "Deleting..."
-                  : lifecycleAction === "close"
-                    ? "Close route"
-                    : "Delete route permanently"}
-              </button>
-              <button
-                className="secondary-action"
+          {lifecycleAction === "delete" ? (
+            <label className="field">
+              <span>
+                Type <strong>{snapshot.route.code}</strong> to confirm
+              </span>
+              <input
+                autoComplete="off"
                 disabled={isLifecycleSubmitting}
-                onClick={closeLifecycleDialog}
-                type="button"
-              >
-                Cancel
-              </button>
-            </div>
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                value={deleteConfirmation}
+              />
+            </label>
+          ) : null}
 
-            {lifecycleError ? (
-              <p className="form-error" role="alert">
-                {lifecycleError}
-              </p>
-            ) : null}
-          </section>
-        </div>
-      ) : null}
-
-      <aside className="member-sheet" aria-label="Route members">
-        <div className="sheet-handle" aria-hidden="true" />
-
-        <div className="sheet-section">
-          <div className="sheet-heading">
-            <h2>Route</h2>
-            <span>
-              {snapshot.route.sharingPolicy === "everyone_can_share"
-                ? "Everyone can share"
-                : "Joiners view only"}
-            </span>
+          <div className="recovery-actions">
+            <button
+              className="danger-action"
+              disabled={
+                isLifecycleSubmitting ||
+                (lifecycleAction === "delete" &&
+                  deleteConfirmation.trim().toUpperCase() !==
+                    snapshot.route.code)
+              }
+              onClick={
+                lifecycleAction === "close"
+                  ? handleCloseRoute
+                  : handleDeleteRoute
+              }
+              type="button"
+            >
+              {isLifecycleSubmitting
+                ? lifecycleAction === "close"
+                  ? "Closing..."
+                  : "Deleting..."
+                : lifecycleAction === "close"
+                  ? "Close route"
+                  : "Delete route permanently"}
+            </button>
+            <button
+              className="secondary-action"
+              disabled={isLifecycleSubmitting}
+              onClick={closeLifecycleDialog}
+              data-initial-focus
+              type="button"
+            >
+              Cancel
+            </button>
           </div>
 
-          {snapshot.route.description ? (
-            <p className="route-description">{snapshot.route.description}</p>
+          {lifecycleError ? (
+            <p className="form-error" role="alert">
+              {lifecycleError}
+            </p>
           ) : null}
-        </div>
+        </Modal>
+      ) : null}
 
-        {snapshot.viewer.canCloseRoute || snapshot.viewer.canDeleteRoute ? (
-          <div className="sheet-section">
-            <div className="sheet-heading">
-              <h2>Manage route</h2>
-              <span>Owner</span>
-            </div>
+      {showSettings ? (
+        <Modal
+          labelledBy="route-details-title"
+          onClose={() => setShowSettings(false)}
+        >
+          <div className="sheet-heading">
+            <h2 id="route-details-title">Route details</h2>
+            <button
+              className="text-action"
+              autoFocus
+              onClick={() => setShowSettings(false)}
+              type="button"
+            >
+              Done
+            </button>
+          </div>
+          <p className="route-description">
+            {snapshot.route.description || "No description for this route."}
+          </p>
+          <div className="detail-list">
+            <p>
+              <span>Sharing</span>
+              <strong>
+                {snapshot.route.sharingPolicy === "everyone_can_share"
+                  ? "Everyone can share"
+                  : "Only the owner can share"}
+              </strong>
+            </p>
+            <p>
+              <span>Access</span>
+              <strong>
+                {snapshot.route.hasPassword
+                  ? "Password protected"
+                  : "Anyone with the link"}
+              </strong>
+            </p>
+            <p>
+              <span>Route code</span>
+              <strong>{snapshot.route.code}</strong>
+            </p>
+            <p>
+              <span>Your role</span>
+              <strong>{formatRole(snapshot.viewer.role)}</strong>
+            </p>
+          </div>
+          {snapshot.viewer.canCloseRoute || snapshot.viewer.canDeleteRoute ? (
             <div className="management-actions">
+              <h3>Manage route</h3>
+              {ownerToken === "" ? (
+                <p className="route-status">
+                  Owner access is unavailable in this browser.
+                </p>
+              ) : null}
               {snapshot.viewer.canCloseRoute ? (
                 <button
                   className="secondary-action"
@@ -834,63 +946,75 @@ function RouteSnapshotShell({
                 </button>
               ) : null}
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </Modal>
+      ) : null}
 
-        <div className="sheet-section">
+      <aside className="member-sheet" aria-label="Sharing and route members">
+        <div className="sheet-handle" aria-hidden="true" />
+        <div className="sheet-section sharing-section">
           <div className="sheet-heading">
-            <h2>Your access</h2>
-            <span>{formatStatus(snapshot.viewer.status)}</span>
+            <h2>{sharingTitle}</h2>
           </div>
-          <div className="capability-grid">
-            <CapabilityLabel
-              label="Role"
-              value={formatRole(snapshot.viewer.role)}
-            />
-            <CapabilityLabel
-              label="Can share"
-              value={snapshot.viewer.canStartSharing ? "Yes" : "No"}
-            />
-            <CapabilityLabel
-              label="Can leave"
-              value={snapshot.viewer.canLeaveRoute ? "Yes" : "No"}
-            />
-            <CapabilityLabel
-              label="Can manage"
-              value={snapshot.viewer.canEditRoute ? "Yes" : "No"}
-            />
-          </div>
-
-          <button
-            className="sharing-action"
-            disabled={!canUseSharingControl}
-            onClick={handleSharingControl}
-            type="button"
-          >
-            {sharingAction ? sharingControlBusyLabel : sharingControlLabel}
-          </button>
-
+          <p className="route-status" id="sharing-description">
+            {sharingDescription}
+          </p>
+          {!isArchive ? (
+            <button
+              className={
+                snapshot.viewer.canStopSharing
+                  ? "secondary-action"
+                  : "sharing-action"
+              }
+              disabled={!canUseSharingControl}
+              onClick={handleSharingControl}
+              aria-describedby="sharing-description"
+              type="button"
+            >
+              {sharingAction ? sharingControlBusyLabel : sharingControlLabel}
+            </button>
+          ) : null}
           {sharingError ? (
             <p className="form-error" role="alert">
               {sharingError}
             </p>
           ) : null}
-
-          {liveTrackingError ? (
+          {liveTrackingError && !isArchive ? (
             <p className="form-error" role="alert">
               {liveTrackingError}
             </p>
           ) : null}
         </div>
-
         <div className="sheet-section">
           <div className="sheet-heading">
-            <h2>Members</h2>
-            <span>{sortedMembers.length}</span>
+            <h2>
+              Members{" "}
+              <span className="member-count">{sortedMembers.length}</span>
+            </h2>
+            <button
+              className="text-action"
+              type="button"
+              aria-expanded={membersExpanded}
+              aria-controls="route-members"
+              onClick={() => setMembersExpanded(!membersExpanded)}
+            >
+              {membersExpanded ? "Collapse" : "Expand"}
+            </button>
           </div>
-          <div className="member-list">
+          <div
+            className="member-list"
+            id="route-members"
+            role="region"
+            aria-label="Route member list"
+            tabIndex={0}
+            hidden={!membersExpanded}
+          >
             {sortedMembers.map((member) => (
-              <MemberRow key={member.id} member={member} />
+              <MemberRow
+                key={member.id}
+                member={member}
+                isViewer={member.id === snapshot.viewer.memberId}
+              />
             ))}
           </div>
         </div>
@@ -899,29 +1023,40 @@ function RouteSnapshotShell({
   );
 }
 
-function CapabilityLabel({ label, value }: { label: string; value: string }) {
+function MemberRow({
+  member,
+  isViewer,
+}: {
+  member: SnapshotMember;
+  isViewer: boolean;
+}) {
+  const initials = Array.from(member.displayName.trim())
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   return (
-    <div className="capability-item">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function MemberRow({ member }: { member: SnapshotMember }) {
-  return (
-    <article className="member-row">
+    <article className={`member-row member-${member.status}`}>
       <span
         aria-hidden="true"
-        className="member-color"
-        style={{ backgroundColor: member.color }}
-      />
-      <div>
-        <h3>{member.displayName}</h3>
+        className="member-avatar"
+        style={{ borderColor: member.color }}
+      >
+        {initials}
+        <span
+          className="member-color"
+          style={{ backgroundColor: member.color }}
+        />
+      </span>
+      <div className="member-info">
+        <h3>
+          {member.displayName}
+          {isViewer ? <small> · You</small> : null}
+        </h3>
         <p>
-          {formatRole(member.role)} · {formatStatus(member.status)} ·{" "}
+          {member.role === "owner" ? "Owner · " : ""}
           {formatTransportMode(member.transportMode)}
         </p>
+        <StatusBadge status={member.status} />
       </div>
     </article>
   );
@@ -1048,7 +1183,9 @@ function compareMembers(first: SnapshotMember, second: SnapshotMember) {
     return firstStatus - secondStatus;
   }
 
-  return new Date(first.joinedAt).getTime() - new Date(second.joinedAt).getTime();
+  return (
+    new Date(first.joinedAt).getTime() - new Date(second.joinedAt).getTime()
+  );
 }
 
 function formatRole(role: string) {
@@ -1077,9 +1214,12 @@ function RouteHeader({
 }) {
   return (
     <div className="form-header">
+      <Brand />
       <p className="eyebrow">{label}</p>
       <h1>{title || code}</h1>
-      <p className="route-code">{code}</p>
+      <p className="route-code">
+        Route code <span>{code}</span>
+      </p>
     </div>
   );
 }

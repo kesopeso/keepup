@@ -28,6 +28,8 @@ export type RouteMapState = {
 };
 
 export type RouteMapCallbacks = {
+  onError?: () => void;
+  onReady?: () => void;
   onViewportChanged?: (mode: RouteMapViewportMode) => void;
   onMemberMarkerClick?: (memberId: string) => void;
   onMapInteraction?: () => void;
