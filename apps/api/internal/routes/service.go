@@ -655,7 +655,7 @@ func buildViewerCapabilities(authorized AuthorizedMember, trackingCount int) Vie
 		Status:          authorized.Member.Status,
 		CanStartSharing: canStartSharing,
 		CanStopSharing:  authorized.Route.Status == RouteStatusActive && (authorized.Member.Status == MemberStatusTracking || authorized.Member.Status == MemberStatusStale),
-		CanLeaveRoute:   authorized.Member.Status != MemberStatusLeft && !(authorized.Route.Status == RouteStatusActive && authorized.Member.IsOwner),
+		CanLeaveRoute:   authorized.Member.Status != MemberStatusLeft && (authorized.Route.Status != RouteStatusActive || !authorized.Member.IsOwner),
 		CanCloseRoute:   authorized.Member.IsOwner && authorized.Route.Status == RouteStatusActive,
 		CanDeleteRoute:  authorized.Member.IsOwner,
 		CanEditRoute:    authorized.Member.IsOwner,
