@@ -18,15 +18,14 @@ export function Brand() {
     <a className="brand" href="/" aria-label="KeepUp home">
       keep<span>up</span>
       <span className="brand-mark" aria-hidden="true">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M5 19 19 5M5 5h14v14" />
+        <svg viewBox="0 0 128 128">
+          <rect width="128" height="128" fill="#173023" />
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#173023" stroke="#3f7652" strokeWidth="6" />
+          <path d="M42 31v66" fill="none" stroke="#f8fafc" strokeWidth="14" strokeLinecap="round" />
+          <path d="M87 96C72 82 64 69 49 65C64 63 75 52 83 39" fill="none" stroke="#22c55e" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="m78 35 14-4-2 15" fill="none" stroke="#22c55e" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="81" cy="90" r="7" fill="#f8fafc" stroke="#173023" strokeWidth="4" />
+          <circle cx="73" cy="52" r="7" fill="#f8fafc" stroke="#173023" strokeWidth="4" />
         </svg>
       </span>
     </a>

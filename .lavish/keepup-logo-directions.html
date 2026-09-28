@@ -1,0 +1,979 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>KeepUp logo directions</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0c1014;
+        --bg-elevated: #151b20;
+        --bg-soft: #20262d;
+        --border: #34404a;
+        --text: #f8fafc;
+        --text-muted: #b5c2cb;
+        --accent: #22c55e;
+        --accent-soft: #173023;
+        --warning: #f6bf65;
+        --radius-control: 12px;
+        --radius-panel: 20px;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--bg);
+      }
+
+      body {
+        margin: 0;
+        min-width: 0;
+        background:
+          radial-gradient(circle at 18% 0%, #163824 0, transparent 29rem),
+          var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.5;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      button,
+      label,
+      select {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      :where(button, input, select, textarea):focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+      }
+
+      :where(p, h1, h2, h3, li, label, span, strong, small) {
+        overflow-wrap: anywhere;
+      }
+
+      svg {
+        display: block;
+        max-width: 100%;
+        height: auto;
+      }
+
+      .sprite {
+        position: absolute;
+        width: 0;
+        height: 0;
+        overflow: hidden;
+      }
+
+      .shell {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+        padding: 32px 20px 72px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(240px, 0.55fr);
+        gap: 30px;
+        align-items: end;
+        padding: 42px;
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        background: #11171cdd;
+        box-shadow: 0 28px 80px #0007;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: #8cdda9;
+        font-size: 0.72rem;
+        font-weight: 780;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 12ch;
+        margin-bottom: 18px;
+        font-size: clamp(2.6rem, 7vw, 5.7rem);
+        line-height: 0.95;
+        letter-spacing: -0.065em;
+      }
+
+      h1 span,
+      .accent {
+        color: var(--accent);
+      }
+
+      .lede {
+        max-width: 64ch;
+        margin-bottom: 0;
+        color: var(--text-muted);
+        font-size: clamp(1rem, 2vw, 1.18rem);
+      }
+
+      .palette {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+        min-width: 0;
+      }
+
+      .swatch {
+        min-width: 0;
+        min-height: 86px;
+        padding: 12px;
+        border: 1px solid #ffffff1e;
+        border-radius: 14px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        font-size: 0.7rem;
+        font-weight: 750;
+      }
+
+      .swatch code {
+        margin-top: 2px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.68rem;
+        font-weight: 500;
+      }
+
+      .swatch-dark {
+        background: var(--bg);
+      }
+
+      .swatch-panel {
+        background: var(--bg-elevated);
+      }
+
+      .swatch-green {
+        background: var(--accent);
+        color: #052e16;
+      }
+
+      .swatch-white {
+        background: var(--text);
+        color: #10161b;
+      }
+
+      .section-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        margin: 64px 0 22px;
+      }
+
+      .section-head h2 {
+        margin-bottom: 0;
+        font-size: clamp(1.7rem, 4vw, 2.7rem);
+        line-height: 1.05;
+        letter-spacing: -0.045em;
+      }
+
+      .section-head p {
+        max-width: 48ch;
+        margin-bottom: 0;
+        color: var(--text-muted);
+        font-size: 0.92rem;
+      }
+
+      .concepts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .concept {
+        position: relative;
+        display: grid;
+        grid-template-rows: auto auto 1fr auto;
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--bg-elevated);
+      }
+
+      .concept.recommended {
+        border-color: #3f7652;
+        box-shadow: inset 0 0 0 1px #22c55e22;
+      }
+
+      .concept-tag {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        z-index: 2;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #9ef0b9;
+        font-size: 0.67rem;
+        font-weight: 760;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .concept-preview {
+        display: grid;
+        place-items: center;
+        min-height: 270px;
+        padding: 50px 28px 30px;
+        background:
+          linear-gradient(#ffffff05 1px, transparent 1px),
+          linear-gradient(90deg, #ffffff05 1px, transparent 1px),
+          #10161b;
+        background-size: 24px 24px;
+      }
+
+      .lockup {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        min-width: 0;
+      }
+
+      .mark-large {
+        width: 94px;
+        height: 94px;
+        flex: 0 0 auto;
+        filter: drop-shadow(0 14px 24px #0008);
+      }
+
+      .wordmark {
+        white-space: nowrap;
+        color: var(--text);
+        font-size: clamp(1.8rem, 4vw, 2.6rem);
+        font-weight: 850;
+        letter-spacing: -0.075em;
+        line-height: 1;
+      }
+
+      .wordmark span {
+        color: var(--accent);
+      }
+
+      .concept-copy {
+        padding: 24px 24px 0;
+      }
+
+      .concept-index {
+        margin-bottom: 7px;
+        color: #8cdda9;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.72rem;
+      }
+
+      .concept h3 {
+        margin-bottom: 10px;
+        font-size: 1.35rem;
+        letter-spacing: -0.025em;
+      }
+
+      .concept-copy p {
+        margin-bottom: 0;
+        color: var(--text-muted);
+        font-size: 0.88rem;
+      }
+
+      .traits {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        padding: 18px 24px 24px;
+        align-content: end;
+      }
+
+      .trait {
+        padding: 5px 8px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        color: var(--text-muted);
+        font-size: 0.68rem;
+      }
+
+      .usage-strip {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        border-top: 1px solid var(--border);
+      }
+
+      .usage {
+        display: grid;
+        place-items: center;
+        min-height: 112px;
+        padding: 15px;
+        border-right: 1px solid var(--border);
+      }
+
+      .usage:last-child {
+        border-right: 0;
+      }
+
+      .usage-light {
+        background: #f8fafc;
+      }
+
+      .usage-map {
+        position: relative;
+        overflow: hidden;
+        background:
+          linear-gradient(31deg, transparent 46%, #41534b 47% 52%, transparent 53%),
+          linear-gradient(-20deg, transparent 44%, #33473f 45% 49%, transparent 50%),
+          #22332d;
+      }
+
+      .usage-map::before,
+      .usage-map::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        background: #243b32;
+      }
+
+      .usage-map::before {
+        width: 75px;
+        height: 75px;
+        left: -25px;
+        top: -18px;
+      }
+
+      .usage-map::after {
+        width: 48px;
+        height: 48px;
+        right: -12px;
+        bottom: -18px;
+      }
+
+      .mark-small {
+        position: relative;
+        z-index: 1;
+        width: 42px;
+        height: 42px;
+      }
+
+      .tiny-row {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+      }
+
+      .tiny-24 {
+        width: 24px;
+        height: 24px;
+      }
+
+      .tiny-32 {
+        width: 32px;
+        height: 32px;
+      }
+
+      .tiny-48 {
+        width: 48px;
+        height: 48px;
+      }
+
+      .concepts { display: none; }
+
+      .variant-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+        gap: 18px;
+      }
+
+      .variant-card {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--bg-elevated);
+      }
+
+      .variant-card.current {
+        border-color: #3f7652;
+        box-shadow: inset 0 0 0 1px #22c55e22;
+      }
+
+      .variant-visual {
+        display: grid;
+        place-items: center;
+        min-height: 230px;
+        padding: 28px;
+        background: radial-gradient(circle at 50% 42%, #1c2922, #10161b 67%);
+      }
+
+      .variant-lockup {
+        display: grid;
+        justify-items: center;
+        gap: 18px;
+      }
+
+      .variant-mark { width: 112px; height: 112px; filter: drop-shadow(0 14px 24px #0008); }
+      .variant-word { color: var(--text); font-size: 1.65rem; font-weight: 850; letter-spacing: -0.075em; line-height: 1; }
+      .variant-word span { color: var(--accent); }
+      .variant-copy { padding: 20px; }
+      .variant-copy h3 { margin-bottom: 7px; font-size: 1.08rem; }
+      .variant-copy p { margin-bottom: 16px; color: var(--text-muted); font-size: 0.8rem; }
+      .variant-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .variant-code { color: #8cdda9; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem; }
+      .variant-scale { display: flex; align-items: center; gap: 8px; }
+      .variant-scale svg:first-child { width: 24px; height: 24px; }
+      .variant-scale svg:last-child { width: 36px; height: 36px; }
+
+      .rationale {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+        gap: 18px;
+        margin-top: 18px;
+      }
+
+      .panel {
+        min-width: 0;
+        padding: 26px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-panel);
+        background: var(--bg-elevated);
+      }
+
+      .panel h3 {
+        margin-bottom: 12px;
+        font-size: 1.1rem;
+      }
+
+      .panel p,
+      .panel li {
+        color: var(--text-muted);
+        font-size: 0.88rem;
+      }
+
+      .panel p:last-child,
+      .panel ul:last-child {
+        margin-bottom: 0;
+      }
+
+      .panel ul {
+        padding-left: 20px;
+      }
+
+      .panel li + li {
+        margin-top: 7px;
+      }
+
+      .baseline {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .current-brand {
+        display: inline-flex;
+        align-items: center;
+        color: var(--text);
+        font-size: 1.55rem;
+        font-weight: 850;
+        letter-spacing: -0.075em;
+      }
+
+      .current-brand span:first-child {
+        color: var(--accent);
+      }
+
+      .current-arrow {
+        display: grid;
+        place-items: center;
+        width: 29px;
+        height: 29px;
+        margin-left: 9px;
+        border: 1px solid #365240;
+        border-radius: 9px;
+        color: var(--accent);
+      }
+
+      .current-arrow svg {
+        width: 17px;
+      }
+
+      .review {
+        margin-top: 64px;
+        padding: 34px;
+        border: 1px solid #3f7652;
+        border-radius: 24px;
+        background: linear-gradient(145deg, #13261a, #11171c 58%);
+      }
+
+      .review h2 {
+        margin-bottom: 8px;
+        font-size: clamp(1.7rem, 4vw, 2.5rem);
+        letter-spacing: -0.04em;
+      }
+
+      .review-intro {
+        max-width: 60ch;
+        margin-bottom: 26px;
+        color: var(--text-muted);
+      }
+
+      .review-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 18px;
+      }
+
+      fieldset {
+        min-width: 0;
+        margin: 0;
+        padding: 20px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: #0e1512aa;
+      }
+
+      legend {
+        padding: 0 8px;
+        color: var(--text);
+        font-size: 0.85rem;
+        font-weight: 750;
+      }
+
+      .choice-list {
+        display: grid;
+        gap: 9px;
+      }
+
+      .choice {
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-control);
+        cursor: pointer;
+      }
+
+      .choice:has(input:checked) {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .choice input {
+        width: 18px;
+        height: 18px;
+        margin: 2px 0 0;
+        accent-color: var(--accent);
+      }
+
+      .choice strong,
+      .choice small {
+        display: block;
+      }
+
+      .choice strong {
+        font-size: 0.84rem;
+      }
+
+      .choice small {
+        margin-top: 2px;
+        color: var(--text-muted);
+        font-size: 0.72rem;
+      }
+
+      .controls {
+        display: grid;
+        gap: 15px;
+      }
+
+      .field {
+        display: grid;
+        gap: 7px;
+        min-width: 0;
+      }
+
+      .field > span {
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+
+      select,
+      textarea {
+        width: 100%;
+        min-width: 0;
+        border: 1px solid #44505b;
+        border-radius: var(--radius-control);
+        background: #10161b;
+        color: var(--text);
+        padding: 11px 13px;
+      }
+
+      textarea {
+        min-height: 112px;
+        resize: vertical;
+      }
+
+      .submit-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .submit {
+        min-height: 48px;
+        padding: 11px 18px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-control);
+        background: var(--accent);
+        color: #052e16;
+        cursor: pointer;
+        font-weight: 780;
+      }
+
+      .queue-status {
+        color: #9ef0b9;
+        font-size: 0.8rem;
+      }
+
+      .footnote {
+        margin: 26px 0 0;
+        color: #84919b;
+        font-size: 0.73rem;
+        text-align: center;
+      }
+
+      @media (max-width: 900px) {
+        .hero,
+        .rationale,
+        .review-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .concepts {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .concept {
+          grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+          grid-template-rows: auto 1fr auto;
+        }
+
+        .concept-preview {
+          grid-row: 1 / 4;
+          min-height: 100%;
+        }
+
+        .usage-strip {
+          grid-column: 1 / -1;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .shell {
+          padding: 16px 14px 52px;
+        }
+
+        .hero,
+        .review {
+          padding: 24px;
+          border-radius: 20px;
+        }
+
+        .palette {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+
+        .swatch {
+          min-height: 70px;
+          padding: 8px;
+        }
+
+        .swatch code {
+          display: none;
+        }
+
+        .concept {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: auto auto auto auto;
+        }
+
+        .concept-preview {
+          grid-row: auto;
+          min-height: 230px;
+        }
+
+        .usage-strip {
+          grid-column: auto;
+        }
+
+        .mark-large {
+          width: 78px;
+          height: 78px;
+        }
+
+        .wordmark {
+          font-size: 2rem;
+        }
+
+        .section-head {
+          margin-top: 46px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg class="sprite" aria-hidden="true">
+      <defs>
+        <symbol id="mark-k" viewBox="0 0 128 128">
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#151b20" stroke="#34404a" stroke-width="6" />
+          <path d="M40 28v72" fill="none" stroke="#f8fafc" stroke-width="12" stroke-linecap="round" />
+          <path d="M90 101C74 85 65 70 46 66c18-1 31-15 43-32" fill="none" stroke="#22c55e" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m80 32 14-4-1 15" fill="none" stroke="#22c55e" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="77" cy="88" r="7" fill="#f8fafc" stroke="#151b20" stroke-width="4" />
+          <circle cx="76" cy="48" r="7" fill="#f8fafc" stroke="#151b20" stroke-width="4" />
+        </symbol>
+
+        <symbol id="mark-catchup" viewBox="0 0 128 128">
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#151b20" stroke="#34404a" stroke-width="6" />
+          <path d="M31 88C44 51 64 88 91 43" fill="none" stroke="#22c55e" stroke-width="12" stroke-linecap="round" />
+          <path d="M74 43h18v18" fill="none" stroke="#f8fafc" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="31" cy="88" r="10" fill="#f8fafc" />
+          <circle cx="59" cy="70" r="7" fill="#22c55e" stroke="#151b20" stroke-width="4" />
+        </symbol>
+
+        <symbol id="mark-group" viewBox="0 0 128 128">
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#151b20" stroke="#34404a" stroke-width="6" />
+          <path d="M32 84C38 54 54 37 79 37c14 0 22 10 22 22 0 22-25 35-52 35" fill="none" stroke="#22c55e" stroke-width="11" stroke-linecap="round" />
+          <circle cx="31" cy="84" r="10" fill="#f8fafc" />
+          <circle cx="80" cy="37" r="10" fill="#f8fafc" />
+          <circle cx="97" cy="77" r="8" fill="#22c55e" stroke="#151b20" stroke-width="4" />
+        </symbol>
+        <symbol id="mark-k-precision" viewBox="0 0 128 128">
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#151b20" stroke="#34404a" stroke-width="6" />
+          <path d="M40 28v72" fill="none" stroke="#f8fafc" stroke-width="12" stroke-linecap="round" />
+          <path d="M90 100 47 65 90 28" fill="none" stroke="#22c55e" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m79 32 15-4-2 15" fill="none" stroke="#22c55e" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="76" cy="89" r="7" fill="#f8fafc" stroke="#151b20" stroke-width="4" />
+          <circle cx="76" cy="46" r="7" fill="#f8fafc" stroke="#151b20" stroke-width="4" />
+        </symbol>
+
+        <symbol id="mark-k-flow" viewBox="0 0 128 128">
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#151b20" stroke="#34404a" stroke-width="6" />
+          <path d="M40 28v72" fill="none" stroke="#f8fafc" stroke-width="12" stroke-linecap="round" />
+          <path d="M91 100C68 91 78 70 47 65c27-1 25-22 44-37" fill="none" stroke="#22c55e" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m80 32 15-4-2 15" fill="none" stroke="#22c55e" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="77" cy="89" r="7" fill="#f8fafc" stroke="#151b20" stroke-width="4" />
+          <circle cx="78" cy="45" r="7" fill="#f8fafc" stroke="#151b20" stroke-width="4" />
+        </symbol>
+
+        <symbol id="mark-k-compact" viewBox="0 0 128 128">
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#173023" stroke="#3f7652" stroke-width="6" />
+          <path d="M42 31v66" fill="none" stroke="#f8fafc" stroke-width="14" stroke-linecap="round" />
+          <path d="M87 96C72 82 64 69 49 65C64 63 75 52 83 39" fill="none" stroke="#22c55e" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m78 35 14-4-2 15" fill="none" stroke="#22c55e" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="81" cy="90" r="7" fill="#f8fafc" stroke="#173023" stroke-width="4" />
+          <circle cx="73" cy="52" r="7" fill="#f8fafc" stroke="#173023" stroke-width="4" />
+        </symbol>
+
+        <symbol id="mark-k-beacon" viewBox="0 0 128 128">
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#151b20" stroke="#34404a" stroke-width="6" />
+          <path d="M40 28v72" fill="none" stroke="#f8fafc" stroke-width="11" stroke-linecap="round" />
+          <path d="M90 100 47 65 90 28" fill="none" stroke="#22c55e" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m79 32 15-4-2 15" fill="none" stroke="#22c55e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="76" cy="88" r="9" fill="#151b20" stroke="#f8fafc" stroke-width="5" />
+          <circle cx="77" cy="45" r="9" fill="#151b20" stroke="#f8fafc" stroke-width="5" />
+        </symbol>
+
+        <symbol id="mark-k-bare" viewBox="0 0 128 128">
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#0c1014" />
+          <path d="M39 27v74" fill="none" stroke="#f8fafc" stroke-width="10" stroke-linecap="round" />
+          <path d="M92 101C75 83 66 70 46 65c18-1 33-16 45-37" fill="none" stroke="#22c55e" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m80 32 15-4-2 15" fill="none" stroke="#22c55e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="78" cy="87" r="5" fill="#f8fafc" />
+          <circle cx="78" cy="46" r="5" fill="#f8fafc" />
+        </symbol>
+        <symbol id="mark-k-heavy" viewBox="0 0 128 128">
+          <rect x="5" y="5" width="118" height="118" rx="34" fill="#173023" stroke="#3f7652" stroke-width="6" />
+          <path d="M42 36v56" fill="none" stroke="#f8fafc" stroke-width="16" stroke-linecap="round" />
+          <path d="M86 92C72 81 65 69 50 65c14-2 25-14 36-29" fill="none" stroke="#22c55e" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m75 40 15-4-2 15" fill="none" stroke="#22c55e" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="74" cy="82" r="7" fill="#f8fafc" stroke="#173023" stroke-width="4" />
+          <circle cx="74" cy="49" r="7" fill="#f8fafc" stroke="#173023" stroke-width="4" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Identity study 01</p>
+          <h1>A mark that can <span>keep up.</span></h1>
+          <p class="lede">
+            Seven Waypoint K studies for a live route-sharing app. The current favorite stays in the pool while six variants test geometry, weight, and member-marker treatment.
+          </p>
+        </div>
+
+        <div class="palette" aria-label="Current application palette">
+          <div class="swatch swatch-dark">Background <code>#0c1014</code></div>
+          <div class="swatch swatch-panel">Panel <code>#151b20</code></div>
+          <div class="swatch swatch-green">Route green <code>#22c55e</code></div>
+          <div class="swatch swatch-white">Primary text <code>#f8fafc</code></div>
+        </div>
+      </section>
+
+      <header class="section-head">
+        <div>
+          <p class="eyebrow">The decision</p>
+          <h2>Choose the K geometry</h2>
+        </div>
+        <p>
+          The core idea is settled: a white K stem and one green shared route. Compare how each version handles the bend, travelers, weight, and icon frame.
+        </p>
+      </header>
+
+      <section class="variant-grid" aria-label="Waypoint K variants" data-lavish-revision="r4">
+        <article class="variant-card current" id="variant-balanced">
+          <div class="variant-visual"><div class="variant-lockup"><svg class="variant-mark" role="img" aria-label="Balanced bend Waypoint K"><use href="#mark-k" /></svg><div class="variant-word">keep<span>up</span></div></div></div>
+          <div class="variant-copy"><div class="variant-meta"><span class="variant-code">K1 / BALANCED BEND</span><div class="variant-scale"><svg aria-hidden="true"><use href="#mark-k" /></svg><svg aria-hidden="true"><use href="#mark-k" /></svg></div></div><h3>Keep the current version</h3><p>A controlled curve, balanced line weights, and two solid travelers. This is the current favorite and the baseline for comparison.</p></div>
+        </article>
+        <article class="variant-card" id="variant-precision">
+          <div class="variant-visual"><div class="variant-lockup"><svg class="variant-mark" role="img" aria-label="Precision Waypoint K"><use href="#mark-k-precision" /></svg><div class="variant-word">keep<span>up</span></div></div></div>
+          <div class="variant-copy"><div class="variant-meta"><span class="variant-code">K2 / PRECISION</span><div class="variant-scale"><svg aria-hidden="true"><use href="#mark-k-precision" /></svg><svg aria-hidden="true"><use href="#mark-k-precision" /></svg></div></div><h3>Use straight route segments</h3><p>A geometric diagonal creates the clearest K. It is crisp at small sizes but feels more technical than the current version.</p></div>
+        </article>
+        <article class="variant-card" id="variant-flow">
+          <div class="variant-visual"><div class="variant-lockup"><svg class="variant-mark" role="img" aria-label="Flow Waypoint K"><use href="#mark-k-flow" /></svg><div class="variant-word">keep<span>up</span></div></div></div>
+          <div class="variant-copy"><div class="variant-meta"><span class="variant-code">K3 / FLOW</span><div class="variant-scale"><svg aria-hidden="true"><use href="#mark-k-flow" /></svg><svg aria-hidden="true"><use href="#mark-k-flow" /></svg></div></div><h3>Let the route sweep through</h3><p>A deeper lower curve and softer turn make the route feel traveled rather than constructed. The K reads less rigidly.</p></div>
+        </article>
+        <article class="variant-card" id="variant-compact" data-lavish-revision="r8">
+          <div class="variant-visual"><div class="variant-lockup"><svg class="variant-mark" role="img" aria-label="Compact Waypoint K"><use href="#mark-k-compact" /></svg><div class="variant-word">keep<span>up</span></div></div></div>
+          <div class="variant-copy"><div class="variant-meta"><span class="variant-code">K4 / COMPACT</span><div class="variant-scale"><svg aria-hidden="true"><use href="#mark-k-compact" /></svg><svg aria-hidden="true"><use href="#mark-k-compact" /></svg></div></div><h3>Increase weight and density</h3><p>A shorter, heavier K on the soft green panel holds up well as a launcher icon and notification avatar.</p></div>
+        </article>
+        <article class="variant-card" id="variant-beacon">
+          <div class="variant-visual"><div class="variant-lockup"><svg class="variant-mark" role="img" aria-label="Beacon Waypoint K"><use href="#mark-k-beacon" /></svg><div class="variant-word">keep<span>up</span></div></div></div>
+          <div class="variant-copy"><div class="variant-meta"><span class="variant-code">K5 / BEACON</span><div class="variant-scale"><svg aria-hidden="true"><use href="#mark-k-beacon" /></svg><svg aria-hidden="true"><use href="#mark-k-beacon" /></svg></div></div><h3>Turn travelers into rings</h3><p>Hollow member markers resemble live map beacons. The route meaning is stronger, with slightly more visual detail.</p></div>
+        </article>
+        <article class="variant-card" id="variant-bare">
+          <div class="variant-visual"><div class="variant-lockup"><svg class="variant-mark" role="img" aria-label="Bare route Waypoint K"><use href="#mark-k-bare" /></svg><div class="variant-word">keep<span>up</span></div></div></div>
+          <div class="variant-copy"><div class="variant-meta"><span class="variant-code">K6 / BARE ROUTE</span><div class="variant-scale"><svg aria-hidden="true"><use href="#mark-k-bare" /></svg><svg aria-hidden="true"><use href="#mark-k-bare" /></svg></div></div><h3>Remove the icon border</h3><p>Thinner strokes and a borderless field reduce visual weight. It fits the website header best but has less launcher presence.</p></div>
+        </article>
+        <article class="variant-card" id="variant-heavy" data-lavish-revision="r5">
+          <div class="variant-visual"><div class="variant-lockup"><svg class="variant-mark" role="img" aria-label="Heavy short Waypoint K"><use href="#mark-k-heavy" /></svg><div class="variant-word">keep<span>up</span></div></div></div>
+          <div class="variant-copy"><div class="variant-meta"><span class="variant-code">K7 / HEAVY SHORT</span><div class="variant-scale"><svg aria-hidden="true"><use href="#mark-k-heavy" /></svg><svg aria-hidden="true"><use href="#mark-k-heavy" /></svg></div></div><h3>Shorten and add weight</h3><p>The K1 route idea is compressed into a heavier mark and placed on K4&apos;s soft green background and border.</p></div>
+        </article>
+      </section>
+
+      <section class="rationale" aria-label="Recommendation and baseline">
+        <article class="panel">
+          <p class="eyebrow">Recommendation</p>
+          <h3>Compare one idea, seven treatments</h3>
+          <p>
+            All seven versions preserve the same meaning: two members travel one green route through a white K. The current Balanced Bend remains the reference. The alternatives isolate one design choice at a time so the next selection is about geometry rather than concept.
+          </p>
+          <ul>
+            <li>Keep the rounded-square container for the Android icon and notification avatar.</li>
+            <li>Use the bare K route mark in the website header and on maps.</li>
+            <li>Prepare one-color versions before finalizing the geometry.</li>
+          </ul>
+        </article>
+
+        <article class="panel">
+          <p class="eyebrow">Current baseline</p>
+          <h3>The existing arrow</h3>
+          <div class="baseline">
+            <div class="current-brand">keep<span>up</span><span class="current-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19 19 5M5 5h14v14" /></svg></span></div>
+          </div>
+          <p style="margin-top: 16px">
+            The present mark is clean and already means "up," but it does not identify routes, people, or the letter K. The selected Waypoint K keeps its upward motion while adding route and member meaning.
+          </p>
+        </article>
+      </section>
+
+      <section class="review" id="review">
+        <p class="eyebrow">Your call</p>
+        <h2>Choose what to develop</h2>
+        <p class="review-intro">
+          Pick one K treatment and tune the wordmark. Your answer will be queued in the Lavish conversation, where you can also annotate any exact curve, dot, color, or label.
+        </p>
+
+        <form
+          data-lavish-question="keepup-logo-direction"
+          onsubmit="event.preventDefault(); const data = new FormData(event.currentTarget); const direction = data.get('direction'); if (!direction) return; const casing = data.get('casing'); const weight = data.get('weight'); const notes = data.get('notes') || ''; window.lavish.queuePrompt('Develop the selected KeepUp logo direction into a refined vector logo set. Preserve the current application palette unless the notes say otherwise.', { tag: 'logo-direction', text: 'Logo direction: ' + direction, element: event.currentTarget, queueKey: 'keepup-logo-direction', data: { question: 'keepup-logo-direction', direction, casing, weight, notes } }); event.currentTarget.querySelector('[data-status]').textContent = 'Choice queued. Add annotations if needed, then press Send to Agent.';"
+        >
+          <div class="review-grid">
+            <fieldset>
+              <legend>Waypoint K treatment</legend>
+              <div class="choice-list">
+                <label class="choice"><input type="radio" name="direction" value="K1 — Balanced Bend" checked /><span><strong>K1 / Balanced Bend</strong><small>Current favorite with controlled curves and solid travelers.</small></span></label>
+                <label class="choice"><input type="radio" name="direction" value="K2 — Precision" /><span><strong>K2 / Precision</strong><small>Straight segments and the clearest geometric K.</small></span></label>
+                <label class="choice"><input type="radio" name="direction" value="K3 — Flow" /><span><strong>K3 / Flow</strong><small>A softer, more traveled route through the junction.</small></span></label>
+                <label class="choice"><input type="radio" name="direction" value="K4 — Compact" /><span><strong>K4 / Compact</strong><small>Heavier strokes and stronger launcher-icon presence.</small></span></label>
+                <label class="choice"><input type="radio" name="direction" value="K5 — Beacon" /><span><strong>K5 / Beacon</strong><small>Hollow traveler rings that resemble live map markers.</small></span></label>
+                <label class="choice"><input type="radio" name="direction" value="K6 — Bare Route" /><span><strong>K6 / Bare Route</strong><small>Thinner strokes and no visible container border.</small></span></label>
+                <label class="choice"><input type="radio" name="direction" value="K7 — Heavy Short" /><span><strong>K7 / Heavy Short</strong><small>A shorter, heavier K using K4&apos;s background and border.</small></span></label>
+              </div>
+            </fieldset>
+
+            <fieldset class="controls">
+              <legend>Wordmark and refinements</legend>
+              <label class="field">
+                <span>Name styling</span>
+                <select name="casing">
+                  <option value="keepup lowercase" selected>keepup lowercase</option>
+                  <option value="KeepUp camel case">KeepUp camel case</option>
+                  <option value="KEEPUP uppercase">KEEPUP uppercase</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Line weight</span>
+                <select name="weight">
+                  <option value="balanced" selected>Balanced</option>
+                  <option value="lighter">Lighter</option>
+                  <option value="bolder">Bolder</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Notes</span>
+                <textarea name="notes" placeholder="Example: Keep K1, but use the hollow traveler rings from K5."></textarea>
+              </label>
+            </fieldset>
+          </div>
+
+          <div class="submit-row">
+            <button class="submit" type="submit">Queue this direction</button>
+            <span class="queue-status" data-status role="status" aria-live="polite"></span>
+          </div>
+        </form>
+      </section>
+
+      <p class="footnote">
+        Concept vectors only. The selected direction still needs optical cleanup, one-color testing, and export as SVG, Android adaptive icon layers, favicon, and social preview assets.
+      </p>
+    </main>
+    <script type="application/json" data-lavish-revisions>
+      [{ "id": "r1", "label": "Round 1", "timestamp": "2026-09-28T00:00:00+02:00", "summary": "Changed Waypoint K to a shared green route with two member circles and an arrow endpoint." }, { "id": "r2", "label": "Round 2", "timestamp": "2026-09-28T00:05:00+02:00", "summary": "Extended the green route from the lower-right endpoint through the K to its upper-right arrow." }, { "id": "r3", "label": "Round 3", "timestamp": "2026-09-28T00:10:00+02:00", "summary": "Aligned the arrow tip with the stem top and moved the leading member closer to it." }, { "id": "r4", "label": "Round 4", "timestamp": "2026-09-28T00:15:00+02:00", "summary": "Added five Waypoint K variants while preserving Balanced Bend in the selection pool." }, { "id": "r5", "label": "Round 5", "timestamp": "2026-09-28T00:20:00+02:00", "summary": "Added K7 as a shorter, heavier K using K4&apos;s green background and border while preserving K1." }, { "id": "r6", "label": "Round 6", "timestamp": "2026-09-28T00:25:00+02:00", "summary": "Shortened K4&apos;s upper route and centered its arrowhead so the thick line no longer extends past the tip." }, { "id": "r7", "label": "Round 7", "timestamp": "2026-09-28T00:30:00+02:00", "summary": "Moved both K4 traveler circles backward along the green route and kept them centered on the path." }, { "id": "r8", "label": "Round 8", "timestamp": "2026-09-28T00:35:00+02:00", "summary": "Moved K4&apos;s upper traveler half its diameter toward the arrow while keeping it on the green route." }]
+    </script>
+  </body>
+</html>

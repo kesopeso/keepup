@@ -81,6 +81,7 @@ Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` 
   - per-route `ownerToken`
 - Route codes are normalized to uppercase before reading or writing route-scoped auth
 - The helper guards server rendering by returning safe defaults when browser storage is unavailable
+- The KeepUp identity uses the compact Waypoint K mark in the web header, browser icon, install manifest, Apple touch icon, and Android-ready icon sources. Master SVG and platform assets live under `apps/web/public/brand`, `apps/web/public/icons`, and `assets/brand`.
 
 
 ## Map Abstraction
