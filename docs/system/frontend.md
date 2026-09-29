@@ -42,7 +42,7 @@ Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` 
 - Successful join responses save the route-scoped member token before fetching the authenticated snapshot
 - Browsers with saved member access fetch `GET /routes/{code}` with `Authorization: Bearer <memberToken>`
 - Unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
-- The authenticated route screen uses a route header, MapLibre-backed map surface, and member bottom sheet
+- The authenticated route screen uses a route header with the K4-10 logo and KeepUp wordmark beside the route title, a MapLibre-backed map surface, and a member bottom sheet
 - The member bottom sheet renders sharing state/actions first, then a collapsible member list with initials, member colors, and explicit presence badges
 - Route details and owner controls live in a native modal dialog with keyboard focus containment and restoration
 - Shared brand, transport selector, status badge, and modal components live in `apps/web/app/components/ui.tsx`

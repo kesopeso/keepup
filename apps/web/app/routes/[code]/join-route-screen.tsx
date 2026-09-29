@@ -739,12 +739,32 @@ function RouteSnapshotShell({
   return (
     <section className="route-screen">
       <header className="route-topbar">
-        <div className="route-title-block">
-          <p className="eyebrow">{isArchive ? "Closed route" : "Live route"}</p>
-          <h1>{snapshot.route.name}</h1>
-          <p className="route-code">
-            Route code <span>{snapshot.route.code}</span>
-          </p>
+        <div className="route-header-identity">
+          <img
+            className="route-header-logo"
+            src="/brand/keepup-mark.svg"
+            alt=""
+            aria-hidden="true"
+            width="54"
+            height="54"
+          />
+          <div className="route-title-block">
+            <div className="route-brand-line">
+              <span className="route-wordmark" aria-hidden="true">
+                keep<span>up</span>
+              </span>
+              <span className="route-brand-separator" aria-hidden="true">
+                /
+              </span>
+              <p className="eyebrow">
+                {isArchive ? "Closed route" : "Live route"}
+              </p>
+            </div>
+            <h1>{snapshot.route.name}</h1>
+            <p className="route-code">
+              Route code <span>{snapshot.route.code}</span>
+            </p>
+          </div>
         </div>
         <div className="route-header-actions">
           <button

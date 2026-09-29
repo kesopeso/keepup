@@ -33,7 +33,7 @@ Validation on 2026-09-26:
 | Saved segments/points, snapshot history | [Persistence](../system/data.md) |
 | Presence transitions, duplicate connection rejection, stale recovery | [API](../system/api-and-live.md), [frontend](../system/frontend.md) |
 | UI refresh, simpler entry forms, sharing, accessible dialogs, and presence styling | [Experience](../product/experience.md), [frontend](../system/frontend.md) |
-| K4-10 logo in the header and platform icon exports | [Frontend](../system/frontend.md) |
+| K4-10 logo in the site and route headers and platform icon exports | [Frontend](../system/frontend.md) |
 | Stacked Share feedback cards for clipboard success and manual-copy fallback | [Frontend](../system/frontend.md) |
 | Owner close/delete confirmations | [Frontend](../system/frontend.md) |
 
