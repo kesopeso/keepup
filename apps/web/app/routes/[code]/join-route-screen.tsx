@@ -47,8 +47,10 @@ import { RouteMap } from "../../components/route-map";
 import {
   Brand,
   Modal,
+  NotificationStack,
   StatusBadge,
   TransportField,
+  type NotificationItem,
   transportLabels,
 } from "../../components/ui";
 
@@ -330,7 +332,9 @@ function RouteSnapshotShell({
   );
   const [membersExpanded, setMembersExpanded] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [shareMessage, setShareMessage] = useState("");
+  const [shareNotices, setShareNotices] = useState<NotificationItem[]>([]);
+  const nextShareNoticeId = useRef(0);
+  const shareNoticeTimers = useRef(new Map<number, number[]>());
   const [manualShareUrl, setManualShareUrl] = useState("");
   const [isSharingLink, setIsSharingLink] = useState(false);
   const [sharingError, setSharingError] = useState("");
@@ -404,7 +408,6 @@ function RouteSnapshotShell({
 
   async function handleShareRoute() {
     setIsSharingLink(true);
-    setShareMessage("");
     setManualShareUrl("");
     const url = new URL(
       `/routes/${encodeURIComponent(code)}`,
@@ -416,15 +419,64 @@ function RouteSnapshotShell({
         return;
       }
       await navigator.clipboard.writeText(url);
-      setShareMessage("Route link copied.");
+      addShareNotice({
+        id: ++nextShareNoticeId.current,
+        title: "Route link copied",
+        detail: "Ready to paste and share",
+        tone: "success",
+      });
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
       setManualShareUrl(url);
-      setShareMessage("Copy this link to share the route.");
+      addShareNotice({
+        id: ++nextShareNoticeId.current,
+        title: "Copy link manually",
+        detail: "Select the link in the route header",
+        tone: "error",
+      });
     } finally {
       setIsSharingLink(false);
     }
   }
+
+  function addShareNotice(notice: Omit<NotificationItem, "leaving">) {
+    setShareNotices((current) =>
+      [{ ...notice, leaving: false }, ...current].slice(0, 3),
+    );
+  }
+
+  useEffect(() => {
+    const currentIds = new Set(shareNotices.map((notice) => notice.id));
+    for (const [id, timers] of shareNoticeTimers.current) {
+      if (currentIds.has(id)) continue;
+      timers.forEach(window.clearTimeout);
+      shareNoticeTimers.current.delete(id);
+    }
+    for (const notice of shareNotices) {
+      if (shareNoticeTimers.current.has(notice.id)) continue;
+      const leave = window.setTimeout(() => {
+        setShareNotices((current) =>
+          current.map((item) =>
+            item.id === notice.id ? { ...item, leaving: true } : item,
+          ),
+        );
+      }, 5750);
+      const remove = window.setTimeout(() => {
+        setShareNotices((current) =>
+          current.filter((item) => item.id !== notice.id),
+        );
+      }, 6000);
+      shareNoticeTimers.current.set(notice.id, [leave, remove]);
+    }
+  }, [shareNotices]);
+
+  useEffect(() => {
+    const timers = shareNoticeTimers.current;
+    return () => {
+      for (const ids of timers.values()) ids.forEach(window.clearTimeout);
+      timers.clear();
+    };
+  }, []);
 
   useEffect(() => {
     snapshotRef.current = snapshot;
@@ -723,11 +775,6 @@ function RouteSnapshotShell({
             </svg>
           </button>
         </div>
-        {shareMessage ? (
-          <p className="share-message" role="status">
-            {shareMessage}
-          </p>
-        ) : null}
         {manualShareUrl ? (
           <label className="field share-fallback">
             <span>Route link</span>
@@ -739,6 +786,8 @@ function RouteSnapshotShell({
           </label>
         ) : null}
       </header>
+
+      <NotificationStack items={shareNotices} />
 
       <RouteMap
         state={mapState}

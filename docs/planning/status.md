@@ -11,7 +11,7 @@ Review the refreshed UI on a physical phone outdoors, including map readability,
 
 ## UI redesign
 
-The user selected the full layout refresh in the [Lavish visual proposal](../../.lavish/keepup-redesign.html), then requested implementation. The app now uses simpler create/join forms, a map-led route layout, sharing controls above collapsible members, explicit presence badges, and a route-details dialog. Behavior is owned by [map experience](../product/experience.md); implementation boundaries by [frontend](../system/frontend.md).
+The user selected the full layout refresh in an earlier Lavish visual proposal, then requested implementation. The app now uses simpler create/join forms, a map-led route layout, sharing controls above collapsible members, explicit presence badges, and a route-details dialog. Behavior is owned by [map experience](../product/experience.md); implementation boundaries by [frontend](../system/frontend.md).
 
 Validation on 2026-09-26:
 
@@ -34,6 +34,7 @@ Validation on 2026-09-26:
 | Presence transitions, duplicate connection rejection, stale recovery | [API](../system/api-and-live.md), [frontend](../system/frontend.md) |
 | UI refresh, simpler entry forms, sharing, accessible dialogs, and presence styling | [Experience](../product/experience.md), [frontend](../system/frontend.md) |
 | K4-10 logo in the header and platform icon exports | [Frontend](../system/frontend.md) |
+| Stacked Share feedback cards for clipboard success and manual-copy fallback | [Frontend](../system/frontend.md) |
 | Owner close/delete confirmations | [Frontend](../system/frontend.md) |
 
 This consolidates the previous 23-item implementation status without making the plan a second behavior specification. It records existing project status; the documentation restructure did not run application tests.

@@ -72,6 +72,63 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
+export type NotificationItem = {
+  id: number;
+  title: string;
+  detail: string;
+  tone: "success" | "error";
+  leaving: boolean;
+};
+
+function NotificationCard({
+  title,
+  detail,
+  tone,
+  depth,
+  leaving,
+}: {
+  title: string;
+  detail: string;
+  tone: NotificationItem["tone"];
+  depth: number;
+  leaving: boolean;
+}) {
+  return (
+    <div
+      className={`notification-card notification-${tone}${leaving ? " notification-leaving" : ""}`}
+      data-depth={depth}
+      role={tone === "error" ? "alert" : "status"}
+    >
+      <span className="notification-icon" aria-hidden="true">
+        {tone === "success" ? "✓" : "!"}
+      </span>
+      <span className="notification-copy">
+        <strong>{title}</strong>
+        <span>{detail}</span>
+      </span>
+      <span className="notification-timer" aria-hidden="true" />
+    </div>
+  );
+}
+
+export function NotificationStack({ items }: { items: NotificationItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="notification-stack" data-count={items.length}>
+      {items.map((item, depth) => (
+        <NotificationCard
+          key={item.id}
+          title={item.title}
+          detail={item.detail}
+          tone={item.tone}
+          depth={depth}
+          leaving={item.leaving}
+        />
+      ))}
+    </div>
+  );
+}
+
 // Native modal dialogs keep keyboard focus inside and make the page inert.
 export function Modal({
   labelledBy,
