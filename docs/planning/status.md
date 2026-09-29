@@ -33,6 +33,7 @@ Validation on 2026-09-26:
 | Saved segments/points, snapshot history | [Persistence](../system/data.md) |
 | Presence transitions, duplicate connection rejection, stale recovery | [API](../system/api-and-live.md), [frontend](../system/frontend.md) |
 | UI refresh, simpler entry forms, sharing, accessible dialogs, and presence styling | [Experience](../product/experience.md), [frontend](../system/frontend.md) |
+| K4-10 logo in the header and platform icon exports | [Frontend](../system/frontend.md) |
 | Owner close/delete confirmations | [Frontend](../system/frontend.md) |
 
 This consolidates the previous 23-item implementation status without making the plan a second behavior specification. It records existing project status; the documentation restructure did not run application tests.

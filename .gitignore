@@ -26,3 +26,6 @@ apps/api/tmp/
 # Docker / local data
 tmp/
 .tmp/
+
+# lavish
+.lavish/

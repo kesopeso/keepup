@@ -24,8 +24,7 @@ export function Brand() {
           <path d="M42 31v66" fill="none" stroke="#f8fafc" strokeWidth="14" strokeLinecap="round" />
           <path d="M87 96C72 82 64 69 49 65C64 63 75 52 83 39" fill="none" stroke="#22c55e" strokeWidth="13" strokeLinecap="round" strokeLinejoin="round" />
           <path d="m78 35 14-4-2 15" fill="none" stroke="#22c55e" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="81" cy="90" r="7" fill="#f8fafc" stroke="#173023" strokeWidth="4" />
-          <circle cx="73" cy="52" r="7" fill="#f8fafc" stroke="#173023" strokeWidth="4" />
+          <circle cx="70.4" cy="79.1" r="7" fill="#f8fafc" stroke="#173023" strokeWidth="4" />
         </svg>
       </span>
     </a>
