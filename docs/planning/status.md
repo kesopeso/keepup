@@ -7,7 +7,7 @@ status: active
 
 ## Immediate next step
 
-Review the refreshed UI on a physical phone outdoors, including map readability, location permissions, and native sharing.
+Select the next implementation task. The physical-phone outdoor review is complete.
 
 ## UI redesign
 
@@ -19,7 +19,10 @@ Validation on 2026-09-26:
 - Chromium checks passed for create, password errors and protected join, live member insertion, start/stop sharing, clipboard sharing, duplicate connections, close/archive transitions, and code-confirmed deletion using disposable local routes.
 - Isolated browser fixtures covered all five presence states, long names, restricted sharing, full tracking slots, stale recovery, member collapse, map resizing, and manual viewport preservation.
 - Layout checks passed at 360px, 390px, 640px, 844px landscape, and 1280px. Automated accessibility checks found no violations on create, live route, or the populated member sheet. Nested dialogs restore focus and close confirmation initially focuses Cancel.
-- Physical-phone outdoor readability and native share sheets still need a manual review. The existing basemap provider is unchanged.
+
+Validation reported by the owner on 2026-09-30:
+
+- Physical-phone outdoor testing passed for map readability, location permissions, and native sharing.
 
 ## Implemented areas
 
