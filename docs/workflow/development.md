@@ -21,6 +21,29 @@ All application tooling runs through Docker Compose. Do not run host pnpm, npm, 
 - Database migrations are manual via `golang-migrate`; the API must never apply migrations at startup.
 - Migration status: `./bin/migrate.sh version`.
 
+## GPS validation
+
+The API loads these optional settings at startup:
+
+| Environment variable | Default | Meaning |
+|---|---|---|
+| `GPS_MAX_ACCURACY_M` | `100` | Maximum accepted horizontal accuracy radius in metres |
+| `GPS_MAX_SPEED_MPS` | `400` | Maximum implied speed after subtracting accuracy radii |
+| `GPS_MAX_AGE` | `2m` | Maximum sample age relative to server receive time |
+| `GPS_MAX_FUTURE_SKEW` | `30s` | Maximum future client timestamp skew |
+
+Numeric limits must be finite and greater than zero; durations must be greater than zero. Invalid settings fail startup. The current browser supplies the now-required accuracy and client timestamp fields. Existing accepted history is retained.
+
+Run API tests with the race detector and opt-in PostGIS integration coverage:
+
+```sh
+docker compose run --rm \
+  -e 'TEST_DATABASE_URL=postgres://keepup:keepup@postgres:5432/keepup?sslmode=disable' \
+  api go test -race ./...
+```
+
+Integration tests create and remove isolated schemas and apply existing migration SQL there. They do not change application tables. The test database user needs schema creation privileges and access to the PostGIS and pgcrypto extensions. Without `TEST_DATABASE_URL`, database integration tests skip; unit and protocol tests still run. No new production migration is needed.
+
 ## Dev and Deployment
 
 - One monorepo

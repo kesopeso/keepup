@@ -508,6 +508,9 @@ function RouteSnapshotShell({
         }
 
         if (liveEvent.type === "position_updated") {
+          if (liveEvent.memberId === snapshotRef.current.viewer.memberId) {
+            setLiveTrackingError("");
+          }
           setMapState((current) =>
             appendLiveRoutePoint(current, {
               memberId: liveEvent.memberId,
@@ -519,6 +522,10 @@ function RouteSnapshotShell({
         }
 
         if (liveEvent.type === "position_rejected") {
+          const viewerStatus = snapshotRef.current.viewer.status;
+          if (viewerStatus !== "tracking" && viewerStatus !== "stale") {
+            return;
+          }
           setLiveTrackingError(positionRejectedMessage(liveEvent.error));
           return;
         }
@@ -565,6 +572,9 @@ function RouteSnapshotShell({
         if (isMemberLiveEvent(liveEvent)) {
           if (liveEvent.member.id === snapshotRef.current.viewer.memberId) {
             setSharingAction(null);
+            if (liveEvent.type === "member_stopped_sharing") {
+              setLiveTrackingError("");
+            }
           }
           const updatedSnapshot = applyMemberLiveEvent(
             snapshotRef.current,
@@ -1173,6 +1183,25 @@ function positionUpdatePayload(position: NavigationPosition) {
 }
 
 function positionRejectedMessage(error?: string) {
+  switch (error) {
+    case "accuracy_required":
+      return "Your device did not report location accuracy. Waiting for another location reading.";
+    case "accuracy_too_low":
+      return "Your location is too imprecise. Move to an open area if possible. Sharing will recover when accuracy improves.";
+    case "timestamp_required":
+      return "Your device did not report when this location was recorded. Waiting for another location reading.";
+    case "timestamp_too_old":
+      return "This location reading is too old. Waiting for a fresh reading. If this continues, check that your device clock is set automatically.";
+    case "timestamp_in_future":
+      return "This location reading has a future timestamp. Check that your device clock is set automatically.";
+    case "duplicate_timestamp":
+      return "Your device sent the same location timestamp again. Waiting for a new reading.";
+    case "out_of_order_timestamp":
+      return "This location reading arrived out of order. Waiting for a newer reading.";
+    case "impossible_jump":
+      return "This location reading shows an unusually large jump. Keeping your last accepted location while waiting for another reading.";
+  }
+
   if (error === "route_closed") {
     return "This route is closed.";
   }

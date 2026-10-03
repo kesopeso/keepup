@@ -33,7 +33,7 @@ func main() {
 	}
 	defer dbPool.Close()
 
-	routeService := routes.NewService(routes.NewPostgresRepository(dbPool), cfg.Routes.DefaultMaxTrackingMembers)
+	routeService := routes.NewService(routes.NewPostgresRepository(dbPool), cfg.Routes.DefaultMaxTrackingMembers, cfg.Routes.PositionValidation)
 	handler := httpapi.NewHandler(logger, cfg.App, dbPool, routeService)
 
 	if err := httpapi.Serve(ctx, logger, cfg.App, handler); err != nil && !errors.Is(err, context.Canceled) {

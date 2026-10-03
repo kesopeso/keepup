@@ -632,6 +632,27 @@ func (r *PostgresRepository) RecordPosition(ctx context.Context, params RecordPo
 		_ = tx.Rollback(ctx)
 	}()
 
+	// Lock route first, then member and segment. Lifecycle operations update these rows too.
+	var routeStatus, memberStatus string
+	if err := tx.QueryRow(ctx, `SELECT status FROM routes WHERE id=$1 FOR SHARE`, params.RouteID).Scan(&routeStatus); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PositionUpdateResult{}, ErrRouteNotFound
+		}
+		return PositionUpdateResult{}, fmt.Errorf("lock position route: %w", err)
+	}
+	if routeStatus != RouteStatusActive {
+		return PositionUpdateResult{}, ErrRouteClosed
+	}
+	if err := tx.QueryRow(ctx, `SELECT status FROM route_members WHERE id=$1 AND route_id=$2 FOR UPDATE`, params.MemberID, params.RouteID).Scan(&memberStatus); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PositionUpdateResult{}, ErrUnauthorized
+		}
+		return PositionUpdateResult{}, fmt.Errorf("lock position member: %w", err)
+	}
+	if memberStatus != MemberStatusTracking && memberStatus != MemberStatusStale {
+		return PositionUpdateResult{}, ErrInvalidInput
+	}
+
 	var segmentID string
 	var recoveredMember *Member
 	if err := tx.QueryRow(ctx, `
@@ -647,6 +668,24 @@ func (r *PostgresRepository) RecordPosition(ctx context.Context, params RecordPo
 		}
 
 		return PositionUpdateResult{}, fmt.Errorf("load open path segment: %w", err)
+	}
+
+	var previousTimestamp sql.NullTime
+	var previousAccuracy sql.NullFloat64
+	var distance float64
+	err = tx.QueryRow(ctx, `
+  SELECT client_recorded_at, accuracy_m,
+   ST_Distance(location,ST_SetSRID(ST_MakePoint($3,$2),4326)::geography)
+  FROM position_points WHERE segment_id=$1 ORDER BY seq DESC LIMIT 1
+ `, segmentID, params.Latitude, params.Longitude).Scan(&previousTimestamp, &previousAccuracy, &distance)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return PositionUpdateResult{}, fmt.Errorf("load previous position: %w", err)
+	}
+	// Legacy points without timestamps cannot provide a measurement-time baseline.
+	if err == nil && previousTimestamp.Valid {
+		if validationErr := validatePositionHistory(*params.ClientRecordedAt, previousTimestamp.Time, distance, previousAccuracy.Float64, *params.AccuracyM, params.MaxSpeedMPS); validationErr != nil {
+			return PositionUpdateResult{}, validationErr
+		}
 	}
 
 	var staleMember Member
@@ -688,6 +727,7 @@ func (r *PostgresRepository) RecordPosition(ctx context.Context, params RecordPo
 			segment_id,
 			seq,
 			client_recorded_at,
+			recorded_at,
 			location,
 			latitude,
 			longitude,
@@ -703,6 +743,7 @@ func (r *PostgresRepository) RecordPosition(ctx context.Context, params RecordPo
 			$3,
 			(SELECT seq FROM next_seq),
 			$10,
+			$12,
 			ST_SetSRID(ST_MakePoint($5, $4), 4326)::geography,
 			$4,
 			$5,
@@ -713,7 +754,7 @@ func (r *PostgresRepository) RecordPosition(ctx context.Context, params RecordPo
 			$11
 		)
 		RETURNING seq, latitude, longitude, accuracy_m, client_recorded_at, recorded_at
-	`, params.RouteID, params.MemberID, segmentID, params.Latitude, params.Longitude, params.AccuracyM, params.AltitudeM, params.SpeedMPS, params.HeadingDeg, params.ClientRecordedAt, params.RawPayload).Scan(
+	`, params.RouteID, params.MemberID, segmentID, params.Latitude, params.Longitude, params.AccuracyM, params.AltitudeM, params.SpeedMPS, params.HeadingDeg, params.ClientRecordedAt, params.RawPayload, params.ReceivedAt).Scan(
 		&point.Seq,
 		&point.Latitude,
 		&point.Longitude,

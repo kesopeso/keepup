@@ -33,6 +33,7 @@ Validation reported by the owner on 2026-09-30:
 | Route lifecycle REST operations and owner controls | [API](../system/api-and-live.md), [frontend](../system/frontend.md) |
 | MapLibre rendering, viewport control, snapshot and live path state | [Frontend](../system/frontend.md) |
 | WebSocket authentication, sharing commands, position ingestion | [API and live protocol](../system/api-and-live.md) |
+| Shared GPS validation and atomic rejection behavior | [Tracking](../product/tracking.md), [API](../system/api-and-live.md) |
 | Saved segments/points, snapshot history | [Persistence](../system/data.md) |
 | Presence transitions, duplicate connection rejection, stale recovery | [API](../system/api-and-live.md), [frontend](../system/frontend.md) |
 | UI refresh, simpler entry forms, sharing, accessible dialogs, and presence styling | [Experience](../product/experience.md), [frontend](../system/frontend.md) |
@@ -44,7 +45,16 @@ This consolidates the previous 23-item implementation status without making the 
 
 ## Specification versus implementation
 
-The [GPS requirements](../product/tracking.md#gps-validation) include accuracy thresholds, timestamp duplicate rejection, and impossible-jump checks. The current [normalizer](../../apps/api/internal/routes/service.go) checks coordinate ranges and numeric metadata. Those additional filters must not be assumed implemented; track the gap in the [backlog](backlog.md).
+The shared API implements the [GPS validation rules](../product/tracking.md#gps-validation), including accuracy limits, required and ordered timestamps, and impossible-jump rejection. See [protocol and transaction behavior](../system/api-and-live.md#gps-validation).
+
+Validation on 2026-10-03:
+
+- Full API tests passed through Docker Compose with the race detector and PostGIS integration tests enabled.
+- Isolated database schemas covered concurrent duplicate submissions, rejected-point side effects, persisted baselines across service instances, geographic antimeridian movement, segment resets, and concurrent stop/leave/close operations.
+- WebSocket tests covered each GPS rejection code, malformed timestamps, continued sharing after rejection, and stale timers unaffected by rejected samples.
+- Go vet and golangci-lint passed. No new database migration is required.
+
+
 
 ## Knowledge-base maintenance
 

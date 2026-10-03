@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log/slog"
@@ -19,6 +20,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
+
+var positionRejections = expvar.NewMap("gps_position_rejections")
 
 const healthCheckTimeout = 2 * time.Second
 const defaultWebSocketAuthTimeout = 5 * time.Second
@@ -395,6 +398,17 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if err := json.Unmarshal(rawMessage, &message); err != nil {
+				// A malformed position field rejects that sample without ending live sharing.
+				var envelope struct {
+					Type string `json:"type"`
+				}
+				if json.Unmarshal(rawMessage, &envelope) == nil && envelope.Type == "position_update" {
+					s.logPositionRejection(routes.ErrInvalidInput)
+					if !enqueueLiveEvent(r.Context(), outboundEventCh, live.Event{"type": "position_rejected", "error": "invalid_input"}) {
+						return
+					}
+					continue
+				}
 				readErrCh <- err
 				return
 			}
@@ -451,6 +465,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			case "position_update":
 				input, err := positionUpdateInput(message, rawMessage)
 				if err != nil {
+					s.logPositionRejection(err)
 					if !enqueueLiveEvent(r.Context(), outboundEventCh, live.Event{
 						"type":  "position_rejected",
 						"error": routeErrorReason(err),
@@ -462,6 +477,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 				result, err := s.routes.RecordPosition(r.Context(), authMessage.MemberToken, input)
 				if err != nil {
+					s.logPositionRejection(err)
 					if !enqueueLiveEvent(r.Context(), outboundEventCh, live.Event{
 						"type":  "position_rejected",
 						"error": routeErrorReason(err),
@@ -751,6 +767,10 @@ func routeErrorReason(err error) string {
 }
 
 func routeErrorStatusAndReason(err error) (int, string) {
+	var rejection *routes.PositionValidationError
+	if errors.As(err, &rejection) {
+		return http.StatusBadRequest, rejection.Code
+	}
 	switch {
 	case errors.Is(err, routes.ErrInvalidInput):
 		return http.StatusBadRequest, "invalid_input"
@@ -929,4 +949,10 @@ func writeWebSocketJSON(ctx context.Context, connection *websocket.Conn, payload
 	}
 
 	return nil
+}
+
+func (s *Server) logPositionRejection(err error) {
+	code := routeErrorReason(err)
+	positionRejections.Add(code, 1)
+	s.logger.Info("position rejected", "reason", code, "rejection_count", positionRejections.Get(code).String())
 }

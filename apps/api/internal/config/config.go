@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"time"
@@ -49,6 +50,20 @@ type DatabaseConfig struct {
 // RouteConfig contains route lifecycle defaults.
 type RouteConfig struct {
 	DefaultMaxTrackingMembers int
+	PositionValidation        PositionValidationConfig
+}
+
+// PositionValidationConfig contains limits for accepted live GPS samples.
+type PositionValidationConfig struct {
+	MaxAccuracyM  float64
+	MaxSpeedMPS   float64
+	MaxAge        time.Duration
+	MaxFutureSkew time.Duration
+}
+
+// DefaultPositionValidation returns the live GPS validation defaults.
+func DefaultPositionValidation() PositionValidationConfig {
+	return PositionValidationConfig{MaxAccuracyM: 100, MaxSpeedMPS: 400, MaxAge: 2 * time.Minute, MaxFutureSkew: 30 * time.Second}
 }
 
 // Load reads the KeepUp API configuration from the environment.
@@ -128,6 +143,30 @@ func Load() (Config, error) {
 	}
 
 	cfg.Routes.DefaultMaxTrackingMembers = maxTrackingMembers
+	policy := DefaultPositionValidation()
+	for _, item := range []struct {
+		key    string
+		target *float64
+	}{
+		{"GPS_MAX_ACCURACY_M", &policy.MaxAccuracyM}, {"GPS_MAX_SPEED_MPS", &policy.MaxSpeedMPS},
+	} {
+		if raw := os.Getenv(item.key); raw != "" {
+			value, parseErr := strconv.ParseFloat(raw, 64)
+			if parseErr != nil || math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 {
+				return Config{}, fmt.Errorf("load config: %s must be finite and greater than zero", item.key)
+			}
+			*item.target = value
+		}
+	}
+	policy.MaxAge, err = positiveDurationOrDefault("GPS_MAX_AGE", policy.MaxAge)
+	if err != nil {
+		return Config{}, fmt.Errorf("load config: %w", err)
+	}
+	policy.MaxFutureSkew, err = positiveDurationOrDefault("GPS_MAX_FUTURE_SKEW", policy.MaxFutureSkew)
+	if err != nil {
+		return Config{}, fmt.Errorf("load config: %w", err)
+	}
+	cfg.Routes.PositionValidation = policy
 
 	return cfg, nil
 }

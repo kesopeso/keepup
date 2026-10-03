@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"keepup/apps/api/internal/config"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -78,13 +80,21 @@ type Repository interface {
 type Service struct {
 	defaultMaxTrackingMembers int
 	repo                      Repository
+	positionValidation        config.PositionValidationConfig
+	now                       func() time.Time
 }
 
 // NewService builds the route service.
-func NewService(repo Repository, defaultMaxTrackingMembers int) *Service {
+func NewService(repo Repository, defaultMaxTrackingMembers int, policies ...config.PositionValidationConfig) *Service {
+	policy := config.DefaultPositionValidation()
+	if len(policies) > 0 {
+		policy = policies[0]
+	}
 	return &Service{
 		defaultMaxTrackingMembers: defaultMaxTrackingMembers,
 		repo:                      repo,
+		positionValidation:        policy,
+		now:                       time.Now,
 	}
 }
 
@@ -153,6 +163,8 @@ type StartSharingRepoResult struct {
 
 // RecordPositionRepoParams contains persistence fields for one accepted point.
 type RecordPositionRepoParams struct {
+	MaxSpeedMPS      float64
+	ReceivedAt       time.Time
 	RouteID          string
 	MemberID         string
 	Latitude         float64
@@ -467,7 +479,8 @@ func (s *Service) RecordPosition(ctx context.Context, memberToken string, input 
 		return PositionUpdateResult{}, ErrUnauthorized
 	}
 
-	normalized, err := normalizePositionUpdateInput(input)
+	receivedAt := s.now().UTC()
+	normalized, err := validatePositionSample(input, receivedAt, s.positionValidation)
 	if err != nil {
 		return PositionUpdateResult{}, err
 	}
@@ -486,6 +499,8 @@ func (s *Service) RecordPosition(ctx context.Context, memberToken string, input 
 	}
 
 	result, err := s.repo.RecordPosition(ctx, RecordPositionRepoParams{
+		MaxSpeedMPS:      s.positionValidation.MaxSpeedMPS,
+		ReceivedAt:       receivedAt,
 		RouteID:          authorized.Route.ID,
 		MemberID:         authorized.Member.ID,
 		Latitude:         normalized.Latitude,
@@ -741,7 +756,7 @@ func isNilOrFiniteAtLeast(value *float64, minValue float64) bool {
 }
 
 func isNilOrFiniteInRange(value *float64, minValue, maxValue float64) bool {
-	return value == nil || (isNilOrFinite(value) && *value >= minValue && *value < maxValue)
+	return value == nil || (isNilOrFinite(value) && *value >= minValue && *value <= maxValue)
 }
 
 func normalizeCode(code string) string {

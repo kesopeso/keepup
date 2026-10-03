@@ -64,6 +64,16 @@ Permissions and slot semantics are owned by [routes and membership](../product/r
 
 Position ingestion requires an active route, a tracking or stale member, valid coordinates, and an open segment. `start_sharing` opens a segment; `stop_sharing` closes it with reason `stopped`. Accepted positions from stale members publish `member_back_online` before `position_updated`. Failed position submissions receive `position_rejected`; sharing commands receive `command_ack` or `command_rejected`.
 
+### GPS validation
+
+The shared route service validates sample fields using [GPS quality rules](../product/tracking.md#gps-validation). The repository transaction locks the route with `FOR SHARE`, then the member and open segment with `FOR UPDATE`. It rechecks route/member state, loads the latest accepted point by segment sequence, and validates timestamp ordering and geographic movement before stale recovery or insertion. PostGIS geography distance handles the antimeridian and polar coordinates. This serializes concurrent submissions and coordinates with lifecycle mutations.
+
+Accepted points store the service's server receive timestamp explicitly as `recorded_at`. Validation baselines come from persisted points, including after API restarts. Rejected samples do not modify history, segments, member status, sequence allocation, or accepted-position timers.
+
+The WebSocket sends `{ "type": "position_rejected", "error": "<code>" }` to the submitting connection and keeps it open. GPS codes are `accuracy_required`, `accuracy_too_low`, `timestamp_required`, `timestamp_too_old`, `timestamp_in_future`, `duplicate_timestamp`, `out_of_order_timestamp`, and `impossible_jump`. Invalid numeric fields or malformed timestamps use `invalid_input`; existing authorization and route-state codes remain. Accepted recovery still publishes `member_back_online` before `position_updated`.
+
+Process-local rejection counters are stored by code in the `gps_position_rejections` expvar map. Structured `position rejected` logs include the reason and cumulative count, with no raw coordinates, payloads, or tokens. No public metrics endpoint is added.
+
 ### Presence and Status Timers
 
 Timer transitions and defaults are listed under Live Protocol below. Timer configuration comes from the [API config](../../apps/api/internal/config/config.go).

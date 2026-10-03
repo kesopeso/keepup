@@ -18,6 +18,7 @@ export type NavigationService = {
 
 const fakePositionIntervalMs = 2_000;
 const fakeStepMeters = 10;
+const fakeAccuracyMeters = 5;
 const fakeBaseHeadingDeg = 45;
 const fakeTurnJitterDeg = 35;
 const fakeHeadingCorrection = 0.35;
@@ -62,45 +63,41 @@ function createBrowserNavigationService(): NavigationService {
   };
 }
 
-function createDevelopmentNavigationService(): NavigationService {
-  const browserNavigationService = createBrowserNavigationService();
+// Development tracking runs without browser GPS or location permission.
+export function createDevelopmentNavigationService(): NavigationService {
+  let fakeRouteState: FakeRouteState = {
+    position: {
+      latitude: 46.0569,
+      longitude: 14.5058,
+      accuracyM: fakeAccuracyMeters,
+      headingDeg: fakeBaseHeadingDeg,
+      speedMps: 0,
+      clientRecordedAt: new Date().toISOString(),
+    },
+    headingDeg: fakeBaseHeadingDeg,
+  };
 
   return {
     requestPermission() {
-      return browserNavigationService.requestPermission();
+      return Promise.resolve();
     },
-    watchPosition(onPosition, onError) {
-      let fakeRouteState: FakeRouteState | null = null;
-      let fakePositionTimer: ReturnType<typeof setInterval> | null = null;
-      let stopBrowserWatch = () => {};
+    watchPosition(onPosition) {
+      fakeRouteState = {
+        ...fakeRouteState,
+        position: {
+          ...fakeRouteState.position,
+          clientRecordedAt: new Date().toISOString(),
+        },
+      };
+      onPosition(fakeRouteState.position);
 
-      stopBrowserWatch = browserNavigationService.watchPosition((position) => {
-        if (fakeRouteState) {
-          return;
-        }
-
-        fakeRouteState = {
-          position,
-          headingDeg: position.headingDeg ?? fakeBaseHeadingDeg,
-        };
-        onPosition(position);
-        stopBrowserWatch();
-
-        fakePositionTimer = setInterval(() => {
-          if (!fakeRouteState) {
-            return;
-          }
-
-          fakeRouteState = nextFakeRouteState(fakeRouteState);
-          onPosition(fakeRouteState.position);
-        }, fakePositionIntervalMs);
-      }, onError);
+      const fakePositionTimer = setInterval(() => {
+        fakeRouteState = nextFakeRouteState(fakeRouteState);
+        onPosition(fakeRouteState.position);
+      }, fakePositionIntervalMs);
 
       return () => {
-        stopBrowserWatch();
-        if (fakePositionTimer) {
-          clearInterval(fakePositionTimer);
-        }
+        clearInterval(fakePositionTimer);
       };
     },
   };

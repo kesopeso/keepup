@@ -37,5 +37,4 @@ status: deferred
 
 ## MVP validation gap
 
-- Implement or explicitly revise the [GPS validation requirements](../product/tracking.md#gps-validation) for accuracy thresholds, duplicate timestamps, and impossible jumps. Coordinate and numeric metadata validation already exists.
-- This gap does not replace the [immediate next step](status.md#immediate-next-step).
+Resolved by the shared API [GPS validation](../product/tracking.md#gps-validation) implementation. See [delivery status](status.md) for validation evidence. Historical heading retained for existing links.

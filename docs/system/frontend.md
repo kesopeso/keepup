@@ -54,6 +54,7 @@ Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` 
 - Unexpected live-connection closures reconnect with exponential backoff; sharing controls remain unavailable only until the replacement connection authenticates.
 - Active tracking viewers stream browser geolocation samples as `position_update` messages over the live connection
 - Incoming `position_updated` events update the in-memory map state so live markers and paths move without refetching the snapshot
+- Rejected GPS samples show guidance for the specific validation code. The next accepted `position_updated` for the current viewer clears the location error; other members' updates leave it visible. Confirmed stop-sharing clears the viewer's location error, and late rejections are ignored when the viewer is no longer tracking or stale.
 - Incoming `member_joined` events insert the new member into local snapshot/map state immediately; repeated member events upsert by member ID instead of creating duplicates
 - Incoming leave, sharing, stale, online, and offline events update local member/viewer state without replacing rendered route paths
 - Active route snapshots that initially load with a `stale` current viewer show a blocking recovery prompt; later stale events in the same live session do not trigger it
@@ -64,7 +65,7 @@ Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` 
 - If a second tab/device opens the same active route with the same member token, the route screen shows a blocking notice instead of map/member content after `live_connection_rejected`
 - Browser position access is isolated behind `apps/web/lib/navigation-service.ts`
 - Browser geolocation failures are normalized by the navigation service into denied, unavailable, timeout, and generic failure codes before the route screen renders actionable guidance
-- In development, the navigation service emits the first real browser position, then broadcasts simulated movement every 2 seconds in roughly 10m direction-biased steps with small random turns
+- In development, sharing bypasses browser location permission and real GPS. The navigation service starts at simulated coordinates `46.0569, 14.5058`, emits a sample immediately with `5m` accuracy, and broadcasts simulated movement every 2 seconds in roughly 10m direction-biased steps with small random turns. Stopping cancels the timer; restarting retains the last simulated coordinates, refreshes the timestamp, and immediately resumes samples.
 - Map rendering is behind a framework-neutral `RouteMapRenderer` interface in `apps/web/lib/map`
 - Snapshot DTOs are converted to a map-specific `RouteMapState` before reaching the renderer
 - The renderer factory returns a MapLibre adapter that consumes route paths and latest member points from `RouteMapState`

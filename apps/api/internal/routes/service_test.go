@@ -654,7 +654,7 @@ func TestRecordPosition(t *testing.T) {
 	t.Parallel()
 
 	accuracy := 12.5
-	clientRecordedAt := time.Now().UTC()
+	clientRecordedAt := time.Now().UTC().Truncate(time.Microsecond)
 	service := NewService(stubRepository{
 		getAuthorizedMemberByTokenFn: func(_ context.Context, _ string) (AuthorizedMember, error) {
 			return AuthorizedMember{
@@ -747,8 +747,10 @@ func TestRecordPositionRejectsSpectator(t *testing.T) {
 	}, 10)
 
 	_, err := service.RecordPosition(context.Background(), "member-token", PositionUpdateInput{
-		Latitude:  46.0569,
-		Longitude: 14.5058,
+		Latitude:         46.0569,
+		Longitude:        14.5058,
+		AccuracyM:        floatPointer(10),
+		ClientRecordedAt: timePointer(time.Now()),
 	})
 	if !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("RecordPosition() error = %v, want ErrInvalidInput", err)
