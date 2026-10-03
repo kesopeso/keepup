@@ -49,6 +49,7 @@ Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` 
 - Create uses a settings disclosure for description, password, and sharing policy; its collapsed summary shows the selected policy and password protection
 - The route header shares the route with native Web Share, clipboard fallback, or a selectable link if automatic sharing fails. Clipboard success and manual-copy fallback add popup notification cards. Up to three cards peek behind the newest one; each exits after its own six-second timer. The stack sits below the header on desktop and above the bottom edge on mobile.
 - The map wrapper shows a member/sharing summary, an empty-history message, and a `Fit group` control instead of a point counter
+- The `Fit group` button fades out and becomes unavailable in automatic fit mode, then fades back in after manual map interaction. No map-movement status label appears. The fade respects reduced-motion preferences.
 - The member bottom sheet uses viewer capabilities to show a start/stop sharing action, sends WebSocket sharing commands, then updates local member/viewer state from live events without refreshing the authenticated snapshot
 - The authenticated route screen opens an authenticated WebSocket live connection for active routes with saved member access
 - Unexpected live-connection closures reconnect with exponential backoff; sharing controls remain unavailable only until the replacement connection authenticates.

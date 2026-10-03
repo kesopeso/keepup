@@ -587,6 +587,7 @@ h2 {
   display: grid;
   gap: 4px;
   justify-items: end;
+  pointer-events: none;
 }
 .map-tools button {
   background: var(--bg-elevated);
@@ -594,13 +595,22 @@ h2 {
   border: 1px solid #59655f;
   font-size: 0.85rem;
   box-shadow: 0 3px 12px #0003;
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 180ms ease, visibility 0s;
 }
-.map-tools span {
-  border-radius: 5px;
-  padding: 3px 8px;
-  color: var(--text);
-  background: #10191ef2;
-  font-size: 0.7rem;
+.map-tools button:disabled {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 180ms ease, visibility 0s linear 180ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-tools button,
+  .map-tools button:disabled {
+    transition: none;
+  }
 }
 .map-empty {
   position: absolute;

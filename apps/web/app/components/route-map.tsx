@@ -95,6 +95,7 @@ export function RouteMap({
         ) : null}
         <div className="map-tools" aria-label="Map controls">
           <button
+            disabled={viewportMode === "fit_route"}
             onClick={() => {
               setViewportMode("fit_route");
               rendererRef.current?.fitToRoute();
@@ -103,7 +104,6 @@ export function RouteMap({
           >
             Fit group
           </button>
-          {viewportMode === "manual" ? <span>Map moved</span> : null}
         </div>
       </div>
     </section>

@@ -33,6 +33,7 @@ status: specified
 - Manual pan/zoom disables auto-follow
 - Live position updates preserve manual pan/zoom until the user presses `Fit group`
 - User can re-center/re-fit with the map `Fit group` control
+- The `Fit group` button fades out while the group is fitted and fades back in after manual map interaction. The hidden button cannot receive clicks or keyboard focus; reduced-motion users see the change without animation.
 - Map resizing after sheet or viewport changes preserves manual pan/zoom; automatic fitting remains active until manual interaction
 - An empty map explains when locations will appear; the main map does not expose an internal point counter
 - Map loading/rendering failures show a readable message without blocking the member controls
