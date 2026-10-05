@@ -32,6 +32,23 @@ services:
     profiles:
       - tools
 
+  mobile-helper:
+    build:
+      context: .
+      dockerfile: apps/mobile/Dockerfile.dev
+    working_dir: /workspace
+    network_mode: host
+    environment:
+      ADB_SERVER_SOCKET: tcp:127.0.0.1:5037
+      EXPO_UNSTABLE_HEADLESS: "1"
+      EXPO_DEBUG: "1"
+    volumes:
+      - .:/workspace
+      - ${HOME}/Android/Sdk:/opt/android-sdk
+      - mobile_gradle_cache:/root/.gradle
+    profiles:
+      - tools
+
   migrate:
     image: migrate/migrate:4
     entrypoint:
@@ -88,3 +105,4 @@ volumes:
   go_build_cache:
   go_pkg_mod:
   postgres_data:
+  mobile_gradle_cache:

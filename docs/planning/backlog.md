@@ -15,6 +15,7 @@ status: deferred
 
 ## Planned Later
 
+- iOS client after the Android foundation; see [mobile boundaries](../system/mobile.md) and the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first)
 - Live chat for route members
 - Replay mode for closed routes
   - chronological playback

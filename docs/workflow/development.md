@@ -12,6 +12,7 @@ All application tooling runs through Docker Compose. Do not run host pnpm, npm, 
 - `docker compose up` starts the main local stack: Nginx proxy, web, api, and postgres. Open `http://localhost:3000` through the proxy.
 - One-off web pnpm commands can run through `bin/web-pnpm.sh`, which uses the dependency-free `web-helper` Compose service.
 - Example: `./bin/web-pnpm.sh build`
+- Android builds, emulator connections, Metro, and browser DevTools are owned by the [Android development workflow](mobile-development.md). Mobile commands use `bin/mobile-pnpm.sh` and the `mobile-helper` Compose service.
 - Database migrations run through `bin/migrate.sh`, which wraps the tools-profile `migrate` Compose service, mounts `db/migrations`, and waits for the Postgres healthcheck.
 - Examples: `./bin/migrate.sh up`, `./bin/migrate.sh down 1`, `./bin/migrate.sh down -all`
 

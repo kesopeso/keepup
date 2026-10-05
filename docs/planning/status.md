@@ -7,7 +7,19 @@ status: active
 
 ## Immediate next step
 
-Select the next implementation task. The physical-phone outdoor review is complete.
+Android development is the selected direction. The proposed first coding task is a mobile API connection-check screen with backend status and Retry, using the existing health endpoint. It has not been approved or implemented yet; the owner requested documentation updates before continuing.
+
+The previous physical-phone outdoor review of the web client is complete. Native tracking still needs its own physical-device validation.
+
+## Mobile foundation
+
+The React Native/Expo starter and local Android workflow are ready. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Product screens, API integration, native location sharing, and background tracking are not implemented. iOS is deferred until after Android.
+
+Validation on 2026-10-05:
+
+- Inspected the Android build output: Gradle reported `BUILD SUCCESSFUL in 2m 35s`, and Expo installed and opened the development APK on the Android 17/API 37 emulator.
+- The owner confirmed the starter screen appeared and later confirmed browser React Native DevTools worked after the hostname and headless workflow corrections.
+- ADB forwarding and the browser debugger endpoint were checked during diagnosis. These checks establish the development setup, not KeepUp API connectivity or native tracking reliability.
 
 ## UI redesign
 
@@ -29,6 +41,7 @@ Validation reported by the owner on 2026-09-30:
 | Area | Owning reference |
 |---|---|
 | Compose stack, API startup, health checks, manual migrations | [Development](../workflow/development.md), [backend](../system/backend.md) |
+| Mobile starter, Android development build, Metro and browser debugging | [Mobile](../system/mobile.md), [Android workflow](../workflow/mobile-development.md) |
 | Create/join, browser identity, authenticated snapshots | [Frontend](../system/frontend.md) |
 | Route lifecycle REST operations and owner controls | [API](../system/api-and-live.md), [frontend](../system/frontend.md) |
 | MapLibre rendering, viewport control, snapshot and live path state | [Frontend](../system/frontend.md) |

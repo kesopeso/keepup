@@ -50,3 +50,7 @@ See [Current Status](planning/status.md).
 ## Immediate Next Step
 
 See [Immediate Next Step](planning/status.md).
+
+## Mobile implementation
+
+See [Mobile foundation](planning/status.md#mobile-foundation) and [Android implementation sequence](planning/roadmap.md#phase-9-mobile-client-android-first).

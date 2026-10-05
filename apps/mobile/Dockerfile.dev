@@ -1,0 +1,16 @@
+FROM node:24-bookworm
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openjdk-17-jdk-headless unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g corepack --force && corepack enable
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH="${PATH}:/opt/android-sdk/platform-tools:/opt/android-sdk/cmdline-tools/latest/bin"
+
+WORKDIR /workspace
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN corepack install

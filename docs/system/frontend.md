@@ -5,6 +5,8 @@ status: active
 
 # Frontend boundaries
 
+This page owns the web client. See [mobile boundaries](mobile.md) for the React Native client.
+
 ## Frontend
 
 - Next.js

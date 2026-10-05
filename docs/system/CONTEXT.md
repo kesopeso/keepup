@@ -9,7 +9,7 @@ Own implementation boundaries and point editors to source.
 
 ## Inputs
 
-[Frontend](frontend.md), [backend](backend.md), [API and live protocol](api-and-live.md), [persistence](data.md), [change impact](change-impact.md), [architecture decisions](../adr/CONTEXT.md).
+[Web frontend](frontend.md), [mobile client](mobile.md), [backend](backend.md), [API and live protocol](api-and-live.md), [persistence](data.md), [change impact](change-impact.md), [architecture decisions](../adr/CONTEXT.md).
 
 ## Process
 

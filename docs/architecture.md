@@ -27,6 +27,14 @@ See [Frontend](system/frontend.md).
 
 See [Backend](system/backend.md).
 
+## Mobile client
+
+See [Mobile boundaries](system/mobile.md).
+
+## Android development workflow
+
+See [Android workflow](workflow/mobile-development.md).
+
 ## Ubiquitous Language
 
 See [Ubiquitous Language](product/glossary.md).

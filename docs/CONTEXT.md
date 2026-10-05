@@ -17,6 +17,7 @@ Read [agent rules](../AGENTS.md), the relevant shelf contract below, and its nam
 |---|---|
 | Product rules and language | [Product](product/CONTEXT.md) |
 | Implementation and change impact | [System](system/CONTEXT.md) |
+| Mobile implementation and local Android setup | [Mobile boundaries](system/mobile.md), [Android workflow](workflow/mobile-development.md) |
 | Current status, sequencing, deferred work | [Planning](planning/CONTEXT.md) |
 | Development and documentation maintenance | [Workflow](workflow/CONTEXT.md) |
 | Add a knowledge note | [Templates](_templates/CONTEXT.md) |

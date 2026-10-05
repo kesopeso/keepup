@@ -9,9 +9,10 @@ Read [documentation discipline](docs/workflow/documentation.md) and [development
 | Orient in the knowledge base | [Bundle contract](docs/CONTEXT.md) |
 | Product behavior | [MVP spec](docs/mvp-spec.md) |
 | System design / API / change impact | [Architecture](docs/architecture.md), [edit map](docs/system/change-impact.md) |
+| Mobile app / Android development | [Mobile boundaries](docs/system/mobile.md), [Android workflow](docs/workflow/mobile-development.md) |
 | Current progress and next task | [Implementation plan](docs/implementation-plan.md) |
 | Deferred work | [Backlog](docs/backlog.md) |
 | Domain language | [Glossary](docs/product/glossary.md) |
 | New knowledge note | [Templates](docs/_templates/CONTEXT.md) |
 
-Source locations: [web](apps/web/), [API](apps/api/), [migrations](db/migrations/).
+Source locations: [web](apps/web/), [mobile](apps/mobile/), [API](apps/api/), [migrations](db/migrations/).
