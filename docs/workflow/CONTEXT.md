@@ -17,7 +17,7 @@ Start with [agent routing](../../AGENTS.md) and the [knowledge-base contract](..
 
 ## Process
 
-Read [agent rules](../../AGENTS.md), [Compose](../../docker-compose.yml), [proxy configuration](../../apps/proxy/nginx.conf), [Makefile](../../Makefile), [migration helper](../../bin/migrate.sh), and [web helper](../../bin/web-pnpm.sh) for workflow changes. For Android, also read the [mobile helper](../../bin/mobile-pnpm.sh), [Metro launcher](../../bin/start-metro.sh), [Dockerfile](../../apps/mobile/Dockerfile.dev), and [app configuration](../../apps/mobile/app.json).
+Read [agent rules](../../AGENTS.md), [Compose](../../docker-compose.yml), [proxy configuration](../../apps/proxy/nginx.conf), [Makefile](../../Makefile), [readiness check](../../bin/doctor.sh), [migration helper](../../bin/migrate.sh), and [web helper](../../bin/web-pnpm.sh) for workflow changes. For Android, also read the [mobile helper](../../bin/mobile-pnpm.sh), [Metro launcher](../../bin/start-metro.sh), [Dockerfile](../../apps/mobile/Dockerfile.dev), and [app configuration](../../apps/mobile/app.json).
 
 ## Outputs
 

@@ -1,9 +1,10 @@
 # KeepUp
 
-KeepUp is a mobile-first web app for live route sharing.
+KeepUp is a live route-sharing app with web and Android clients.
 
 ## Documentation
 
+- [Start developing](docs/workflow/development.md#first-time-setup)
 - [Knowledge-base catalog](docs/CONTEXT.md)
 - [Product behavior](docs/mvp-spec.md)
 - [Architecture and stack](docs/architecture.md)

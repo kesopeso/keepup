@@ -41,6 +41,21 @@ These versions come from the installed React Native Gradle version catalog. Rech
 
 For emulator acceleration, enable CPU virtualization and ensure the Ubuntu user can access `/dev/kvm`. Start an existing virtual phone using the play button in Android Studio's Device Manager, then leave it running. The build SDK and emulator OS are separate: the current API 36 build runs on the Android 17/API 37 emulator.
 
+### First-time Android setup
+
+Complete the [backend setup](development.md#first-time-setup) first. Install Android Studio, the SDK packages listed above, and an emulator image in Device Manager. Accept the Android SDK licenses and start a virtual phone. The supported host for these commands is Linux `x86_64` with the SDK at `${HOME}/Android/Sdk`.
+
+```sh
+make doctor-mobile
+make mobile-setup
+```
+
+`make doctor-mobile` checks Docker, the Compose configuration, host architecture, required SDK packages, and whether ADB sees a running device. It prints a specific fix for each missing prerequisite. `make mobile-setup` builds the helper image, installs the workspace dependencies, checks Expo package compatibility, generates the native Android project, builds and installs the development APK, and starts Metro. Select the running emulator when Expo asks. The first build may take several minutes and download more Android components. Leave the Metro terminal running.
+
+The app should open to Join a route or restore a saved route. Create a route in the web app at `http://localhost:3000`, then join it by code or pasted share link in Android. Its details, members, and native map should load. Open `http://127.0.0.1:8081/open-debugger` in a host browser after the app connects to Metro to check React Native DevTools. No mobile environment file is needed for the default Android emulator; physical devices need an [API address override](#api-connection).
+
+The current app uses native SecureStore, Crypto, and MapLibre modules. A development APK built before those dependencies were added must be rebuilt with `make mobile-setup`; Metro alone cannot add native modules. Keep the app installed if you want to retain its saved memberships.
+
 ### Workspace and helper
 
 `apps/mobile` is registered in `pnpm-workspace.yaml` as `@keepup/mobile`. The [mobile helper](../../bin/mobile-pnpm.sh) forwards arguments to `pnpm --filter @keepup/mobile` in `mobile-helper`, adding interactive Docker flags when stdin is a terminal.
@@ -82,10 +97,10 @@ After changing native dependencies or app configuration, regenerate before rebui
 Once the APK is installed, JavaScript/TypeScript work needs only Metro:
 
 ```sh
-./bin/start-metro.sh
+make mobile
 ```
 
-The [Metro launcher](../../bin/start-metro.sh) runs the mobile helper with `expo start --dev-client --localhost --android --port 8081`. It prints the browser debugger link when Expo reports that Metro is ready, streams the normal logs, and preserves command failures. It resolves the repository root from its own location.
+`make mobile` runs the mobile readiness check, then calls the [Metro launcher](../../bin/start-metro.sh). That launcher runs the mobile helper with `expo start --dev-client --localhost --android --port 8081`. It prints the browser debugger link when Expo reports that Metro is ready, streams the normal logs, and preserves command failures. It resolves the repository root from its own location.
 
 `--android` opens the installed app and establishes ADB forwarding from the device's port `8081` to the host's port `8081`. Leave this terminal running; Ctrl+C stops Metro. Fast Refresh applies supported code edits without rebuilding the APK.
 
@@ -148,7 +163,7 @@ The Android app still needs manual Refresh for new positions. It does not reques
 
 ## Sources and connections
 
-- [Compose](../../docker-compose.yml), [mobile Dockerfile](../../apps/mobile/Dockerfile.dev), [mobile helper](../../bin/mobile-pnpm.sh), and [Metro launcher](../../bin/start-metro.sh)
+- [Compose](../../docker-compose.yml), [Makefile](../../Makefile), [readiness check](../../bin/doctor.sh), [mobile Dockerfile](../../apps/mobile/Dockerfile.dev), [mobile helper](../../bin/mobile-pnpm.sh), and [Metro launcher](../../bin/start-metro.sh)
 - [Mobile manifest](../../apps/mobile/package.json), [app configuration](../../apps/mobile/app.json), and [workspace](../../pnpm-workspace.yaml)
 - [Expo local builds](https://docs.expo.dev/guides/local-app-development/), [native generation](https://docs.expo.dev/workflow/continuous-native-generation/), and [Android emulator setup](https://docs.expo.dev/workflow/android-studio-emulator/)
 - [Android emulator networking](https://developer.android.com/studio/run/emulator-networking-address) and [SDK management](https://developer.android.com/studio/intro/update#sdk-manager)

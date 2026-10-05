@@ -7,6 +7,27 @@ status: active
 
 All application tooling runs through Docker Compose. Do not run host pnpm, npm, Go, or other application toolchains.
 
+## First-time setup
+
+Clone the repository, install Docker Engine with the Compose plugin, and run these commands from the repository root. Docker supplies the web and API toolchains. Android Studio is only needed for mobile work.
+
+```sh
+make doctor
+make setup
+```
+
+`make doctor` checks Docker access and the Compose configuration. `make setup` starts the proxy, web app, API, and PostGIS, then applies migrations through the existing manual migration helper. Open `http://localhost:3000`; the KeepUp create/join page should load. Check `http://localhost:3000/api/healthz` for an API response with `status: "ok"`. The first run builds images and downloads dependencies, so it takes longer than later starts. The local Compose database credentials are already configured; no `.env` file is required for this path.
+
+For Android, continue with [first-time Android setup](mobile-development.md#first-time-android-setup). Developers working only on the web or API can stop here.
+
+## Daily development
+
+Start the existing stack with `docker compose up -d`, then open `http://localhost:3000`. Run `./bin/migrate.sh up` when a pull adds migrations. Mobile developers also start their emulator and run `make mobile` in a separate terminal to keep Metro serving the installed app. See the [Android daily workflow](mobile-development.md#daily-development) for rebuild rules.
+
+## Onboarding verification
+
+On a new Linux `x86_64` computer, use a fresh clone and follow [first-time setup](#first-time-setup), then [first-time Android setup](mobile-development.md#first-time-android-setup) if mobile work is needed. Confirm the web page and API health response, then join a route in the installed Android app and connect browser DevTools. Record any missing package, undocumented prompt, or failed command in this workflow before treating the guide as verified on a clean machine. Existing Docker images, SDK downloads, emulator state, and workspace dependencies can hide a missing step.
+
 ## Local Development Workflow
 
 - `docker compose up` starts the main local stack: Nginx proxy, web, api, and postgres. Open `http://localhost:3000` through the proxy.
@@ -136,4 +157,4 @@ Standalone packaging follows the [Next.js output documentation](https://nextjs.o
 - Invoke it with `$icm-architect` when working in this project.
 
 
-Sources: [Compose services](../../docker-compose.yml), [Makefile](../../Makefile), [migration helper](../../bin/migrate.sh), [web helper](../../bin/web-pnpm.sh).
+Sources: [Compose services](../../docker-compose.yml), [Makefile](../../Makefile), [readiness check](../../bin/doctor.sh), [migration helper](../../bin/migrate.sh), [web helper](../../bin/web-pnpm.sh).
