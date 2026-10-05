@@ -97,17 +97,33 @@ The configured `EXPO_UNSTABLE_HEADLESS=1` disables the Docker desktop DevTools l
 |---|---|
 | `http://127.0.0.1:8081` | Ubuntu's local Metro server; also reachable from the emulator through ADB forwarding |
 | `http://127.0.0.1:8081/open-debugger` | Open React Native DevTools in Ubuntu Chrome/Chromium after the app connects |
-| `http://10.0.2.2:3000/api` | Intended emulator REST API base for future mobile integration |
+| `http://10.0.2.2:3000/api` | Default development REST API base for the Android emulator, including the connection check |
 | `ws://10.0.2.2:3000/ws` | Intended emulator WebSocket endpoint for future mobile integration |
 
 The emulator's `10.0.2.2` address points to the Ubuntu host. `localhost` inside the emulator normally means the virtual phone; ADB forwarding makes the Metro port an explicit exception.
 
-Start the separate backend stack when needed with `docker compose up -d`. The current mobile starter does not call it. Backend routing remains owned by the [same-origin proxy contract](development.md#same-origin-proxy).
+Start the separate backend stack with `docker compose up -d`. The mobile app calls its health endpoint on launch and manual retry. Backend routing remains owned by the [same-origin proxy contract](development.md#same-origin-proxy).
 
 Compose sets `EXPO_DEBUG=1`, which enables the browser debugger redirect in the installed Expo CLI and emits verbose logs. Use `/open-debugger` to discover the current runtime rather than saving a session-specific inspector URL. Keep the emulator app and Metro running while debugging.
 
+### API connection
+
+The connection screen uses `http://10.0.2.2:3000/api` by default in development. It requires the proxy, API, and database to be running, separately from Metro. No APK rebuild is needed for this JavaScript screen.
+
+To override the API address, copy [`.env.example`](../../apps/mobile/.env.example) to `apps/mobile/.env.local` and set `EXPO_PUBLIC_API_URL` to the public REST base, including `/api` when using the existing proxy. Restart Metro after changing environment settings. Physical devices need a reachable host address rather than the emulator's `10.0.2.2`. Release builds require an explicit API URL and should use the production HTTPS proxy. This Expo public variable is bundled in the app; it must not contain secrets.
+
+Run mobile checks through Docker:
+
+```sh
+./bin/mobile-pnpm.sh typecheck
+./bin/mobile-pnpm.sh test
+```
+
+The tests use the container's Node 24 built-in runner and TypeScript support, with no additional test dependency. They cover request failure, response validation, timeout through body consumption, cancellation, configuration, and retry recovery. Screen behavior is owned by [mobile boundaries](../system/mobile.md#shared-backend-integration).
+
 ### Troubleshooting
 
+- **Connection screen reports unavailable:** confirm `docker compose up -d` has started the backend stack, then tap Retry. Connected shows the last check result; use Check again to refresh it.
 - **DevTools reports missing `libatk-1.0.so.0`:** the desktop debugger is trying to start inside Docker. The configured headless mode avoids this launcher; use the browser debugger on Ubuntu.
 - **Browser DevTools immediately disconnects:** check that Metro uses `127.0.0.1:8081` and the browser debugger is opened at that same origin. Do not restore `REACT_NATIVE_PACKAGER_HOSTNAME=10.0.2.2`; it overrides Expo's localhost setting and causes browser WebSocket origin checks to fail.
 - **No debugger target is available:** the installed app must connect to Metro first. Restart with the daily-development command and keep the emulator running.
@@ -127,4 +143,4 @@ Update this page when the Docker image, SDK mount, ADB forwarding, Metro flags, 
 
 ## Validation
 
-The owner verified the installed starter and browser debugger on Ubuntu. See [delivery status](../planning/status.md#mobile-foundation) for the dated evidence and scope. Before continuing development, review these commands against the actual Compose configuration. Later native tracking must be tested on physical hardware; the emulator setup does not establish battery use or screen-off GPS reliability.
+The owner verified the installed starter and browser debugger on Ubuntu. The connection-check screen was also verified against the running backend and through API stop/restart with manual retry. See [delivery status](../planning/status.md#mobile-foundation) for the dated evidence and scope. Before continuing development, review these commands against the actual Compose configuration. Later native tracking must be tested on physical hardware; the emulator setup does not establish battery use or screen-off GPS reliability.

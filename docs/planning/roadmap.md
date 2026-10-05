@@ -95,12 +95,11 @@ The initial create → join → snapshot → live tracking → archive slice is 
 
 ## Phase 9: Mobile client, Android first
 
-The owner selected Android development now, with iOS later. The starter and tooling are complete; see [mobile delivery status](status.md#mobile-foundation). The app approach is owned by [mobile boundaries](../system/mobile.md).
+The owner selected Android development now, with iOS later. The starter, tooling, and API connection-check screen are complete; see [mobile delivery status](status.md#mobile-foundation). The app approach is owned by [mobile boundaries](../system/mobile.md).
 
 The remaining sequence is proposed work:
 
-1. Connect the mobile app to the shared API; see the [immediate next step](status.md#immediate-next-step).
-2. Join an existing route and render its authenticated snapshot.
-3. Add live events and native location sharing using the existing protocol.
-4. Validate screen-off tracking, permissions, network recovery, and stop/restart on a physical Android phone early.
-5. Extend mobile product behavior using the shared product references; schedule iOS separately in the [backlog](backlog.md#planned-later).
+1. Join an existing route and render its authenticated snapshot; see the [immediate next step](status.md#immediate-next-step).
+2. Add map rendering, live events, and native location sharing using the existing protocol.
+3. Validate screen-off tracking, permissions, network recovery, and stop/restart on a physical Android phone early.
+4. Extend mobile product behavior using the shared product references; schedule iOS separately in the [backlog](backlog.md#planned-later).

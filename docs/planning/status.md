@@ -7,19 +7,25 @@ status: active
 
 ## Immediate next step
 
-Android development is the selected direction. The proposed first coding task is a mobile API connection-check screen with backend status and Retry, using the existing health endpoint. It has not been approved or implemented yet; the owner requested documentation updates before continuing.
+The Android API connection-check screen is implemented. The proposed next task is joining an existing route and displaying its authenticated snapshot and members. Map rendering and live location sharing follow that slice; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
 The previous physical-phone outdoor review of the web client is complete. Native tracking still needs its own physical-device validation.
 
 ## Mobile foundation
 
-The React Native/Expo starter and local Android workflow are ready. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Product screens, API integration, native location sharing, and background tracking are not implemented. iOS is deferred until after Android.
+The React Native/Expo app and local Android workflow are ready. The mobile app checks shared API/database readiness with connecting, connected, and unavailable states, a five-second timeout, and manual retry. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Route screens, token storage, native location sharing, and background tracking are not implemented. iOS is deferred until after Android.
 
 Validation on 2026-10-05:
 
 - Inspected the Android build output: Gradle reported `BUILD SUCCESSFUL in 2m 35s`, and Expo installed and opened the development APK on the Android 17/API 37 emulator.
 - The owner confirmed the starter screen appeared and later confirmed browser React Native DevTools worked after the hostname and headless workflow corrections.
 - ADB forwarding and the browser debugger endpoint were checked during diagnosis. These checks establish the development setup, not KeepUp API connectivity or native tracking reliability.
+
+API connection validation on 2026-10-05:
+
+- Mobile TypeScript checking and all eight request/configuration tests passed through Docker Compose. Tests cover healthy and degraded responses, incorrect successful responses, network recovery, request/body timeout, cancellation, and release configuration.
+- The Android 17/API 37 emulator displayed Connected to KeepUp against the existing proxy/API/PostGIS stack. Stopping the API produced the unavailable state and Retry. Restarting the API and tapping Retry returned to connected. The Android accessibility hierarchy confirmed the checking button was disabled while the request ran.
+- The temporary Metro session was stopped after verification and the backend was restored. The screen needs no native dependency or APK rebuild; start Metro with the existing launcher.
 
 ## UI redesign
 
@@ -42,6 +48,7 @@ Validation reported by the owner on 2026-09-30:
 |---|---|
 | Compose stack, API startup, health checks, manual migrations | [Development](../workflow/development.md), [backend](../system/backend.md) |
 | Mobile starter, Android development build, Metro and browser debugging | [Mobile](../system/mobile.md), [Android workflow](../workflow/mobile-development.md) |
+| Mobile API health check, timeout, unavailable state, and retry | [Mobile](../system/mobile.md#shared-backend-integration) |
 | Create/join, browser identity, authenticated snapshots | [Frontend](../system/frontend.md) |
 | Route lifecycle REST operations and owner controls | [API](../system/api-and-live.md), [frontend](../system/frontend.md) |
 | MapLibre rendering, viewport control, snapshot and live path state | [Frontend](../system/frontend.md) |

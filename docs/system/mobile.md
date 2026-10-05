@@ -21,7 +21,11 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 
 | Source | Responsibility |
 |---|---|
-| [App.tsx](../../apps/mobile/App.tsx) | Starter screen; currently displays the Expo placeholder |
+| [App.tsx](../../apps/mobile/App.tsx) | Renders the API connection-check screen |
+| [Connection-check screen](../../apps/mobile/src/screens/ConnectionCheckScreen.tsx) | Connecting, connected, and unavailable states; manual retry and lifecycle cancellation |
+| [API configuration](../../apps/mobile/src/api/config.ts) | API base URL validation and Android emulator development default |
+| [Health client](../../apps/mobile/src/api/health.ts) | Uncached health request, response validation, and five-second timeout |
+| [Request tests](../../apps/mobile/tests/health.test.cjs) | Configuration, failed requests, timeouts, cancellation, and recovery |
 | [index.ts](../../apps/mobile/index.ts) | Registers the root React component |
 | [package.json](../../apps/mobile/package.json) | `@keepup/mobile`, runtime dependencies, and Expo commands |
 | [app.json](../../apps/mobile/app.json) | Expo configuration, native identity, icons, theme, and config plugins |
@@ -31,9 +35,15 @@ The Android application ID is `eu.kesopeso.keepup`. The display name and Expo sl
 
 ### Shared backend integration
 
+The app checks `GET /api/healthz` through the existing proxy when its connection screen mounts. The API checks database reachability, so a successful connection indicates API and database readiness at the time of that request. The client requires a successful HTTP response with JSON `status: "ok"`; an HTML page or unrelated response cannot appear connected.
+
+Checks time out after five seconds, including reading the response body. The screen reports network failures, timeout, server unavailability, invalid responses, or configuration failure. Retry starts a fresh check and stays disabled while checking. Check again is available after success. Unmounting or replacing a check aborts its request and prevents old results from updating the screen. There is no automatic polling; Connected records the latest completed check.
+
+API addresses come from `EXPO_PUBLIC_API_URL`, with an Android emulator default only in development. Release builds require an explicit address. Setup is owned by the [Android workflow](../workflow/mobile-development.md#api-connection).
+
 Future mobile route operations will use the same [REST and WebSocket contract](api-and-live.md) as the web client. Route permissions, member state, persistence, and [GPS validation](../product/tracking.md#gps-validation) remain server responsibilities. The existing [product references](../product/CONTEXT.md) own user-facing route and tracking rules.
 
-The starter currently makes no API requests and has no route screens, token storage, live connection, map, or location service. Opening the web app in emulator Chrome established network reachability; it did not implement mobile API integration.
+The app has no route screens, token storage, live connection, map, or location service yet.
 
 Native location capture, permission handling, background execution, and reconnection will need mobile implementations. Screen-off tracking is an early validation target, not an implemented guarantee. Android and iOS will each need platform-specific lifecycle and permission checks.
 
