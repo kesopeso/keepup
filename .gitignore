@@ -27,5 +27,6 @@ apps/api/tmp/
 tmp/
 .tmp/
 
-# lavish
+# tools
 .lavish/
+.obsidian/
