@@ -22,6 +22,10 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-system-ui"]
+    "plugins": [
+      "expo-system-ui",
+      "expo-secure-store",
+      "@maplibre/maplibre-react-native"
+    ]
   }
 }

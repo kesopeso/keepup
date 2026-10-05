@@ -21,31 +21,68 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 
 | Source | Responsibility |
 |---|---|
-| [App.tsx](../../apps/mobile/App.tsx) | Renders the API connection-check screen |
+| [App.tsx](../../apps/mobile/App.tsx), [mobile app](../../apps/mobile/src/MobileApp.tsx) | Restore saved access and route between joining, snapshot, and connection-check screens |
+| [Join screen](../../apps/mobile/src/screens/JoinRouteScreen.tsx) | Route code/link entry, access metadata, display name, transport mode, and conditional password |
+| [Snapshot screen](../../apps/mobile/src/screens/RouteSnapshotScreen.tsx) | Authenticated route details and members, refresh/retry, and archive display |
+| [Native map](../../apps/mobile/src/components/RouteMap.tsx), [snapshot geometry](../../apps/mobile/src/map/snapshot-geometry.ts), [tile provider](../../apps/mobile/src/map/tile-provider.ts) | Native MapLibre rendering, member focus, camera fitting, and basemap configuration |
+| [UI components](../../apps/mobile/src/components/ui.tsx) | Scrollable keyboard-aware screens, labeled inputs, buttons, and error feedback |
+| [Route domain types](../../apps/mobile/src/domain/routes.ts), [join session](../../apps/mobile/src/domain/join-session.ts) | Code/link parsing, API DTOs, and membership-before-snapshot ordering |
+| [Route API client](../../apps/mobile/src/api/routes.ts) | Access, join, and Bearer-authenticated snapshot requests with timeout/error handling |
+| [Native storage](../../apps/mobile/src/storage/native-session.ts), [session repository](../../apps/mobile/src/storage/session-repository.ts) | Encrypted device identity, profile, per-route membership, and last route |
 | [Connection-check screen](../../apps/mobile/src/screens/ConnectionCheckScreen.tsx) | Connecting, connected, and unavailable states; manual retry and lifecycle cancellation |
 | [API configuration](../../apps/mobile/src/api/config.ts) | API base URL validation and Android emulator development default |
 | [Health client](../../apps/mobile/src/api/health.ts) | Uncached health request, response validation, and five-second timeout |
 | [Request tests](../../apps/mobile/tests/health.test.cjs) | Configuration, failed requests, timeouts, cancellation, and recovery |
+| [Route/session tests](../../apps/mobile/tests/routes.test.cjs) | API errors, persisted identity, credential scope, and recovery without repeat joining |
+| [Map tests](../../apps/mobile/tests/map.test.cjs) | Segment boundaries, latest locations, empty maps, invalid geometry, and antimeridian fitting |
 | [index.ts](../../apps/mobile/index.ts) | Registers the root React component |
 | [package.json](../../apps/mobile/package.json) | `@keepup/mobile`, runtime dependencies, and Expo commands |
 | [app.json](../../apps/mobile/app.json) | Expo configuration, native identity, icons, theme, and config plugins |
 | [pnpm workspace](../../pnpm-workspace.yaml) and [lockfile](../../pnpm-lock.yaml) | Workspace membership and resolved dependencies |
 
-The Android application ID is `eu.kesopeso.keepup`. The display name and Expo slug remain `mobile`; KeepUp branding has not been applied to the starter. `expo-system-ui` applies the configured light interface style on Android.
+The Android application ID is `eu.kesopeso.keepup`. The native display name and Expo slug remain `mobile`; native icons still use the starter assets. React Native screens use the KeepUp name and dark colors. `expo-system-ui` applies the configured light system interface style; screens set their own background and status-bar appearance.
 
 ### Shared backend integration
 
-The app checks `GET /api/healthz` through the existing proxy when its connection screen mounts. The API checks database reachability, so a successful connection indicates API and database readiness at the time of that request. The client requires a successful HTTP response with JSON `status: "ok"`; an HTML page or unrelated response cannot appear connected.
+The connection-check screen is available from joining through Check server connection. It checks `GET /api/healthz` through the existing proxy when mounted. The API checks database reachability, so a successful connection indicates API and database readiness at the time of that request. The client requires a successful HTTP response with JSON `status: "ok"`; an HTML page or unrelated response cannot appear connected.
 
 Checks time out after five seconds, including reading the response body. The screen reports network failures, timeout, server unavailability, invalid responses, or configuration failure. Retry starts a fresh check and stays disabled while checking. Check again is available after success. Unmounting or replacing a check aborts its request and prevents old results from updating the screen. There is no automatic polling; Connected records the latest completed check.
 
 API addresses come from `EXPO_PUBLIC_API_URL`, with an Android emulator default only in development. Release builds require an explicit address. Setup is owned by the [Android workflow](../workflow/mobile-development.md#api-connection).
 
-Future mobile route operations will use the same [REST and WebSocket contract](api-and-live.md) as the web client. Route permissions, member state, persistence, and [GPS validation](../product/tracking.md#gps-validation) remain server responsibilities. The existing [product references](../product/CONTEXT.md) own user-facing route and tracking rules.
+Mobile route operations use the same [REST contract](api-and-live.md) as the web client. The join screen accepts a six-character code or a pasted HTTP(S) link with `/routes/{code}`, normalizes the code to uppercase, and always requests the configured backend. A pasted link never changes the backend or receives the device's credentials. Automatic Android deep-link opening is not implemented.
 
-The app has no route screens, token storage, live connection, map, or location service yet.
+Without saved access, Continue fetches route access metadata before collecting display name, one of the seven supported transport modes, and a password only when required. Join posts the profile and password, saves the returned membership, then opens the authenticated snapshot. Wrong passwords, duplicate names, missing routes, network failures, and unexpected responses show readable feedback with manual retry. Route requests have a ten-second timeout covering response parsing; concurrent form submissions are blocked.
+
+The snapshot displays route name, description, code, active/closed state, sharing policy, members, transport modes, written presence status, and owner/self labels. Refresh requests another snapshot; it does not open a live connection. Failed refreshes retain the last successful snapshot with its update time. Expired access or a deleted route clears saved route credentials and offers Join again. Existing saved members can view closed archives. The shared API currently rejects new members on closed routes, so the join screen explains that limitation; the product's broader closed-route access requirement remains a backend gap.
+
+### Saved membership
+
+Expo SecureStore persists a stable device UUID, display name and transport preference, a separate member token/id for each route, and the last opened route code. Expo Crypto generates the UUID and hashes the configured API base URL for the storage namespace. Credentials from different backends stay separate. The route password is never persisted. The SecureStore config plugin configures Android backup exclusions; tokens are encrypted using the platform's storage and keystore.
+
+Startup restores the last route and requests its snapshot with the saved token instead of posting another join. Entering a previously joined code similarly resumes its membership without requiring a password. Join another route changes the screen and preserves membership; it does not leave the route or revoke access.
+
+Credentials are saved before fetching the initial snapshot, so a failed snapshot can be retried without creating another member. If saving a successful join fails, its returned credentials remain in memory and Retry saves them again instead of repeating POST. Device storage errors are surfaced. Unmounting aborts network work and old responses cannot update another screen. There is no automatic POST retry: the shared join endpoint is not idempotent, so a lost join response can leave a server membership without recoverable credentials.
+
+The app has no live connection, location service, route creation, or owner actions yet.
 
 Native location capture, permission handling, background execution, and reconnection will need mobile implementations. Screen-off tracking is an early validation target, not an implemented guarantee. Android and iOS will each need platform-specific lifecycle and permission checks.
+
+### Native snapshot map
+
+The Android snapshot screen renders a native MapLibre map above route details and members. `@maplibre/maplibre-react-native` 11.5 supports the app's React Native architecture and supplies an Expo config plugin. The plugin is recorded in `app.json`; installing this dependency requires a new development APK. iOS remains untested.
+
+Each saved path segment becomes a separate colored line. A member's latest saved point, selected by timestamp across segments, becomes a marker. Last-known markers remain available for stale, offline, spectating, and left members, matching the existing web renderer; they do not imply a live connection. Tapping a marker or a located member row fits that member's history and shows their name, written presence status, and localized last-location time. Members without coordinates show No saved location and cannot be focused.
+
+The initial camera fits all saved geometry. A single location uses zoom 15, and the map caps zoom at 16. Bounds use the shortest longitude arc for routes crossing the antimeridian. Each segment's longitudes are unwrapped for drawing. Snapshot response validation rejects malformed segments, out-of-range coordinates, and invalid timestamps before native rendering. The geometry converter also breaks lines at invalid samples instead of connecting across gaps.
+
+Manual map interaction disables automatic fitting. Refresh replaces geometry while preserving a manual viewport. Fit group restores automatic fitting and fades out when no fit action is available; the hidden control is excluded from interaction and accessibility. Camera and button animations respect reduced-motion settings. Size changes refit only in automatic mode. Empty active routes explain when locations appear; empty archives report no saved locations. Map loading failures or a fifteen-second rendering timeout offer Retry map without blocking route/member controls.
+
+MapLibre reports tile download failures through its native log handler rather than the style-loading callback. The mounted map owns that handler and releases it on unmount. Reported tile failures remain visible until Retry map rebuilds the map and fits the full route again, even if MapLibre reports a completed frame for missing tiles.
+
+The basemap uses the same OpenStreetMap raster styling as the web client. Tile configuration lives separately from geometry. Native tile requests identify KeepUp through a scoped User-Agent header; MapLibre manages its normal HTTP cache. Visible OpenStreetMap attribution links to the copyright page. This slice does not add tile downloads or offline packs. Review the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) before changing provider behavior.
+
+Refresh is still manual. This map neither requests device location permission nor sends GPS updates; those belong to the next live/location slice.
 
 ### Native project generation
 
@@ -57,6 +94,8 @@ Native dependency or configuration changes require regeneration and a new APK. J
 
 - [Mobile source](../../apps/mobile/), [app configuration](../../apps/mobile/app.json), and [ignore rules](../../apps/mobile/.gitignore)
 - [Web boundaries](frontend.md), [API and live protocol](api-and-live.md), and [Android workflow](../workflow/mobile-development.md)
+- [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/) and [Expo Crypto](https://docs.expo.dev/versions/latest/sdk/crypto/)
+- [MapLibre requirements](https://maplibre.org/maplibre-react-native/docs/setup/getting-started/) and [Expo setup](https://maplibre.org/maplibre-react-native/docs/setup/expo/)
 - [Android implementation sequence](../planning/roadmap.md#phase-9-mobile-client-android-first) and [deferred iOS work](../planning/backlog.md#planned-later)
 
 ## Change impact

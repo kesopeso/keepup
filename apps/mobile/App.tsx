@@ -1,5 +1,5 @@
-import { ConnectionCheckScreen } from './src/screens/ConnectionCheckScreen';
+import { MobileApp } from './src/MobileApp';
 
 export default function App() {
-  return <ConnectionCheckScreen />;
+  return <MobileApp />;
 }

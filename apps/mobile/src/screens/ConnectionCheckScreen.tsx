@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { getApiBaseUrl } from '../api/config';
 import { checkApiHealth, type HealthCheckResult, type UnavailableReason } from '../api/health';
+import { ActionButton } from '../components/ui';
 
 type ConnectionState = { status: 'checking' } | HealthCheckResult;
 
@@ -23,7 +24,7 @@ const unavailableMessages: Record<UnavailableReason, string> = {
   configuration: 'The app connection is not configured. Contact the app developer.',
 };
 
-export function ConnectionCheckScreen() {
+export function ConnectionCheckScreen({ onBack }: { onBack?: () => void }) {
   const [state, setState] = useState<ConnectionState>({ status: 'checking' });
   const [attempt, setAttempt] = useState(0);
 
@@ -95,6 +96,7 @@ export function ConnectionCheckScreen() {
             <Text style={styles.buttonText}>{buttonLabel}</Text>
           </Pressable>
         </View>
+        {onBack && <View style={{ marginTop: 20 }}><ActionButton label="Back to joining" secondary onPress={onBack} /></View>}
       </ScrollView>
     </View>
   );

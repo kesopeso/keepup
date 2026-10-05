@@ -7,13 +7,13 @@ status: active
 
 ## Immediate next step
 
-The Android API connection-check screen is implemented. The proposed next task is joining an existing route and displaying its authenticated snapshot and members. Map rendering and live location sharing follow that slice; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
+Android route joining, saved membership, authenticated snapshots, and native snapshot maps are implemented. The proposed next task is live updates and native location sharing through the existing protocol; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
 The previous physical-phone outdoor review of the web client is complete. Native tracking still needs its own physical-device validation.
 
 ## Mobile foundation
 
-The React Native/Expo app and local Android workflow are ready. The mobile app checks shared API/database readiness with connecting, connected, and unavailable states, a five-second timeout, and manual retry. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Route screens, token storage, native location sharing, and background tracking are not implemented. iOS is deferred until after Android.
+The React Native/Expo app and local Android workflow are ready. The mobile app joins routes by code or pasted link, stores membership securely, restores the last route, and displays authenticated route/member snapshots with a native map, refresh, and retry. A separate connection screen checks shared API/database readiness. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Live updates, native location sharing, and background tracking are not implemented. iOS is deferred until after Android.
 
 Validation on 2026-10-05:
 
@@ -26,6 +26,22 @@ API connection validation on 2026-10-05:
 - Mobile TypeScript checking and all eight request/configuration tests passed through Docker Compose. Tests cover healthy and degraded responses, incorrect successful responses, network recovery, request/body timeout, cancellation, and release configuration.
 - The Android 17/API 37 emulator displayed Connected to KeepUp against the existing proxy/API/PostGIS stack. Stopping the API produced the unavailable state and Retry. Restarting the API and tapping Retry returned to connected. The Android accessibility hierarchy confirmed the checking button was disabled while the request ran.
 - The temporary Metro session was stopped after verification and the backend was restored. The screen needs no native dependency or APK rebuild; start Metro with the existing launcher.
+
+Android joining validation on 2026-10-05:
+
+- Mobile TypeScript checking and all 20 tests passed through Docker Compose. The additional tests cover code/link parsing, HTTP error distinctions, authenticated snapshots, persistent identity, backend isolation, rejected joins, invalid-token cleanup, and retry after failed snapshot/storage operations without duplicate membership.
+- Regenerated the Android project with the SecureStore plugin, successfully built the development APK with Expo Crypto and SecureStore, and installed it on the running Android 17/API 37 emulator.
+- Emulator checks passed for invalid route codes, a pasted link to a disposable password-protected route, incorrect password, duplicate display name, a successful two-member snapshot, and force-stop/reopen with the same membership. Failed refresh retained the dated snapshot and offered Retry. The API was restored after the outage check.
+- The actual mobile API/session code loaded the disposable route's closed archive and resumed saved access without another join. Deleting that disposable route produced invalid access and cleared its test session's membership and last-route credentials. This archive/deletion check used a separate test repository; it did not alter the owner's Android storage. The emulator remained available for the owner's concurrent testing.
+- Metro is running for review. Other installations need a rebuilt APK for the added native modules; see the [Android workflow](../workflow/mobile-development.md#route-joining-and-saved-access).
+
+Android snapshot map validation on 2026-10-05:
+
+- Mobile TypeScript checking and all 25 tests passed through Docker Compose. Map tests cover separate path segments, latest timestamps, member colors/status, empty and single-point geometry, invalid samples, antimeridian paths/bounds, and malformed snapshot rejection.
+- Regenerated the Android project, built the MapLibre development APK successfully, and installed it on the Android 17/API 37 emulator. The existing saved route displayed the native basemap and empty-location message.
+- A temporary in-memory fixture verified colored paths/markers, visible segment gaps, manual pan, refresh without recentering, Fit group becoming hidden and inaccessible after fitting, member focus with written status/timestamp, and an empty archive. The fixture was removed and the normal app entry restored without backend or membership changes.
+- An unavailable tile endpoint exposed MapLibre's separate native tile-error reporting. The map now turns those errors into readable feedback and Retry map. Restoring tile access and retrying recovered the basemap. The real provider was restored after the check.
+- Documentation links and heading fragments resolve. Metro remains running for review. Native GPS sharing and live updates are still pending; this establishes snapshot rendering, not native tracking reliability.
 
 ## UI redesign
 
@@ -49,6 +65,8 @@ Validation reported by the owner on 2026-09-30:
 | Compose stack, API startup, health checks, manual migrations | [Development](../workflow/development.md), [backend](../system/backend.md) |
 | Mobile starter, Android development build, Metro and browser debugging | [Mobile](../system/mobile.md), [Android workflow](../workflow/mobile-development.md) |
 | Mobile API health check, timeout, unavailable state, and retry | [Mobile](../system/mobile.md#shared-backend-integration) |
+| Android route joining, secure membership persistence, restored snapshots, and manual refresh | [Mobile](../system/mobile.md#saved-membership) |
+| Android native snapshot map, saved paths and markers, member focus, and Fit group | [Mobile map](../system/mobile.md#native-snapshot-map) |
 | Create/join, browser identity, authenticated snapshots | [Frontend](../system/frontend.md) |
 | Route lifecycle REST operations and owner controls | [API](../system/api-and-live.md), [frontend](../system/frontend.md) |
 | MapLibre rendering, viewport control, snapshot and live path state | [Frontend](../system/frontend.md) |
@@ -64,6 +82,8 @@ Validation reported by the owner on 2026-09-30:
 This consolidates the previous 23-item implementation status without making the plan a second behavior specification. It records existing project status; the documentation restructure did not run application tests.
 
 ## Specification versus implementation
+
+The shared API currently rejects new memberships on closed routes, despite the [product requirement](../product/routes.md#route-access) to keep archives accessible by code/password. Existing members can load archive snapshots. The mobile join flow reports this existing backend limitation and does not create a new closed-route membership.
 
 The shared API implements the [GPS validation rules](../product/tracking.md#gps-validation), including accuracy limits, required and ordered timestamps, and impossible-jump rejection. See [protocol and transaction behavior](../system/api-and-live.md#gps-validation).
 

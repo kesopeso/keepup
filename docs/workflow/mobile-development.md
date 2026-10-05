@@ -121,6 +121,22 @@ Run mobile checks through Docker:
 
 The tests use the container's Node 24 built-in runner and TypeScript support, with no additional test dependency. They cover request failure, response validation, timeout through body consumption, cancellation, configuration, and retry recovery. Screen behavior is owned by [mobile boundaries](../system/mobile.md#shared-backend-integration).
 
+### Route joining and saved access
+
+The app starts with Join a route or restores the last saved membership. Create a route in the web app at `http://localhost:3000`, then enter its code or paste its `/routes/{code}` share link in Android. After Continue, choose a display name and transport mode, and enter the password if required. Successful joining opens route details and members; use Refresh for current snapshots. Reopening uses saved membership, without creating another member or asking for the password again.
+
+This slice adds `expo-secure-store` and `expo-crypto`. An APK containing these modules is required; updating Metro alone cannot add native modules. Follow [build and install](#build-and-install) to regenerate and install after pulling this change. Keep the installed app's data when updating; uninstalling Android removes its saved tokens. The SecureStore plugin lives in `app.json`, so native regeneration preserves backup exclusions. [Saved membership](../system/mobile.md#saved-membership) owns storage and error behavior.
+
+Route/session tests cover code/link parsing, password/name errors, Bearer authentication, backend isolation, persistent identity, invalid-token cleanup, and retry after snapshot or storage failures without repeating successful joins. WebSockets, location capture, and automatic Android link handling follow later.
+
+### Native map review
+
+The snapshot map adds `@maplibre/maplibre-react-native` and its Expo config plugin. Regenerate and rebuild using [build and install](#build-and-install); Metro refresh alone cannot install the native renderer. When Metro is already running, use `./bin/mobile-pnpm.sh exec expo run:android --no-bundler` for the build and installation. Keep Metro's localhost address for browser debugging.
+
+Join a route with saved locations from the web client, then Refresh in Android to see its paths and last-known markers. Pan or zoom to reveal Fit group. Refresh must preserve that manual view, and Fit group must fit the whole history and hide again. Tap a marker or a located member row to focus their history and read the location timestamp. Empty routes display an explanatory message; closed archives use the same map. A failed map load offers Retry map while route controls remain usable.
+
+The Android app still needs manual Refresh for new positions. It does not request location permission or send GPS data yet. Geometry tests cover separate segments, latest-point selection, missing/invalid coordinates, and antimeridian bounds. Basemap configuration and attribution are owned by the [native map reference](../system/mobile.md#native-snapshot-map).
+
 ### Troubleshooting
 
 - **Connection screen reports unavailable:** confirm `docker compose up -d` has started the backend stack, then tap Retry. Connected shows the last check result; use Check again to refresh it.
@@ -143,4 +159,4 @@ Update this page when the Docker image, SDK mount, ADB forwarding, Metro flags, 
 
 ## Validation
 
-The owner verified the installed starter and browser debugger on Ubuntu. The connection-check screen was also verified against the running backend and through API stop/restart with manual retry. See [delivery status](../planning/status.md#mobile-foundation) for the dated evidence and scope. Before continuing development, review these commands against the actual Compose configuration. Later native tracking must be tested on physical hardware; the emulator setup does not establish battery use or screen-off GPS reliability.
+The owner verified the installed starter and browser debugger on Ubuntu. The connection-check screen was verified against the running backend and through API stop/restart with manual retry. Route joining, password/name errors, authenticated snapshots, and membership restoration were verified on the emulator; archive and deleted-route cleanup were also checked using the actual API/session client against a disposable route. See [delivery status](../planning/status.md#mobile-foundation) for the dated evidence and scope. Before continuing development, review these commands against the actual Compose configuration. Later native tracking must be tested on physical hardware; the emulator setup does not establish battery use or screen-off GPS reliability.
