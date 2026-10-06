@@ -113,7 +113,7 @@ The configured `EXPO_UNSTABLE_HEADLESS=1` disables the Docker desktop DevTools l
 | `http://127.0.0.1:8081` | Ubuntu's local Metro server; also reachable from the emulator through ADB forwarding |
 | `http://127.0.0.1:8081/open-debugger` | Open React Native DevTools in Ubuntu Chrome/Chromium after the app connects |
 | `http://10.0.2.2:3000/api` | Default development REST API base for the Android emulator, including the connection check |
-| `ws://10.0.2.2:3000/ws` | Intended emulator WebSocket endpoint for future mobile integration |
+| `ws://10.0.2.2:3000/ws` | Emulator WebSocket endpoint for active-route live viewing |
 
 The emulator's `10.0.2.2` address points to the Ubuntu host. `localhost` inside the emulator normally means the virtual phone; ADB forwarding makes the Metro port an explicit exception.
 
@@ -142,7 +142,7 @@ The app starts with Join a route or restores the last saved membership. Create a
 
 This slice adds `expo-secure-store` and `expo-crypto`. An APK containing these modules is required; updating Metro alone cannot add native modules. Follow [build and install](#build-and-install) to regenerate and install after pulling this change. Keep the installed app's data when updating; uninstalling Android removes its saved tokens. The SecureStore plugin lives in `app.json`, so native regeneration preserves backup exclusions. [Saved membership](../system/mobile.md#saved-membership) owns storage and error behavior.
 
-Route/session tests cover code/link parsing, password/name errors, Bearer authentication, backend isolation, persistent identity, invalid-token cleanup, and retry after snapshot or storage failures without repeating successful joins. WebSockets, location capture, and automatic Android link handling follow later.
+Route/session tests cover code/link parsing, password/name errors, Bearer authentication, backend isolation, persistent identity, invalid-token cleanup, and retry after snapshot or storage failures without repeating successful joins. Live viewing uses these saved credentials. Location capture and automatic Android link handling follow later.
 
 ### Native map review
 
@@ -150,7 +150,15 @@ The snapshot map adds `@maplibre/maplibre-react-native` and its Expo config plug
 
 Join a route with saved locations from the web client, then Refresh in Android to see its paths and last-known markers. Pan or zoom to reveal Fit group. Refresh must preserve that manual view, and Fit group must fit the whole history and hide again. Tap a marker or a located member row to focus their history and read the location timestamp. Empty routes display an explanatory message; closed archives use the same map. A failed map load offers Retry map while route controls remain usable.
 
-The Android app still needs manual Refresh for new positions. It does not request location permission or send GPS data yet. Geometry tests cover separate segments, latest-point selection, missing/invalid coordinates, and antimeridian bounds. Basemap configuration and attribution are owned by the [native map reference](../system/mobile.md#native-snapshot-map).
+Active routes receive new positions automatically while Live updates connected is displayed. The app does not request location permission or send GPS data yet. Geometry tests cover separate segments, latest-point selection, missing/invalid coordinates, and antimeridian bounds. Basemap configuration and attribution are owned by the [native map reference](../system/mobile.md#native-snapshot-map).
+
+### Live viewing review
+
+Live viewing is a JavaScript change. Start the backend, emulator, and `make mobile`; an APK that already includes the snapshot map needs no rebuild. Join the same route from Android and a separate web membership. Share location from the web client and confirm Android updates paths, markers, and member status without Refresh. Edit or close the route from its owner to check metadata and archive updates.
+
+Pan the Android map, then receive another update. The map should retain its manual position and Fit group should remain available. Background Android, change the route from the other client, and return. The app should fetch missed state and reconnect. Interrupt its network connection to check the reconnect indicator and snapshot catch-up. Closed archives stop the socket. Refresh remains available for manual retries.
+
+Use separate memberships for simultaneous clients. The server permits one live connection per membership. This viewing task adds no Android location permission and no screen-off sharing.
 
 ### Troubleshooting
 

@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { RouteMap } from '../components/RouteMap';
 import type { RouteMapRef } from '../components/RouteMap';
 import { snapshotGeometry } from '../map/snapshot-geometry';
 import { ActionButton, ErrorMessage, Screen, styles } from '../components/ui';
+import { createViewingSession, viewingSocketUrl } from '../live/viewing-session';
+import type { ViewingStatus } from '../live/viewing-session';
+import { getApiBaseUrl } from '../api/config';
 import { invalidMembership } from '../api/routes';
 import type { RoutesApi } from '../api/routes';
 import { loadMemberSnapshot } from '../domain/join-session';
@@ -23,39 +26,45 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [invalid, setInvalid] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+  const [liveStatus, setLiveStatus] = useState<ViewingStatus>('connecting');
+  const session = useRef<ReturnType<typeof createViewingSession> | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const map = useRef<RouteMapRef>(null);
   const scroll = useRef<ScrollView>(null);
   const locatedMembers = useMemo(() => new Set(snapshot ? snapshotGeometry(snapshot).markers.features.map((feature) => feature.properties.memberId) : []), [snapshot]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void loadMemberSnapshot(api, repository, member, controller.signal).then((result) => {
-      if (!controller.signal.aborted) {
-        setSnapshot(result);
-        setUpdatedAt(new Date());
-      }
-    }).catch((error: unknown) => {
-      if (!controller.signal.aborted) {
-        setError(error instanceof Error ? error.message : 'Could not load the route. Please try again.');
-        setInvalid(invalidMembership(error));
-        if (invalidMembership(error)) setSnapshot(null);
-      }
-    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [api, repository, member, attempt]);
+    const viewing = createViewingSession({
+      url: viewingSocketUrl(getApiBaseUrl()), member,
+      load: (signal) => loadMemberSnapshot(api, repository, member, signal),
+      onSnapshot: (result) => { setSnapshot(result); setUpdatedAt(new Date()); setLoading(false); },
+      onStatus: setLiveStatus,
+      onError: (message, rejected) => {
+        setError(message); setInvalid(rejected); setLoading(false);
+        if (rejected) setSnapshot(null);
+      },
+      isInvalid: invalidMembership,
+    });
+    session.current = viewing;
+    viewing.setForeground(AppState.currentState === 'active');
+    const subscription = AppState.addEventListener('change', (state) => viewing.setForeground(state === 'active'));
+    return () => { subscription.remove(); viewing.stop(); session.current = null; };
+  }, [api, repository, member]);
 
   function refresh() {
     if (loading) return;
     setLoading(true);
-    setError(null);
-    setAttempt((previous) => previous + 1);
+    void session.current?.refresh();
   }
 
   return <Screen scrollRef={scroll}>
     <Text style={styles.title} accessibilityRole="header">{snapshot?.route.name ?? `Route ${member.code}`}</Text>
     {loading && <View style={localStyles.row}><ActivityIndicator color="#22c55e" /><Text style={styles.text}>Loading route…</Text></View>}
+    <Text style={styles.text} accessibilityLiveRegion="polite">{({
+      connecting: 'Connecting to live updates…', live: 'Live updates connected',
+      reconnecting: 'Connection interrupted. Reconnecting…', paused: 'Live updates paused',
+      archive: 'Archive · Live updates stopped', unavailable: 'Live updates unavailable', invalid: 'Saved access is no longer valid',
+    })[liveStatus]}</Text>
     <ErrorMessage message={error} />
     {snapshot && <>
       <RouteMap ref={map} snapshot={snapshot} />
@@ -65,7 +74,7 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
         {!!snapshot.route.description && <Text style={styles.text}>{snapshot.route.description}</Text>}
         {snapshot.route.status === 'active' && <Text style={styles.text}>{snapshot.route.sharingPolicy === 'joiners_can_view_only' ? 'Only the owner may share a location.' : 'All members may share a location.'}</Text>}
         {snapshot.route.status === 'closed' && <Text style={styles.text}>This route is a read-only archive.</Text>}
-        <Text style={styles.text}>Last updated {updatedAt?.toLocaleTimeString()}. Refresh to see the latest details and member status.</Text>
+        <Text style={styles.text}>Last updated {updatedAt?.toLocaleTimeString()}. {snapshot.route.status === 'active' ? 'Locations update automatically while connected.' : 'Saved archive.'}</Text>
       </View>
       <View style={styles.card}>
         <Text style={styles.title} accessibilityRole="header">Members · {snapshot.members.length}</Text>

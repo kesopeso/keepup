@@ -7,13 +7,13 @@ status: active
 
 ## Immediate next step
 
-Android route joining, saved membership, authenticated snapshots, and native snapshot maps are implemented. The proposed next task is live updates and native location sharing through the existing protocol; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
+Android live viewing is implemented and verified. The next task is foreground location sharing with permission handling and Start/Stop controls through the existing protocol; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
 The previous physical-phone outdoor review of the web client is complete. Native tracking still needs its own physical-device validation.
 
 ## Mobile foundation
 
-The React Native/Expo app and local Android workflow are ready. The mobile app joins routes by code or pasted link, stores membership securely, restores the last route, and displays authenticated route/member snapshots with a native map, refresh, and retry. A separate connection screen checks shared API/database readiness. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Live updates, native location sharing, and background tracking are not implemented. iOS is deferred until after Android.
+The React Native/Expo app and local Android workflow are ready. The mobile app joins routes by code or pasted link, stores membership securely, restores the last route, and displays authenticated route/member snapshots with a native map, refresh, and retry. A separate connection screen checks shared API/database readiness. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Live viewing is implemented. Native location sharing and background tracking are not implemented. iOS is deferred until after Android.
 
 Validation on 2026-10-05:
 
@@ -43,6 +43,22 @@ Android snapshot map validation on 2026-10-05:
 - An unavailable tile endpoint exposed MapLibre's separate native tile-error reporting. The map now turns those errors into readable feedback and Retry map. Restoring tile access and retrying recovered the basemap. The real provider was restored after the check.
 - Documentation links and heading fragments resolve. Metro remains running for review. Native GPS sharing and live updates are still pending; this establishes snapshot rendering, not native tracking reliability.
 
+## Android implementation checkpoints
+
+| Task | State | Acceptance |
+|---|---|---|
+| Live viewing | Complete | Automatic location, member, and route updates; reconnect catch-up; foreground recovery; manual viewport preservation; closed archives stop live connections |
+| Foreground location sharing | Next | Android permission handling, Start/Stop sharing, accuracy and timestamp submissions, rejection feedback, and physical-phone verification with the app open |
+| Screen-off tracking | Pending | Android background tracking and notification; physical-phone verification of screen locking, network recovery, stop/restart, and battery behavior |
+
+Live viewing validation on 2026-10-06:
+
+- Mobile TypeScript checking and all 36 tests passed through Docker. Eleven live-viewing tests cover token authentication, position validation, segment separation, sequence ordering/deduplication, snapshot/event races, membership resync, reconnection, obsolete sockets, foreground recovery, archive closure, failures, duplicate connections, and authentication timeout.
+- The actual mobile session ran against the local API with a disposable route and two real WebSocket clients. Location/status updates, join/leave events, metadata edits, foreground catch-up, and socket reconnection with missed positions passed.
+- The Android 17/API 37 emulator displayed Live updates connected and rendered real accepted locations and paths without Refresh. Route edits appeared automatically. Returning from the background recovered an edit made while disconnected. A manually panned map retained Fit group after resync. Closing the route displayed its archive and stopped live viewing.
+- The disposable route was deleted; Android's invalid-access flow cleared its saved membership. The original saved route was restored. Metro and the emulator remain available for review.
+- This task adds JavaScript only and needs no APK rebuild. It does not capture device location or establish background tracking reliability.
+
 ## UI redesign
 
 The user selected the full layout refresh in an earlier Lavish visual proposal, then requested implementation. The app now uses simpler create/join forms, a map-led route layout, sharing controls above collapsible members, explicit presence badges, and a route-details dialog. Behavior is owned by [map experience](../product/experience.md); implementation boundaries by [frontend](../system/frontend.md).
@@ -66,6 +82,7 @@ Validation reported by the owner on 2026-09-30:
 | Mobile starter, Android development build, Metro and browser debugging | [Mobile](../system/mobile.md), [Android workflow](../workflow/mobile-development.md) |
 | Mobile API health check, timeout, unavailable state, and retry | [Mobile](../system/mobile.md#shared-backend-integration) |
 | Android route joining, secure membership persistence, restored snapshots, and manual refresh | [Mobile](../system/mobile.md#saved-membership) |
+| Android live viewing, automatic positions and lifecycle updates, reconnect and foreground catch-up | [Mobile live viewing](../system/mobile.md#live-viewing) |
 | Android native snapshot map, saved paths and markers, member focus, and Fit group | [Mobile map](../system/mobile.md#native-snapshot-map) |
 | Create/join, browser identity, authenticated snapshots | [Frontend](../system/frontend.md) |
 | Route lifecycle REST operations and owner controls | [API](../system/api-and-live.md), [frontend](../system/frontend.md) |

@@ -23,8 +23,9 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 |---|---|
 | [App.tsx](../../apps/mobile/App.tsx), [mobile app](../../apps/mobile/src/MobileApp.tsx) | Restore saved access and route between joining, snapshot, and connection-check screens |
 | [Join screen](../../apps/mobile/src/screens/JoinRouteScreen.tsx) | Route code/link entry, access metadata, display name, transport mode, and conditional password |
-| [Snapshot screen](../../apps/mobile/src/screens/RouteSnapshotScreen.tsx) | Authenticated route details and members, refresh/retry, and archive display |
+| [Snapshot screen](../../apps/mobile/src/screens/RouteSnapshotScreen.tsx) | Authenticated route details and members, refresh/retry, live connection status, and archive display |
 | [Native map](../../apps/mobile/src/components/RouteMap.tsx), [snapshot geometry](../../apps/mobile/src/map/snapshot-geometry.ts), [tile provider](../../apps/mobile/src/map/tile-provider.ts) | Native MapLibre rendering, member focus, camera fitting, and basemap configuration |
+| [Viewing session](../../apps/mobile/src/live/viewing-session.ts), [live tests](../../apps/mobile/tests/viewing.test.cjs) | Authenticated sockets, automatic positions, lifecycle resync, reconnect, and foreground recovery |
 | [UI components](../../apps/mobile/src/components/ui.tsx) | Scrollable keyboard-aware screens, labeled inputs, buttons, and error feedback |
 | [Route domain types](../../apps/mobile/src/domain/routes.ts), [join session](../../apps/mobile/src/domain/join-session.ts) | Code/link parsing, API DTOs, and membership-before-snapshot ordering |
 | [Route API client](../../apps/mobile/src/api/routes.ts) | Access, join, and Bearer-authenticated snapshot requests with timeout/error handling |
@@ -41,6 +42,18 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 | [pnpm workspace](../../pnpm-workspace.yaml) and [lockfile](../../pnpm-lock.yaml) | Workspace membership and resolved dependencies |
 
 The Android application ID is `eu.kesopeso.keepup`. The native display name and Expo slug remain `mobile`; native icons still use the starter assets. React Native screens use the KeepUp name and dark colors. `expo-system-ui` applies the configured light system interface style; screens set their own background and status-bar appearance.
+
+### Live viewing
+
+Active routes connect to the existing `/ws` endpoint and authenticate with the saved member token in the first message. The token never appears in the URL. Closed archives do not connect. The screen shows connecting, connected, reconnecting, paused, and invalid-access states.
+
+Accepted position events update the existing segment directly. The client validates coordinates, timestamp, and sequence; orders points by segment sequence; and ignores duplicates. Membership, presence, metadata, and route-close events trigger a coalesced authenticated snapshot refresh. Positions arriving during a refresh are buffered and merged so a slower snapshot cannot erase new locations. A bounded buffer forces resynchronization if overwhelmed. No map remount is needed, so a manual viewport survives updates.
+
+After subscription, the client fetches another snapshot to cover changes between the initial fetch and subscription. Unexpected disconnections retry with exponential backoff from one second to 30 seconds and fetch a snapshot to recover missed events. Authentication has a ten-second client timeout. Duplicate-member connections retry without replacing the server's existing connection. Invalid REST access clears saved membership through the existing session loader and stops retrying. Temporary failures retain the last map and history.
+
+Leaving the Android foreground closes the socket and aborts pending requests. Returning fetches current state and reconnects. Leaving the screen cancels requests and timers and ignores old socket events. Closing a route refreshes its archive and stops live updates.
+
+This task only views locations shared by other clients. Device GPS capture, sharing commands, and background tracking remain separate [implementation checkpoints](../planning/status.md#android-implementation-checkpoints).
 
 ### Shared backend integration
 
