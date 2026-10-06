@@ -142,7 +142,7 @@ The app starts with Join a route or restores the last saved membership. Create a
 
 This slice adds `expo-secure-store` and `expo-crypto`. An APK containing these modules is required; updating Metro alone cannot add native modules. Follow [build and install](#build-and-install) to regenerate and install after pulling this change. Keep the installed app's data when updating; uninstalling Android removes its saved tokens. The SecureStore plugin lives in `app.json`, so native regeneration preserves backup exclusions. [Saved membership](../system/mobile.md#saved-membership) owns storage and error behavior.
 
-Route/session tests cover code/link parsing, password/name errors, Bearer authentication, backend isolation, persistent identity, invalid-token cleanup, and retry after snapshot or storage failures without repeating successful joins. Live viewing uses these saved credentials. Location capture and automatic Android link handling follow later.
+Route/session tests cover code/link parsing, password/name errors, Bearer authentication, backend isolation, persistent identity, invalid-token cleanup, and retry after snapshot or storage failures without repeating successful joins. Live viewing uses these saved credentials. Foreground location sharing uses this saved access. Automatic Android link handling follows later.
 
 ### Native map review
 
@@ -150,7 +150,7 @@ The snapshot map adds `@maplibre/maplibre-react-native` and its Expo config plug
 
 Join a route with saved locations from the web client, then Refresh in Android to see its paths and last-known markers. Pan or zoom to reveal Fit group. Refresh must preserve that manual view, and Fit group must fit the whole history and hide again. Tap a marker or a located member row to focus their history and read the location timestamp. Empty routes display an explanatory message; closed archives use the same map. A failed map load offers Retry map while route controls remain usable.
 
-Active routes receive new positions automatically while Live updates connected is displayed. The app does not request location permission or send GPS data yet. Geometry tests cover separate segments, latest-point selection, missing/invalid coordinates, and antimeridian bounds. Basemap configuration and attribution are owned by the [native map reference](../system/mobile.md#native-snapshot-map).
+Active routes receive new positions automatically while Live updates connected is displayed. Start sharing location requests foreground permission and sends GPS data while KeepUp remains open. Geometry tests cover separate segments, latest-point selection, missing/invalid coordinates, and antimeridian bounds. Basemap configuration and attribution are owned by the [native map reference](../system/mobile.md#native-snapshot-map).
 
 ### Live viewing review
 
@@ -158,10 +158,22 @@ Live viewing is a JavaScript change. Start the backend, emulator, and `make mobi
 
 Pan the Android map, then receive another update. The map should retain its manual position and Fit group should remain available. Background Android, change the route from the other client, and return. The app should fetch missed state and reconnect. Interrupt its network connection to check the reconnect indicator and snapshot catch-up. Closed archives stop the socket. Refresh remains available for manual retries.
 
-Use separate memberships for simultaneous clients. The server permits one live connection per membership. This viewing task adds no Android location permission and no screen-off sharing.
+Use separate memberships for simultaneous clients. The server permits one live connection per membership. Foreground sharing adds Android location permission separately. Screen-off sharing is still unimplemented.
+
+### Foreground sharing review
+
+This change adds `expo-location`, its config plugin, and the Expo patch required by the current dependency check. Install dependencies, regenerate Android, and rebuild using [build and install](#build-and-install). Preserve app data to retain saved memberships. Metro alone cannot add the native module.
+
+Join a disposable route, tap Start sharing location, and select precise location while using the app. Deny once to check the retry guidance. If permission is blocked, use Open app settings. Device Location must be on. Finding the first fix can take fifteen seconds; after that, failed attempts show guidance instead of occupying a tracking slot.
+
+Verify the Android member becomes Sharing location and its points appear in another client's map. Tap Stop sharing location, then move and confirm no new points are stored. Background the app while sharing, move again, and return. Native capture should stop in the background, and Resume sharing / Continue as spectator should appear on return. Check both choices. Disconnect the network while the app remains open to test stale recovery; Stop while disconnected must cancel local sharing intent.
+
+For emulator GPS, send a fix from Android Studio Extended Controls > Location, or use the host SDK's `adb emu geo fix <longitude> <latitude>`. Send additional fixes after the location watcher starts. Emulator checks establish permission and protocol behavior; they do not replace an outdoor physical-phone review. Record precise/approximate permission behavior, actual movement, network loss/recovery, and Stop on a physical phone before closing this checkpoint.
 
 ### Troubleshooting
 
+- **Cannot find native module ExpoLocation:** regenerate and rebuild the development APK after installing the foreground-sharing dependencies. Reopen the development session with the existing Metro launcher.
+- **Location is rejected for accuracy:** enable precise location and try outdoors. Rejections leave sharing active while waiting for a better fix; an accepted fix clears the location error.
 - **Connection screen reports unavailable:** confirm `docker compose up -d` has started the backend stack, then tap Retry. Connected shows the last check result; use Check again to refresh it.
 - **DevTools reports missing `libatk-1.0.so.0`:** the desktop debugger is trying to start inside Docker. The configured headless mode avoids this launcher; use the browser debugger on Ubuntu.
 - **Browser DevTools immediately disconnects:** check that Metro uses `127.0.0.1:8081` and the browser debugger is opened at that same origin. Do not restore `REACT_NATIVE_PACKAGER_HOSTNAME=10.0.2.2`; it overrides Expo's localhost setting and causes browser WebSocket origin checks to fail.

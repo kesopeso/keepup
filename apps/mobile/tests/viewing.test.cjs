@@ -112,3 +112,24 @@ test('duplicate membership rejection retries, and authentication stalls have a t
   const stalled = harness(t); await flush(); stalled.timers.find((timer) => timer.delay === 10000).callback();
   assert.equal(stalled.sockets[0].closed, true); assert.equal(stalled.statuses.at(-1), 'reconnecting');
 });
+
+
+test('sharing commands require an established socket and match acknowledgements by request ID', async t => {
+  const h = harness(t); await assert.rejects(h.session.command('start_sharing'), /live connection/);
+  await established(h); const pending = h.session.command('start_sharing');
+  const sent = h.sockets[0].sent.at(-1); assert.equal(sent.type, 'start_sharing');
+  h.sockets[0].message({ type: 'command_ack', requestId: 'unrelated' });
+  h.sockets[0].message({ type: 'command_ack', requestId: sent.requestId }); await pending;
+  const rejected = h.session.command('stop_sharing');
+  h.sockets[0].message({ type: 'command_rejected', requestId: h.sockets[0].sent.at(-1).requestId, reason: 'route_closed' });
+  await assert.rejects(rejected, /route_closed/);
+});
+test('command timeouts and socket closure reject pending actions; paused sessions never send positions', async t => {
+  const h = harness(t); await established(h);
+  const pending = h.session.command('start_sharing');
+  h.timers.at(-1).callback(); await assert.rejects(pending, /timed out/); await flush();
+  const stopping = h.session.command('stop_sharing'); h.sockets[0].emit('close', { code: 1006 });
+  await assert.rejects(stopping, /interrupted/);
+  assert.equal(h.session.sendPosition({ latitude: 46, longitude: 14 }), false);
+  h.session.setForeground(false); assert.equal(h.session.sendPosition({ latitude: 46, longitude: 14 }), false);
+});

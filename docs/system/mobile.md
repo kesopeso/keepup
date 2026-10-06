@@ -25,6 +25,7 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 | [Join screen](../../apps/mobile/src/screens/JoinRouteScreen.tsx) | Route code/link entry, access metadata, display name, transport mode, and conditional password |
 | [Snapshot screen](../../apps/mobile/src/screens/RouteSnapshotScreen.tsx) | Authenticated route details and members, refresh/retry, live connection status, and archive display |
 | [Native map](../../apps/mobile/src/components/RouteMap.tsx), [snapshot geometry](../../apps/mobile/src/map/snapshot-geometry.ts), [tile provider](../../apps/mobile/src/map/tile-provider.ts) | Native MapLibre rendering, member focus, camera fitting, and basemap configuration |
+| [Foreground sharing](../../apps/mobile/src/location/foreground-sharing.ts), [native location](../../apps/mobile/src/location/native-location.ts), [sharing tests](../../apps/mobile/tests/sharing.test.cjs) | Explicit sharing intent, permissions, cancellable GPS capture, command confirmation, and rejection recovery |
 | [Viewing session](../../apps/mobile/src/live/viewing-session.ts), [live tests](../../apps/mobile/tests/viewing.test.cjs) | Authenticated sockets, automatic positions, lifecycle resync, reconnect, and foreground recovery |
 | [UI components](../../apps/mobile/src/components/ui.tsx) | Scrollable keyboard-aware screens, labeled inputs, buttons, and error feedback |
 | [Route domain types](../../apps/mobile/src/domain/routes.ts), [join session](../../apps/mobile/src/domain/join-session.ts) | Code/link parsing, API DTOs, and membership-before-snapshot ordering |
@@ -53,7 +54,19 @@ After subscription, the client fetches another snapshot to cover changes between
 
 Leaving the Android foreground closes the socket and aborts pending requests. Returning fetches current state and reconnects. Leaving the screen cancels requests and timers and ignores old socket events. Closing a route refreshes its archive and stops live updates.
 
-This task only views locations shared by other clients. Device GPS capture, sharing commands, and background tracking remain separate [implementation checkpoints](../planning/status.md#android-implementation-checkpoints).
+Live viewing and foreground location sharing use the same authenticated connection. Background tracking remains a separate [implementation checkpoint](../planning/status.md#android-implementation-checkpoints).
+
+### Foreground location sharing
+
+Start sharing requests Android foreground permission and obtains a usable initial GPS fix before sending `start_sharing`. A cancellable native watch supplies the initial fix with a fifteen-second timeout. The Android permission dialog temporarily pauses the activity; the start flow allows the permission result, then waits for the foreground live connection before requesting GPS. Denial, blocked permission, disabled device Location, and unavailable/timed-out fixes have actionable messages. Blocked access offers Open app settings.
+
+Sharing commands have request IDs and ten-second confirmation timeouts. Rejection messages explain route policy and occupied tracker slots. GPS watching starts after command acknowledgement and a snapshot confirming tracking or stale status. Expo Location requests high accuracy, a five-second minimum interval, and zero minimum distance so stationary members can maintain tracking presence. Samples include accuracy and UTC client measurement time; invalid optional altitude/speed/heading values are omitted. Duplicate local timestamps are dropped. The API remains responsible for quality and movement validation.
+
+GPS rejection guidance persists until the viewer's own next accepted sample or confirmed Stop. Another member's accepted location cannot clear it. Native watcher failures stop capture and attempt to release the server tracking slot. Stop removes the watcher immediately, even if disconnected; when offline, the UI explains that spectator status still needs confirmation after reconnecting. Late callbacks and delayed watcher installations cannot restart capture.
+
+A transient network failure removes the watch and drops samples. A foreground sharing intent can resume after live reconnection and snapshot catch-up if the server still reports tracking or stale. Backgrounding clears that intent, aborts an initial fix, removes active watches, and closes the socket. Returning or reopening a previously tracking membership offers Resume sharing or Continue as spectator. Neither action is sent before the live connection is ready. Changing routes while sharing first confirms Stop.
+
+The Expo config plugin enables foreground location permissions only. No background location permission, foreground service, offline GPS queue, or automatic screen-off sharing is added. Physical Android testing remains an explicit [validation checkpoint](../planning/status.md#android-implementation-checkpoints).
 
 ### Shared backend integration
 
@@ -77,9 +90,9 @@ Startup restores the last route and requests its snapshot with the saved token i
 
 Credentials are saved before fetching the initial snapshot, so a failed snapshot can be retried without creating another member. If saving a successful join fails, its returned credentials remain in memory and Retry saves them again instead of repeating POST. Device storage errors are surfaced. Unmounting aborts network work and old responses cannot update another screen. There is no automatic POST retry: the shared join endpoint is not idempotent, so a lost join response can leave a server membership without recoverable credentials.
 
-The app has no live connection, location service, route creation, or owner actions yet.
+Live viewing and foreground location sharing are implemented. Route creation and owner actions remain future mobile work.
 
-Native location capture, permission handling, background execution, and reconnection will need mobile implementations. Screen-off tracking is an early validation target, not an implemented guarantee. Android and iOS will each need platform-specific lifecycle and permission checks.
+Screen-off tracking remains unimplemented. Foreground Android permission and lifecycle handling have emulator coverage; physical-device review is still needed. iOS needs its own platform-specific validation.
 
 ### Native snapshot map
 
@@ -95,7 +108,7 @@ MapLibre reports tile download failures through its native log handler rather th
 
 The basemap uses the same OpenStreetMap raster styling as the web client. Tile configuration lives separately from geometry. Native tile requests identify KeepUp through a scoped User-Agent header; MapLibre manages its normal HTTP cache. Visible OpenStreetMap attribution links to the copyright page. This slice does not add tile downloads or offline packs. Review the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/) before changing provider behavior.
 
-Refresh is still manual. This map neither requests device location permission nor sends GPS updates; those belong to the next live/location slice.
+Active-route geometry updates through live viewing. Location capture belongs to the foreground sharing controller rather than the map renderer.
 
 ### Native project generation
 
@@ -107,13 +120,14 @@ Native dependency or configuration changes require regeneration and a new APK. J
 
 - [Mobile source](../../apps/mobile/), [app configuration](../../apps/mobile/app.json), and [ignore rules](../../apps/mobile/.gitignore)
 - [Web boundaries](frontend.md), [API and live protocol](api-and-live.md), and [Android workflow](../workflow/mobile-development.md)
+- [Expo Location](https://docs.expo.dev/versions/latest/sdk/location/)
 - [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/) and [Expo Crypto](https://docs.expo.dev/versions/latest/sdk/crypto/)
 - [MapLibre requirements](https://maplibre.org/maplibre-react-native/docs/setup/getting-started/) and [Expo setup](https://maplibre.org/maplibre-react-native/docs/setup/expo/)
 - [Android implementation sequence](../planning/roadmap.md#phase-9-mobile-client-android-first) and [deferred iOS work](../planning/backlog.md#planned-later)
 
 ## Change impact
 
-Follow the [change-impact guide](change-impact.md) for mobile screen, API, and native build changes. Check the shared product and protocol references before adding client behavior. Native permission and transport code will need new source links here when implemented.
+Follow the [change-impact guide](change-impact.md) for mobile screen, API, and native build changes. Check the shared product and protocol references before adding client behavior. Foreground location changes must follow the controller, native adapter, screen, live commands, tests, and app configuration links above.
 
 ## Validation
 

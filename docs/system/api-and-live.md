@@ -109,7 +109,7 @@ Current backend accepts authenticated WebSocket `position_update` messages and b
 Current frontend connects to the authenticated WebSocket for active routes, sends `start_sharing`/`stop_sharing` commands, sends `position_update` messages while the viewer is tracking, applies `position_updated` events to the displayed map state, and applies sharing/status events without refreshing the route snapshot.
 Current frontend shows a blocking stale recovery prompt when an active route initially loads with the viewer as `stale`, with explicit resume-sharing and continue-as-spectator actions. A viewer who becomes stale during an existing live session can still recover automatically when accepted positions resume.
 
-Android also authenticates saved memberships to view active routes, applies accepted positions, and refreshes authenticated snapshots for membership and route events. Its reconnect and foreground recovery are owned by [mobile live viewing](mobile.md#live-viewing). Android does not yet send sharing commands or device positions.
+Android also authenticates saved memberships to view active routes, applies accepted positions, and refreshes authenticated snapshots for membership and route events. Its reconnect and foreground recovery are owned by [mobile live viewing](mobile.md#live-viewing). Android also sends acknowledged sharing commands and measured GPS positions while explicitly sharing in the foreground; see [foreground sharing](mobile.md#foreground-location-sharing).
 
 Live connection rules:
 

@@ -7,13 +7,13 @@ status: active
 
 ## Immediate next step
 
-Android live viewing is implemented and verified. The next task is foreground location sharing with permission handling and Start/Stop controls through the existing protocol; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
+Foreground location sharing is implemented with emulator and backend verification. Next, validate it outdoors on a physical Android phone, then implement screen-off tracking; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
 The previous physical-phone outdoor review of the web client is complete. Native tracking still needs its own physical-device validation.
 
 ## Mobile foundation
 
-The React Native/Expo app and local Android workflow are ready. The mobile app joins routes by code or pasted link, stores membership securely, restores the last route, and displays authenticated route/member snapshots with a native map, refresh, and retry. A separate connection screen checks shared API/database readiness. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Live viewing is implemented. Native location sharing and background tracking are not implemented. iOS is deferred until after Android.
+The React Native/Expo app and local Android workflow are ready. The mobile app joins routes by code or pasted link, stores membership securely, restores the last route, and displays authenticated route/member snapshots with a native map, refresh, and retry. A separate connection screen checks shared API/database readiness. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Live viewing and foreground native location sharing are implemented. Physical-phone validation of foreground sharing is pending; background tracking is not implemented. iOS is deferred until after Android.
 
 Validation on 2026-10-05:
 
@@ -48,7 +48,7 @@ Android snapshot map validation on 2026-10-05:
 | Task | State | Acceptance |
 |---|---|---|
 | Live viewing | Complete | Automatic location, member, and route updates; reconnect catch-up; foreground recovery; manual viewport preservation; closed archives stop live connections |
-| Foreground location sharing | Next | Android permission handling, Start/Stop sharing, accuracy and timestamp submissions, rejection feedback, and physical-phone verification with the app open |
+| Foreground location sharing | Implemented; physical review pending | Android permission handling, Start/Stop sharing, accuracy and timestamp submissions, rejection feedback, and physical-phone verification with the app open |
 | Screen-off tracking | Pending | Android background tracking and notification; physical-phone verification of screen locking, network recovery, stop/restart, and battery behavior |
 
 Live viewing validation on 2026-10-06:
@@ -58,6 +58,14 @@ Live viewing validation on 2026-10-06:
 - The Android 17/API 37 emulator displayed Live updates connected and rendered real accepted locations and paths without Refresh. Route edits appeared automatically. Returning from the background recovered an edit made while disconnected. A manually panned map retained Fit group after resync. Closing the route displayed its archive and stopped live viewing.
 - The disposable route was deleted; Android's invalid-access flow cleared its saved membership. The original saved route was restored. Metro and the emulator remain available for review.
 - This task adds JavaScript only and needs no APK rebuild. It does not capture device location or establish background tracking reliability.
+
+Foreground sharing validation on 2026-10-06:
+
+- TypeScript checking and all 53 mobile tests passed through Docker. New coverage includes payload metadata, permission denial, occupied slots, command IDs and acknowledgement/rejection/timeout, Stop cleanup, GPS feedback, network interruption, background recovery, delayed native subscriptions, permission-dialog lifecycle, and cancellation of initial GPS requests.
+- Installed Expo Location and upgraded Expo to `57.0.27` to satisfy the current Expo dependency check. Compatibility checking passed. Generated and built the native Android APK successfully, installed it on the emulator, and verified that its generated manifest contains coarse/fine location permissions without background location or foreground-service permissions.
+- Android runtime permission denial displayed retry guidance. Granting foreground precise access started sharing. Native emulator GPS samples reached the API with accuracy and client timestamps. Backgrounding retained the accepted-point count despite new emulator fixes and marked the member stale. Returning showed the recovery choices. Resume restored tracking; Stop changed the member to spectating and additional fixes produced no new accepted points.
+- The actual mobile sharing and viewing controllers ran against the real backend with a disposable membership. An inaccurate sample produced rejection feedback; a later valid sample cleared it. Confirmed Stop released tracking and removed capture.
+- Physical hardware was not connected. Outdoor precise/approximate permission behavior, movement, network recovery, and Stop remain required before marking foreground sharing fully validated. Screen-off tracking remains a separate unimplemented task.
 
 ## UI redesign
 
@@ -82,6 +90,7 @@ Validation reported by the owner on 2026-09-30:
 | Mobile starter, Android development build, Metro and browser debugging | [Mobile](../system/mobile.md), [Android workflow](../workflow/mobile-development.md) |
 | Mobile API health check, timeout, unavailable state, and retry | [Mobile](../system/mobile.md#shared-backend-integration) |
 | Android route joining, secure membership persistence, restored snapshots, and manual refresh | [Mobile](../system/mobile.md#saved-membership) |
+| Android foreground permission, Start/Stop sharing, native GPS metadata, and stale recovery | [Foreground sharing](../system/mobile.md#foreground-location-sharing) |
 | Android live viewing, automatic positions and lifecycle updates, reconnect and foreground catch-up | [Mobile live viewing](../system/mobile.md#live-viewing) |
 | Android native snapshot map, saved paths and markers, member focus, and Fit group | [Mobile map](../system/mobile.md#native-snapshot-map) |
 | Create/join, browser identity, authenticated snapshots | [Frontend](../system/frontend.md) |

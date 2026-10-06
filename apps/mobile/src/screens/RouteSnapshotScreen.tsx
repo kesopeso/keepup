@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { RouteMap } from '../components/RouteMap';
 import type { RouteMapRef } from '../components/RouteMap';
 import { snapshotGeometry } from '../map/snapshot-geometry';
 import { ActionButton, ErrorMessage, Screen, styles } from '../components/ui';
 import { createViewingSession, viewingSocketUrl } from '../live/viewing-session';
 import type { ViewingStatus } from '../live/viewing-session';
+import { createForegroundSharing } from '../location/foreground-sharing';
+import type { SharingState } from '../location/foreground-sharing';
+import { prepareLocation, requestLocationPermission, watchLocation } from '../location/native-location';
 import { getApiBaseUrl } from '../api/config';
 import { invalidMembership } from '../api/routes';
 import type { RoutesApi } from '../api/routes';
@@ -27,6 +30,8 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
   const [loading, setLoading] = useState(true);
   const [invalid, setInvalid] = useState(false);
   const [liveStatus, setLiveStatus] = useState<ViewingStatus>('connecting');
+  const [sharingState, setSharingState] = useState<SharingState>({ action: null, sharing: false, recovery: false, error: null, settings: false });
+  const sharing = useRef<ReturnType<typeof createForegroundSharing> | null>(null);
   const session = useRef<ReturnType<typeof createViewingSession> | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const map = useRef<RouteMapRef>(null);
@@ -34,11 +39,15 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
   const locatedMembers = useMemo(() => new Set(snapshot ? snapshotGeometry(snapshot).markers.features.map((feature) => feature.properties.memberId) : []), [snapshot]);
 
   useEffect(() => {
+    const capture = createForegroundSharing({ requestPermission: requestLocationPermission, prepare: prepareLocation, watch: watchLocation,
+      command: (type) => viewing.command(type), send: (payload) => viewing.sendPosition(payload), onState: setSharingState });
+    sharing.current = capture;
     const viewing = createViewingSession({
       url: viewingSocketUrl(getApiBaseUrl()), member,
       load: (signal) => loadMemberSnapshot(api, repository, member, signal),
-      onSnapshot: (result) => { setSnapshot(result); setUpdatedAt(new Date()); setLoading(false); },
-      onStatus: setLiveStatus,
+      onSnapshot: (result) => { capture.update(result); setSnapshot(result); setUpdatedAt(new Date()); setLoading(false); },
+      onStatus: (status) => { capture.connection(status); setLiveStatus(status); },
+      onLiveEvent: capture.event,
       onError: (message, rejected) => {
         setError(message); setInvalid(rejected); setLoading(false);
         if (rejected) setSnapshot(null);
@@ -48,7 +57,7 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
     session.current = viewing;
     viewing.setForeground(AppState.currentState === 'active');
     const subscription = AppState.addEventListener('change', (state) => viewing.setForeground(state === 'active'));
-    return () => { subscription.remove(); viewing.stop(); session.current = null; };
+    return () => { subscription.remove(); capture.dispose(); sharing.current = null; viewing.stop(); session.current = null; };
   }, [api, repository, member]);
 
   function refresh() {
@@ -67,6 +76,22 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
     })[liveStatus]}</Text>
     <ErrorMessage message={error} />
     {snapshot && <>
+      {snapshot.route.status === 'active' && <View style={styles.card}>
+        <Text style={styles.label}>{sharingState.recovery ? 'Continue sharing your location?' : 'Location sharing'}</Text>
+        <Text style={styles.text}>Keep KeepUp open to share your location. Leaving the app pauses GPS capture.</Text>
+        <ErrorMessage message={sharingState.error} />
+        {sharingState.settings && <ActionButton label="Open app settings" secondary onPress={() => {
+          void Linking.openSettings().catch(() => setSharingState((state) => ({ ...state, error: 'Could not open settings. Open KeepUp permissions from Android Settings.' })));
+        }} />}
+        {(snapshot.viewer.canStartSharing || sharingState.recovery) && !sharingState.sharing && <ActionButton
+          label={sharingState.action === 'start' ? 'Finding location…' : sharingState.recovery ? 'Resume sharing' : 'Start sharing location'}
+          disabled={liveStatus !== 'live' || !!sharingState.action} onPress={() => { void sharing.current?.start(); }} />}
+        {(snapshot.viewer.canStopSharing || sharingState.sharing || sharingState.recovery) && <ActionButton
+          label={sharingState.action === 'stop' ? 'Stopping…' : sharingState.recovery ? 'Continue as spectator' : 'Stop sharing location'}
+          disabled={!!sharingState.action || (liveStatus !== 'live' && !sharingState.sharing)} onPress={() => { void sharing.current?.stop(); }} />}
+        {!snapshot.viewer.canStartSharing && !snapshot.viewer.canStopSharing && <Text style={styles.text}>Location sharing is not available for your membership.</Text>}
+        {liveStatus !== 'live' && <Text style={styles.text}>Wait for the live connection to confirm sharing changes.</Text>}
+      </View>}
       <RouteMap ref={map} snapshot={snapshot} />
       <View style={styles.card}>
         <Text style={styles.label}>{snapshot.route.status === 'closed' ? 'Closed route · Archive' : 'Active route'}</Text>
@@ -94,7 +119,13 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
     </>}
     {invalid ? <ActionButton label="Join again" onPress={() => onChooseRoute(member.code, error ?? undefined)} /> :
       <ActionButton label={loading ? 'Loading…' : error ? 'Retry' : 'Refresh'} disabled={loading} onPress={refresh} />}
-    <ActionButton label="Join another route" secondary onPress={() => onChooseRoute()} />
+    <ActionButton label="Join another route" secondary disabled={!!sharingState.action || (sharingState.sharing && liveStatus !== 'live')}
+      onPress={() => { void (async () => {
+        if (sharingState.sharing || sharingState.recovery) {
+          if (!await sharing.current?.stop()) return;
+        }
+        onChooseRoute();
+      })(); }} />
   </Screen>;
 }
 

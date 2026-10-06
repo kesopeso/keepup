@@ -54,6 +54,7 @@ export function createViewingSession(options: {
   onStatus: (status: ViewingStatus) => void;
   onError: (message: string | null, invalid: boolean) => void;
   isInvalid: (error: unknown) => boolean;
+  onLiveEvent?: (event: Record<string, unknown>) => void;
   createSocket?: (url: string) => ViewingSocket;
   schedule?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
   cancel?: (timer: ReturnType<typeof setTimeout>) => void;
@@ -71,10 +72,17 @@ export function createViewingSession(options: {
   let dirty = false;
   let buffered: PositionEvent[] = [];
   let duplicate = false;
+  let commandSequence = 0;
+  const commands = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  function rejectCommands() {
+    for (const command of commands.values()) { cancel(command.timer); command.reject(new Error('Live connection interrupted. Reconnect and try again.')); }
+    commands.clear();
+  }
   let watchdog: ReturnType<typeof setTimeout> | null = null;
 
   function closeSocket() {
     established = false;
+    rejectCommands();
     if (watchdog) { cancel(watchdog); watchdog = null; }
     const previous = socket; socket = null; previous?.close();
   }
@@ -103,6 +111,16 @@ export function createViewingSession(options: {
       let event: unknown;
       try { event = JSON.parse(message.data); } catch { return; }
       if (!record(event)) return;
+      if ((event.type === 'command_ack' || event.type === 'command_rejected') && typeof event.requestId === 'string') {
+        const pending = commands.get(event.requestId);
+        if (pending) {
+          commands.delete(event.requestId); cancel(pending.timer);
+          if (event.type === 'command_ack') pending.resolve();
+          else pending.reject(new Error(typeof event.reason === 'string' ? event.reason : 'command_rejected'));
+          void refresh();
+        }
+      }
+      options.onLiveEvent?.(event);
       if (event.type === 'connection_established') {
         if (watchdog) cancel(watchdog); established = true; retry = 0;
         // Subscribe before fetching, so no updates can be lost between snapshot and socket.
@@ -129,7 +147,7 @@ export function createViewingSession(options: {
     next.addEventListener('close', (event) => {
       if (!current()) return;
       if (watchdog) { cancel(watchdog); watchdog = null; }
-      socket = null; established = false;
+      socket = null; established = false; rejectCommands();
       if (event.code === 1008 && !duplicate) void refresh();
       else retryLater();
     });
@@ -169,6 +187,27 @@ export function createViewingSession(options: {
   void refresh();
   return {
     refresh,
+    sendPosition(payload: Record<string, unknown>): boolean {
+      if (!active || !foreground || !established || !socket || snapshot?.route.status !== 'active') return false;
+      try { socket.send(JSON.stringify({ ...payload, type: 'position_update' })); return true; }
+      catch { closeSocket(); retryLater(); return false; }
+    },
+    command(type: 'start_sharing' | 'stop_sharing'): Promise<void> {
+      if (!active || !foreground || !established || !socket || snapshot?.route.status !== 'active') {
+        return Promise.reject(new Error('Wait for the live connection, then try again.'));
+      }
+      const requestId = `mobile-${++commandSequence}`;
+      return new Promise((resolve, reject) => {
+        const commandTimer = schedule(() => {
+          commands.delete(requestId);
+          reject(new Error('Sharing confirmation timed out. Check the route status and try again.'));
+          void refresh();
+        }, 10000);
+        commands.set(requestId, { resolve, reject, timer: commandTimer });
+        try { socket!.send(JSON.stringify({ type, requestId })); }
+        catch { closeSocket(); retryLater(); }
+      });
+    },
     setForeground(value: boolean) {
       if (!active || value === foreground) return;
       foreground = value;

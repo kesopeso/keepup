@@ -100,8 +100,8 @@ The owner selected Android development now, with iOS later. The starter, tooling
 The implementation checkpoints are:
 
 1. Live viewing, complete. Authenticate with saved membership, update paths and markers automatically, reflect membership and route changes, and recover missed events after reconnection. Preserve manual map positioning. Verify with a second client and an interrupted connection.
-2. Foreground location sharing, next. Request Android location permission, add Start/Stop sharing, and submit accuracy and client timestamps through the existing protocol. Show permission failures, GPS rejection feedback, and stale recovery. Verify on a physical phone with the app open.
+2. Foreground location sharing, implemented with physical review pending. Request Android location permission, add Start/Stop sharing, and submit accuracy and client timestamps through the existing protocol. Show permission failures, GPS rejection feedback, and stale recovery. Verify on a physical phone with the app open.
 3. Screen-off tracking, pending. Add Android background tracking and its persistent notification. Validate screen locking, permissions, network loss and recovery, and stop/restart on a physical phone. Record reliability and battery observations.
 4. Extend mobile product behavior using the shared product references; schedule iOS separately in the [backlog](backlog.md#planned-later).
 
-Each task is a separate implementation and validation checkpoint. Complete live viewing before starting location capture.
+Each task is a separate implementation and validation checkpoint. Live viewing is complete. Foreground sharing needs its physical-phone review before the tracking reliability claims are complete. Screen-off execution is the next implementation task.
