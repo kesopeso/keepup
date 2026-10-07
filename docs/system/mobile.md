@@ -45,6 +45,12 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 
 The Android application ID is `eu.kesopeso.keepup`. The native display name is `KeepUp` and the Expo slug is `keepup`. Mobile launcher and fallback icons use the established K4-10 Waypoint K identity from `assets/brand`. Android uses a transparent foreground padded for adaptive icon masks, a solid `#173023` background, and a monochrome themed icon. Icon exports live in `apps/mobile/assets`; native regeneration applies the name and assets from `app.json`. React Native screens use the KeepUp name and dark colors. `expo-system-ui` applies the configured light system interface style; screens set their own background and status-bar appearance.
 
+### App description and launch screen
+
+Expo configuration includes the description "Share your live location and follow your group along the route." This project metadata is separate from a future Google Play store listing.
+
+The `expo-splash-screen` config plugin renders the branded `assets/splash-icon.png` on the KeepUp dark green `#173023` background in light and dark modes. The splash image uses contain sizing with a configured width of 240. Android native regeneration applies these settings; review the standalone release APK because development-client splash behavior can differ. The app uses the module's default splash lifecycle without a custom loading delay.
+
 ### Live viewing
 
 Active routes connect to the existing `/ws` endpoint and authenticate with the saved member token in the first message. The token never appears in the URL. Closed archives do not connect. The screen shows connecting, connected, reconnecting, paused, and invalid-access states.

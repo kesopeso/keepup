@@ -87,10 +87,11 @@ Physical-phone development-build validation reported by the owner on 2026-10-07:
 Standalone Android release build prepared on 2026-10-07:
 
 - Docker Gradle `:app:assembleRelease -PreactNativeArchitectures=arm64-v8a` succeeded. The APK is `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, approximately 37.7 MiB, with bundled JavaScript and `https://keepup.kesopeso.eu/api` verified in the bundle. The production health endpoint returned `status: "ok"`.
-- APK signature verification and mobile TypeScript checking passed. Native libraries contain only `arm64-v8a`; package/version are `eu.kesopeso.keepup`, `1.0.0`, version code 1. SHA-256 is `1e3451b9609df171eab5e6491d4ada5eea90cb64962acfa2cf8b9de566973521`.
+- APK signature verification and mobile TypeScript checking passed. Native libraries contain only `arm64-v8a`; package/version are `eu.kesopeso.keepup`, `1.0.0`, version code 1. SHA-256 is `005c0d26d8fccd21aab016cedc9ac352aa88381b40eaa4237d31f2544cbe2186`.
 - The generated release configuration uses the development signing key. This standalone release build is for the owner's outdoor validation; dedicated release signing remains required for public distribution. See the [build and installation workflow](../workflow/mobile-development.md#standalone-android-release-build-for-outdoor-testing).
 - Rebuilt successfully after applying the KeepUp display name and K4-10 launcher/fallback/themed icons. APK metadata confirms the KeepUp label; generated adaptive icon resources use the branded foreground and `#173023` background. Signature, embedded production URL, and ARM64 libraries were reverified.
-- Release installation, standalone launch, launcher appearance on the phone, and outdoor observations remain pending.
+- Added the Expo description and `expo-splash-screen` launch screen using the KeepUp logo on `#173023` in light/dark modes. Expo compatibility and TypeScript checks passed; native regeneration and the ARM64 release rebuild succeeded. Generated Android splash theme, logo, and both background color resources were inspected; APK signature and production API URL were reverified.
+- Release installation, standalone launch, launcher and launch-screen appearance on the phone, and outdoor observations remain pending.
 
 ## UI redesign
 

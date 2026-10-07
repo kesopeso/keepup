@@ -36,7 +36,20 @@
           "isAndroidBackgroundLocationEnabled": false,
           "isAndroidForegroundServiceEnabled": true
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 240,
+          "resizeMode": "contain",
+          "backgroundColor": "#173023",
+          "dark": {
+            "backgroundColor": "#173023"
+          }
+        }
       ]
-    ]
+    ],
+    "description": "Share your live location and follow your group along the route."
   }
 }
