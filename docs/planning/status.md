@@ -7,13 +7,13 @@ status: active
 
 ## Immediate next step
 
-Foreground and screen-off location sharing are implemented. The owner confirmed successful development-build testing on a USB-connected Samsung phone. A standalone ARM64 release APK configured for the production HTTPS API is built and verified. Next, install it and validate both outdoors without USB, Metro, or a debugger and record screen-lock, network-recovery, Stop/restart, and battery observations; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
+Implement route creation directly in Android, then owner controls to edit, close, and delete routes using the shared product rules and API. See the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
-The previous physical-phone outdoor review of the web client is complete. Native tracking still needs its own physical-device validation.
+The owner reported successful outdoor testing of the standalone production-connected Android build on 2026-10-07. The foreground and screen-off tracking physical-review checkpoints are complete on that report; detailed duration, network-recovery, and battery measurements were not supplied.
 
 ## Mobile foundation
 
-The React Native/Expo app and local Android workflow are ready. The mobile app joins routes by code or pasted link, stores membership securely, restores the last route, and displays authenticated route/member snapshots with a native map, refresh, and retry. A separate connection screen checks shared API/database readiness. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Live viewing and foreground native location sharing are implemented. Physical-phone validation of foreground sharing is pending; screen-off tracking is implemented with physical review pending. iOS is deferred until after Android.
+The React Native/Expo app and local Android workflow are ready. The mobile app joins routes by code or pasted link, stores membership securely, restores the last route, and displays authenticated route/member snapshots with a native map, refresh, and retry. A separate connection screen checks shared API/database readiness. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Live viewing and foreground native location sharing are implemented. The owner reported successful physical-phone outdoor validation of foreground and screen-off sharing on 2026-10-07. iOS is deferred until after Android.
 
 Validation on 2026-10-05:
 
@@ -48,8 +48,10 @@ Android snapshot map validation on 2026-10-05:
 | Task | State | Acceptance |
 |---|---|---|
 | Live viewing | Complete | Automatic location, member, and route updates; reconnect catch-up; foreground recovery; manual viewport preservation; closed archives stop live connections |
-| Foreground location sharing | Implemented; physical review pending | Android permission handling, Start/Stop sharing, accuracy and timestamp submissions, rejection feedback, and physical-phone verification with the app open |
-| Screen-off tracking | Implemented; physical review pending | Android background tracking and notification; physical-phone verification of screen locking, network recovery, stop/restart, and battery behavior |
+| Foreground location sharing | Complete; owner-reported outdoor validation | Android permission handling, Start/Stop sharing, accuracy and timestamp submissions, rejection feedback, and physical-phone verification with the app open |
+| Screen-off tracking | Complete; owner-reported outdoor validation | Android background tracking and notification; physical-phone verification of screen locking, network recovery, stop/restart, and battery behavior |
+| Android route creation | Next | Create a route using the shared product/API contract, retain owner/member access securely, and open its route screen |
+| Android owner controls | Planned after route creation | Owner-only editing, closing, and deletion with shared confirmation rules and correct archive/deleted-access handling |
 
 Live viewing validation on 2026-10-06:
 
@@ -91,7 +93,13 @@ Standalone Android release build prepared on 2026-10-07:
 - The generated release configuration uses the development signing key. This standalone release build is for the owner's outdoor validation; dedicated release signing remains required for public distribution. See the [build and installation workflow](../workflow/mobile-development.md#standalone-android-release-build-for-outdoor-testing).
 - Rebuilt successfully after applying the KeepUp display name and K4-10 launcher/fallback/themed icons. APK metadata confirms the KeepUp label; generated adaptive icon resources use the branded foreground and `#173023` background. Signature, embedded production URL, and ARM64 libraries were reverified.
 - Added the Expo description and `expo-splash-screen` launch screen using the KeepUp logo on `#173023` in light/dark modes. Expo compatibility and TypeScript checks passed; native regeneration and the ARM64 release rebuild succeeded. Generated Android splash theme, logo, and both background color resources were inspected; APK signature and production API URL were reverified.
-- Release installation, standalone launch, launcher and launch-screen appearance on the phone, and outdoor observations remain pending.
+- Outdoor testing was pending at this build checkpoint; see the subsequent owner-reported result below. Launcher and launch-screen appearance were not separately reported.
+
+Physical-phone outdoor validation reported by the owner on 2026-10-07:
+
+- The owner reported that outdoor testing was successful after preparation of the standalone production-connected release APK. This completes the planned physical-review checkpoints for foreground and screen-off tracking on the owner's report.
+- The test used the owner's Samsung phone from the preceding installation workflow. Android version, elapsed screen-lock duration, individual network-recovery/Stop/restart results, battery restrictions, and measured battery change were not supplied; no per-scenario measurements are inferred from the overall success report.
+- The owner selected Android route creation as the next implementation task, followed by owner controls to edit, close, and delete routes. These remain planned, not implemented.
 
 ## UI redesign
 
