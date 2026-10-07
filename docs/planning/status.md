@@ -7,7 +7,7 @@ status: active
 
 ## Immediate next step
 
-Foreground and screen-off location sharing are implemented. Next, validate both outdoors on a physical Android phone and record screen-lock, network-recovery, Stop/restart, and battery observations; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
+Foreground and screen-off location sharing are implemented. The owner confirmed successful development-build testing on a USB-connected Samsung phone. Next, prepare and install a standalone production/release Android build configured for the production HTTPS API, then validate both outdoors without USB, Metro, or a debugger and record screen-lock, network-recovery, Stop/restart, and battery observations; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
 The previous physical-phone outdoor review of the web client is complete. Native tracking still needs its own physical-device validation.
 
@@ -76,6 +76,13 @@ Screen-off sharing validation on 2026-10-07:
 - With the screen asleep, a 50-second emulator network outage left accepted history unchanged at 55 points and marked the member stale. Restoring connectivity recovered tracking and accepted new points without waking the activity. Tapping the ongoing notification returned to the route controls. Stop returned the member to spectating, removed the foreground notification, and left the accepted-point count at 64 after another locked-screen fix. Restart accepted new points. Closing the route while locked removed the service and notification; returning displayed its archive.
 - Deleted the disposable route and cleared its Android saved access through the invalid-membership flow. Restored the original saved route. Metro, the emulator, and the backend remain available.
 - Physical hardware was not connected. Outdoor GPS reliability, longer screen-lock periods, manufacturer battery restrictions, and measured battery use remain pending. Follow the [screen-off review](../workflow/mobile-development.md#screen-off-sharing-review) and record the device and observations before closing this checkpoint.
+
+Physical-phone development-build validation reported by the owner on 2026-10-07:
+
+- The owner confirmed that everything works on the Samsung phone connected by USB after installing the development build and configuring the reachable computer API address.
+- The phone was described as a Galaxy S21; ADB reports model `SM_G996B`, the Galaxy S21+. The emulator-only `x86_64` APK could not install; rebuilding for the selected physical device resolved the architecture mismatch. Expo device selection uses the device name or the interactive `--device` picker, rather than the ADB serial.
+- This records the owner's successful connected development test. No individual outdoor, screen-lock duration, network-recovery, or battery measurements were reported, and the Android version was not recorded.
+- Next, use a standalone production/release ARM build with the production HTTPS API. Perform the [foreground review](../workflow/mobile-development.md#foreground-sharing-review) and [screen-off review](../workflow/mobile-development.md#screen-off-sharing-review) outdoors without USB, Metro, or a debugger. Record device/Android version, permissions, battery restrictions, duration, battery change, and any update gaps before closing the tracking checkpoints.
 
 ## UI redesign
 
