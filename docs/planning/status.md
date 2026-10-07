@@ -7,7 +7,7 @@ status: active
 
 ## Immediate next step
 
-Foreground and screen-off location sharing are implemented. The owner confirmed successful development-build testing on a USB-connected Samsung phone. Next, prepare and install a standalone production/release Android build configured for the production HTTPS API, then validate both outdoors without USB, Metro, or a debugger and record screen-lock, network-recovery, Stop/restart, and battery observations; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
+Foreground and screen-off location sharing are implemented. The owner confirmed successful development-build testing on a USB-connected Samsung phone. A standalone ARM64 release APK configured for the production HTTPS API is built and verified. Next, install it and validate both outdoors without USB, Metro, or a debugger and record screen-lock, network-recovery, Stop/restart, and battery observations; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
 The previous physical-phone outdoor review of the web client is complete. Native tracking still needs its own physical-device validation.
 
@@ -83,6 +83,14 @@ Physical-phone development-build validation reported by the owner on 2026-10-07:
 - The phone was described as a Galaxy S21; ADB reports model `SM_G996B`, the Galaxy S21+. The emulator-only `x86_64` APK could not install; rebuilding for the selected physical device resolved the architecture mismatch. Expo device selection uses the device name or the interactive `--device` picker, rather than the ADB serial.
 - This records the owner's successful connected development test. No individual outdoor, screen-lock duration, network-recovery, or battery measurements were reported, and the Android version was not recorded.
 - Next, use a standalone production/release ARM build with the production HTTPS API. Perform the [foreground review](../workflow/mobile-development.md#foreground-sharing-review) and [screen-off review](../workflow/mobile-development.md#screen-off-sharing-review) outdoors without USB, Metro, or a debugger. Record device/Android version, permissions, battery restrictions, duration, battery change, and any update gaps before closing the tracking checkpoints.
+
+Standalone Android release build prepared on 2026-10-07:
+
+- Docker Gradle `:app:assembleRelease -PreactNativeArchitectures=arm64-v8a` succeeded. The APK is `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`, approximately 37.7 MiB, with bundled JavaScript and `https://keepup.kesopeso.eu/api` verified in the bundle. The production health endpoint returned `status: "ok"`.
+- APK signature verification and mobile TypeScript checking passed. Native libraries contain only `arm64-v8a`; package/version are `eu.kesopeso.keepup`, `1.0.0`, version code 1. SHA-256 is `1e3451b9609df171eab5e6491d4ada5eea90cb64962acfa2cf8b9de566973521`.
+- The generated release configuration uses the development signing key. This standalone release build is for the owner's outdoor validation; dedicated release signing remains required for public distribution. See the [build and installation workflow](../workflow/mobile-development.md#standalone-android-release-build-for-outdoor-testing).
+- Rebuilt successfully after applying the KeepUp display name and K4-10 launcher/fallback/themed icons. APK metadata confirms the KeepUp label; generated adaptive icon resources use the branded foreground and `#173023` background. Signature, embedded production URL, and ARM64 libraries were reverified.
+- Release installation, standalone launch, launcher appearance on the phone, and outdoor observations remain pending.
 
 ## UI redesign
 

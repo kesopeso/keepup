@@ -43,7 +43,7 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 | [app.json](../../apps/mobile/app.json) | Expo configuration, native identity, icons, theme, and config plugins |
 | [pnpm workspace](../../pnpm-workspace.yaml) and [lockfile](../../pnpm-lock.yaml) | Workspace membership and resolved dependencies |
 
-The Android application ID is `eu.kesopeso.keepup`. The native display name and Expo slug remain `mobile`; native icons still use the starter assets. React Native screens use the KeepUp name and dark colors. `expo-system-ui` applies the configured light system interface style; screens set their own background and status-bar appearance.
+The Android application ID is `eu.kesopeso.keepup`. The native display name is `KeepUp` and the Expo slug is `keepup`. Mobile launcher and fallback icons use the established K4-10 Waypoint K identity from `assets/brand`. Android uses a transparent foreground padded for adaptive icon masks, a solid `#173023` background, and a monochrome themed icon. Icon exports live in `apps/mobile/assets`; native regeneration applies the name and assets from `app.json`. React Native screens use the KeepUp name and dark colors. `expo-system-ui` applies the configured light system interface style; screens set their own background and status-bar appearance.
 
 ### Live viewing
 

@@ -92,6 +92,33 @@ After changing native dependencies or app configuration, regenerate before rebui
 
 `--clean` replaces the generated Android directory. Keep changes that must survive in app configuration or config plugins.
 
+### Standalone Android release build for outdoor testing
+
+Build from the repository root through Docker. This bundles JavaScript into an ARM64 release APK and uses the production HTTPS API without Metro. The explicit environment and disabled dotenv loading prevent a local development API address from entering the bundle.
+
+```sh
+docker compose run --rm \
+  -e EXPO_PUBLIC_API_URL=https://keepup.kesopeso.eu/api \
+  -e NODE_ENV=production \
+  -e EXPO_NO_DOTENV=1 \
+  mobile-helper sh -c 'cd apps/mobile/android && ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a'
+```
+
+The generated Android project must exist from the normal development setup. The APK is `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`. ARM64 supports the owner's Samsung phone; the emulator's x86_64 development APK cannot install on it.
+
+The generated Gradle configuration currently signs release builds with `debug.keystore`. This release variant is suitable for the owner's standalone outdoor validation. Public distribution requires a dedicated private release signing key and persistent configuration that survives Expo native regeneration.
+
+Connect the unlocked phone by USB, enable USB debugging, and accept its authorization prompt. Run `~/Android/Sdk/platform-tools/adb devices` to find its serial, then install:
+
+```sh
+~/Android/Sdk/platform-tools/adb -s PHONE_SERIAL install -r \
+  apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+```
+
+Replace `PHONE_SERIAL` with the connected phone's serial. If Android reports incompatible signing keys, uninstall the previous app before installing; uninstalling clears saved memberships. Expo's `--device` argument selects by name, whereas ADB's `-s` selects by serial. For a development rebuild, use `./bin/mobile-pnpm.sh exec expo run:android --device --no-bundler` and select the phone interactively.
+
+Open the app named KeepUp, join a disposable route created on the production website, and confirm another client sees its location. Disconnect USB and stop Metro, then reopen the app over cellular data to confirm the standalone setup before going outdoors. Follow the foreground and screen-off review below; record observations in delivery status.
+
 ### Daily development
 
 Once the APK is installed, JavaScript/TypeScript work needs only Metro:
