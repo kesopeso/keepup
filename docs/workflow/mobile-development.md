@@ -150,7 +150,7 @@ The snapshot map adds `@maplibre/maplibre-react-native` and its Expo config plug
 
 Join a route with saved locations from the web client, then Refresh in Android to see its paths and last-known markers. Pan or zoom to reveal Fit group. Refresh must preserve that manual view, and Fit group must fit the whole history and hide again. Tap a marker or a located member row to focus their history and read the location timestamp. Empty routes display an explanatory message; closed archives use the same map. A failed map load offers Retry map while route controls remain usable.
 
-Active routes receive new positions automatically while Live updates connected is displayed. Start sharing location requests foreground permission and sends GPS data while KeepUp remains open. Geometry tests cover separate segments, latest-point selection, missing/invalid coordinates, and antimeridian bounds. Basemap configuration and attribution are owned by the [native map reference](../system/mobile.md#native-snapshot-map).
+Active routes receive new positions automatically while Live updates connected is displayed. Start sharing location requests permission and sends GPS data, including while the screen is locked on Android. Geometry tests cover separate segments, latest-point selection, missing/invalid coordinates, and antimeridian bounds. Basemap configuration and attribution are owned by the [native map reference](../system/mobile.md#native-snapshot-map).
 
 ### Live viewing review
 
@@ -158,7 +158,7 @@ Live viewing is a JavaScript change. Start the backend, emulator, and `make mobi
 
 Pan the Android map, then receive another update. The map should retain its manual position and Fit group should remain available. Background Android, change the route from the other client, and return. The app should fetch missed state and reconnect. Interrupt its network connection to check the reconnect indicator and snapshot catch-up. Closed archives stop the socket. Refresh remains available for manual retries.
 
-Use separate memberships for simultaneous clients. The server permits one live connection per membership. Foreground sharing adds Android location permission separately. Screen-off sharing is still unimplemented.
+Use separate memberships for simultaneous clients. The server permits one live connection per membership. Foreground sharing adds Android location permission separately. Screen-off sharing needs the rebuilt APK and review below.
 
 ### Foreground sharing review
 
@@ -166,12 +166,27 @@ This change adds `expo-location`, its config plugin, and the Expo patch required
 
 Join a disposable route, tap Start sharing location, and select precise location while using the app. Deny once to check the retry guidance. If permission is blocked, use Open app settings. Device Location must be on. Finding the first fix can take fifteen seconds; after that, failed attempts show guidance instead of occupying a tracking slot.
 
-Verify the Android member becomes Sharing location and its points appear in another client's map. Tap Stop sharing location, then move and confirm no new points are stored. Background the app while sharing, move again, and return. Native capture should stop in the background, and Resume sharing / Continue as spectator should appear on return. Check both choices. Disconnect the network while the app remains open to test stale recovery; Stop while disconnected must cancel local sharing intent.
+Verify the Android member becomes Sharing location and its points appear in another client's map. Tap Stop sharing location, then move and confirm no new points are stored. Force-stop the app while sharing, then reopen it. Resume sharing / Continue as spectator should appear if the member is still tracking or stale. Check both choices. Ordinary backgrounding now continues Android sharing; review it below. Disconnect the network while the app remains open to test stale recovery; Stop while disconnected must cancel local sharing intent.
 
 For emulator GPS, send a fix from Android Studio Extended Controls > Location, or use the host SDK's `adb emu geo fix <longitude> <latitude>`. Send additional fixes after the location watcher starts. Emulator checks establish permission and protocol behavior; they do not replace an outdoor physical-phone review. Record precise/approximate permission behavior, actual movement, network loss/recovery, and Stop on a physical phone before closing this checkpoint.
 
+### Screen-off sharing review
+
+Install dependencies, regenerate Android, and rebuild the APK using [build and install](#build-and-install). This adds Expo TaskManager and location foreground-service, notification, and job-scheduler permissions. Metro alone is insufficient. Keep the app installed to preserve membership. After editing task registration or its dependencies during development, fully reload or force-stop/reopen the app before reviewing tracking. Fast Refresh can retain callbacks from the previous task registration.
+
+1. Join a disposable route with another member watching from the web. Start sharing while KeepUp is visible. Allow precise location while using the app and notifications. Deny notifications once to verify settings guidance and that sharing does not start. Wait for sharing to start before locking the screen.
+2. Confirm the KeepUp location-sharing notification appears. Lock the screen, move for at least ten minutes, and confirm the other client receives new positions throughout. Tap the notification to return to KeepUp. The map should catch up without a Resume prompt while the existing session is healthy.
+3. While locked, interrupt network access briefly, then restore it. Confirm the member becomes stale and recovers from fresh fixes without uploading the disconnected path. Repeat with an interruption longer than the server's five-minute stale timeout; if the server ended tracking, explicitly Resume from the app.
+4. Stop sharing, lock the screen, and move. Confirm the notification disappears and no new points arrive. Restart sharing and repeat. Stop during a disconnection must also stop local capture, with spectator confirmation deferred until reconnect.
+5. Force-stop and reopen KeepUp. It must not silently resume capture. Check Resume and Continue as spectator. Also test disabled Location, revoked permissions, route closure, and route deletion during sharing.
+6. On a physical phone, record model, Android version, precise/approximate permission choice, battery restrictions, elapsed time, battery percentage before/after, and any update gaps. Compare a similar idle period. Test without a connected debugger and with the intended release build before claiming production reliability.
+
+Emulator fixes use `adb emu geo fix <longitude> <latitude>` from the host SDK. ADB can lock with `adb shell input keyevent 223` and wake with keyevent `224`. Keep physical-device findings in [delivery status](../planning/status.md#android-implementation-checkpoints). The app uses a five-second minimum location interval; Android scheduling and GPS conditions can delay delivery.
+
 ### Troubleshooting
 
+- **Cannot find native module ExpoTaskManager:** install dependencies, regenerate, and rebuild the APK.
+- **Sharing notification is missing:** enable KeepUp notifications in Android settings and restart sharing.
 - **Cannot find native module ExpoLocation:** regenerate and rebuild the development APK after installing the foreground-sharing dependencies. Reopen the development session with the existing Metro launcher.
 - **Location is rejected for accuracy:** enable precise location and try outdoors. Rejections leave sharing active while waiting for a better fix; an accepted fix clears the location error.
 - **Connection screen reports unavailable:** confirm `docker compose up -d` has started the backend stack, then tap Retry. Connected shows the last check result; use Check again to refresh it.

@@ -7,13 +7,13 @@ status: active
 
 ## Immediate next step
 
-Foreground location sharing is implemented with emulator and backend verification. Next, validate it outdoors on a physical Android phone, then implement screen-off tracking; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
+Foreground and screen-off location sharing are implemented. Next, validate both outdoors on a physical Android phone and record screen-lock, network-recovery, Stop/restart, and battery observations; see the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
 The previous physical-phone outdoor review of the web client is complete. Native tracking still needs its own physical-device validation.
 
 ## Mobile foundation
 
-The React Native/Expo app and local Android workflow are ready. The mobile app joins routes by code or pasted link, stores membership securely, restores the last route, and displays authenticated route/member snapshots with a native map, refresh, and retry. A separate connection screen checks shared API/database readiness. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Live viewing and foreground native location sharing are implemented. Physical-phone validation of foreground sharing is pending; background tracking is not implemented. iOS is deferred until after Android.
+The React Native/Expo app and local Android workflow are ready. The mobile app joins routes by code or pasted link, stores membership securely, restores the last route, and displays authenticated route/member snapshots with a native map, refresh, and retry. A separate connection screen checks shared API/database readiness. Implementation boundaries are owned by [mobile](../system/mobile.md); commands and debugging by the [Android workflow](../workflow/mobile-development.md). Live viewing and foreground native location sharing are implemented. Physical-phone validation of foreground sharing is pending; screen-off tracking is implemented with physical review pending. iOS is deferred until after Android.
 
 Validation on 2026-10-05:
 
@@ -49,7 +49,7 @@ Android snapshot map validation on 2026-10-05:
 |---|---|---|
 | Live viewing | Complete | Automatic location, member, and route updates; reconnect catch-up; foreground recovery; manual viewport preservation; closed archives stop live connections |
 | Foreground location sharing | Implemented; physical review pending | Android permission handling, Start/Stop sharing, accuracy and timestamp submissions, rejection feedback, and physical-phone verification with the app open |
-| Screen-off tracking | Pending | Android background tracking and notification; physical-phone verification of screen locking, network recovery, stop/restart, and battery behavior |
+| Screen-off tracking | Implemented; physical review pending | Android background tracking and notification; physical-phone verification of screen locking, network recovery, stop/restart, and battery behavior |
 
 Live viewing validation on 2026-10-06:
 
@@ -65,7 +65,17 @@ Foreground sharing validation on 2026-10-06:
 - Installed Expo Location and upgraded Expo to `57.0.27` to satisfy the current Expo dependency check. Compatibility checking passed. Generated and built the native Android APK successfully, installed it on the emulator, and verified that its generated manifest contains coarse/fine location permissions without background location or foreground-service permissions.
 - Android runtime permission denial displayed retry guidance. Granting foreground precise access started sharing. Native emulator GPS samples reached the API with accuracy and client timestamps. Backgrounding retained the accepted-point count despite new emulator fixes and marked the member stale. Returning showed the recovery choices. Resume restored tracking; Stop changed the member to spectating and additional fixes produced no new accepted points.
 - The actual mobile sharing and viewing controllers ran against the real backend with a disposable membership. An inaccurate sample produced rejection feedback; a later valid sample cleared it. Confirmed Stop released tracking and removed capture.
-- Physical hardware was not connected. Outdoor precise/approximate permission behavior, movement, network recovery, and Stop remain required before marking foreground sharing fully validated. Screen-off tracking remains a separate unimplemented task.
+- Physical hardware was not connected. Outdoor precise/approximate permission behavior, movement, network recovery, and Stop remain required before marking foreground sharing fully validated. Screen-off tracking was still unimplemented at this checkpoint; see the following validation record.
+
+Screen-off sharing validation on 2026-10-07:
+
+- TypeScript checking, Expo dependency compatibility, and all 68 mobile tests passed through Docker. Added coverage includes screen-lock connection retention, native task ownership and serialized cleanup, delayed/offline samples, stopped/invalid/archived sessions, and recovery when JavaScript timers or socket close events do not fire.
+- Regenerated Android and successfully built and installed the APK with Expo TaskManager. Native verification exposed the job scheduler's `RECEIVE_BOOT_COMPLETED` requirement; app configuration now includes it alongside foreground-service/location and notification permissions. Background location permission remains disabled.
+- Notification denial prevented sharing and displayed settings guidance. With notification permission, Android reported an active location foreground service with an ongoing notification. A fresh app runtime delivered new accepted points while the device reported `Asleep`.
+- Emulator recovery exposed obsolete API presence timers. WebSocket regression tests reproduced a recovered stale member being marked offline. The fix cancels recovered-session timers and prior disconnect timers; the full API race/PostGIS suite, Go vet, and golangci-lint passed.
+- With the screen asleep, a 50-second emulator network outage left accepted history unchanged at 55 points and marked the member stale. Restoring connectivity recovered tracking and accepted new points without waking the activity. Tapping the ongoing notification returned to the route controls. Stop returned the member to spectating, removed the foreground notification, and left the accepted-point count at 64 after another locked-screen fix. Restart accepted new points. Closing the route while locked removed the service and notification; returning displayed its archive.
+- Deleted the disposable route and cleared its Android saved access through the invalid-membership flow. Restored the original saved route. Metro, the emulator, and the backend remain available.
+- Physical hardware was not connected. Outdoor GPS reliability, longer screen-lock periods, manufacturer battery restrictions, and measured battery use remain pending. Follow the [screen-off review](../workflow/mobile-development.md#screen-off-sharing-review) and record the device and observations before closing this checkpoint.
 
 ## UI redesign
 
@@ -90,6 +100,7 @@ Validation reported by the owner on 2026-09-30:
 | Mobile starter, Android development build, Metro and browser debugging | [Mobile](../system/mobile.md), [Android workflow](../workflow/mobile-development.md) |
 | Mobile API health check, timeout, unavailable state, and retry | [Mobile](../system/mobile.md#shared-backend-integration) |
 | Android route joining, secure membership persistence, restored snapshots, and manual refresh | [Mobile](../system/mobile.md#saved-membership) |
+| Android screen-off tracking and ongoing notification | [Screen-off tracking](../system/mobile.md#screen-off-tracking) |
 | Android foreground permission, Start/Stop sharing, native GPS metadata, and stale recovery | [Foreground sharing](../system/mobile.md#foreground-location-sharing) |
 | Android live viewing, automatic positions and lifecycle updates, reconnect and foreground catch-up | [Mobile live viewing](../system/mobile.md#live-viewing) |
 | Android native snapshot map, saved paths and markers, member focus, and Fit group | [Mobile map](../system/mobile.md#native-snapshot-map) |

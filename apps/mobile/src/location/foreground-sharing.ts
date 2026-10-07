@@ -43,6 +43,8 @@ export function positionPayload(sample: LocationSample): Record<string, unknown>
 }
 
 export function createForegroundSharing(options: {
+  keepWatchOnDisconnect?: boolean;
+  wake?: () => void;
   requestPermission?: () => Promise<void>;
   prepare: (signal: AbortSignal) => Promise<LocationSample>;
   watch: (sample: (value: LocationSample) => void, error: (message: string) => void) => Promise<{ remove: () => void }>;
@@ -59,6 +61,7 @@ export function createForegroundSharing(options: {
   let watching = false;
   let first: LocationSample | null = null;
   let lastTimestamp = 0;
+  let connectedSince = 0;
   let preparing: AbortController | null = null;
   let permissionPending = false;
   let resume: (() => void) | null = null;
@@ -79,7 +82,9 @@ export function createForegroundSharing(options: {
   }
   function stopWatch() { version++; preparing?.abort(); preparing = null; watch?.remove(); watch = null; watching = false; lastTimestamp = 0; }
   function sample(value: LocationSample) {
+    if (active && intent) options.wake?.();
     if (!active || !intent || live !== 'live' || !snapshot || !['tracking', 'stale'].includes(snapshot.viewer.status)) return;
+    if (options.keepWatchOnDisconnect && value.timestamp < connectedSince) return;
     const payload = positionPayload(value);
     if (!payload) { publish({ error: 'Your phone supplied an unusable GPS fix. Waiting for a valid location.' }); return; }
     if (value.timestamp <= lastTimestamp) return;
@@ -88,7 +93,10 @@ export function createForegroundSharing(options: {
   function reconcile() {
     const canCapture = active && intent && live === 'live' && snapshot?.route.status === 'active' &&
       ['tracking', 'stale'].includes(snapshot.viewer.status);
-    if (!canCapture) { if (watching) stopWatch(); return; }
+    if (!canCapture) {
+      if (watching && !(options.keepWatchOnDisconnect && active && intent && snapshot?.route.status === 'active')) stopWatch();
+      return;
+    }
     if (watching) return;
     watching = true;
     const generation = version;
@@ -159,6 +167,7 @@ export function createForegroundSharing(options: {
       reconcile();
     },
     connection(status: ViewingStatus) {
+      if (status === 'live' && live !== 'live') connectedSince = Date.now();
       live = status;
       if (status === 'paused' && permissionPending) {
         // Android's runtime permission dialog pauses the activity. Wait for foreground before obtaining GPS.
@@ -168,7 +177,7 @@ export function createForegroundSharing(options: {
       if (status === 'paused' || status === 'invalid' || status === 'archive') {
         cancelResume?.();
         intent = false; first = null; stopWatch(); publish({ action: null });
-      } else if (status !== 'live' && watching) stopWatch();
+      } else if (status !== 'live' && watching && !options.keepWatchOnDisconnect) stopWatch();
       reconcile();
     },
     event(event: Record<string, unknown>) {

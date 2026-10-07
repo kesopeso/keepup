@@ -15,14 +15,14 @@ class Socket {
   emit(type, value) { for (const callback of this.listeners[type] ?? []) callback(value); }
   message(value) { this.emit('message', { data: JSON.stringify(value) }); }
 }
-function harness(t, load = async () => base()) {
+function harness(t, load = async () => base(), extra = {}) {
   const sockets = [], snapshots = [], statuses = [], errors = [], timers = [];
   const session = createViewingSession({ url: 'ws://localhost/ws', member, load,
     createSocket: () => { const socket = new Socket(); sockets.push(socket); return socket; },
     onSnapshot: (value) => snapshots.push(value), onStatus: (value) => statuses.push(value),
     onError: (message, invalid) => errors.push({ message, invalid }), isInvalid: (error) => error.invalid === true,
     schedule: (callback, delay) => { const timer = { callback, delay }; timers.push(timer); return timer; },
-    cancel: (timer) => { timer.cancelled = true; },
+    cancel: (timer) => { timer.cancelled = true; }, ...extra,
   });
   t.after(() => session.stop());
   return { session, sockets, snapshots, statuses, errors, timers };
@@ -132,4 +132,51 @@ test('command timeouts and socket closure reject pending actions; paused session
   await assert.rejects(stopping, /interrupted/);
   assert.equal(h.session.sendPosition({ latitude: 46, longitude: 14 }), false);
   h.session.setForeground(false); assert.equal(h.session.sendPosition({ latitude: 46, longitude: 14 }), false);
+});
+
+test('explicit sharing keeps one socket across screen locking and refreshes on return', async t => {
+  const h = harness(t); await established(h); h.session.setBackgroundSharing(true);
+  h.session.setForeground(false); assert.equal(h.sockets[0].closed, false);
+  assert.equal(h.session.sendPosition({ latitude: 46 }), true);
+  h.sockets[0].message(position()); assert.equal(h.snapshots.at(-1).members[0].paths[0].points.length, 1);
+  h.session.setForeground(true); await flush(); assert.equal(h.sockets.length, 1);
+  h.session.setForeground(false); h.session.setBackgroundSharing(false);
+  assert.equal(h.sockets[0].closed, true); assert.equal(h.statuses.at(-1), 'paused');
+  assert.equal(h.session.sendPosition({}), false);
+});
+test('screen-off network recovery authenticates a replacement socket and catches up', async t => {
+  const h = harness(t); await established(h); h.session.setBackgroundSharing(true); h.session.setForeground(false);
+  h.sockets[0].emit('close', { code: 1006 });
+  const retry = h.timers.find(timer => !timer.cancelled && timer.delay === 1000); assert.ok(retry);
+  retry.callback(); await established(h); assert.equal(h.sockets.length, 2);
+  assert.equal(h.statuses.at(-1), 'live'); assert.equal(h.session.sendPosition({}), true);
+});
+
+test('native location wake drives due background reconnect even when JS timers never fire', async t => {
+  let now = 1000; const h = harness(t, async () => base(), { now: () => now }); await established(h);
+  h.session.setBackgroundSharing(true); h.session.setForeground(false);
+  h.sockets[0].emit('close', { code: 1006 }); h.session.wake(); await flush(); assert.equal(h.sockets.length, 1);
+  now += 1001; h.session.wake(); await established(h); assert.equal(h.sockets.length, 2);
+  assert.equal(h.statuses.at(-1), 'live');
+});
+test('native wake expires a silent authentication attempt without a JS watchdog callback', async t => {
+  let now = 0; const h = harness(t, async () => base(), { now: () => now }); await flush();
+  h.session.setBackgroundSharing(true); h.session.setForeground(false);
+  now = 10001; h.session.wake(); assert.equal(h.sockets[0].closed, true);
+  now += 1001; h.session.wake(); await established(h); assert.equal(h.statuses.at(-1), 'live');
+});
+test('native wake aborts a stalled background snapshot before attempting reconnection', async t => {
+  let now = 0, signal; let stalled = false;
+  const h = harness(t, async value => { if (stalled) { signal = value; return new Promise(() => {}); } return base(); }, { now: () => now });
+  await established(h); h.session.setBackgroundSharing(true); h.session.setForeground(false);
+  stalled = true; void h.session.refresh(); now = 15001; h.session.wake(); assert.equal(signal.aborted, true);
+  stalled = false; now += 1001; h.session.wake(); await established(h); assert.equal(h.statuses.at(-1), 'live');
+});
+
+test('native wake replaces a half-open sharing socket that never reports network loss', async t => {
+  let now = 0; const h = harness(t, async () => base(), { now: () => now }); await established(h);
+  h.session.setBackgroundSharing(true); h.session.setForeground(false);
+  now = 44999; h.session.wake(); assert.equal(h.sockets[0].closed, false);
+  now = 45000; h.session.wake(); assert.equal(h.sockets[0].closed, true);
+  now += 1001; h.session.wake(); await established(h); assert.equal(h.statuses.at(-1), 'live');
 });

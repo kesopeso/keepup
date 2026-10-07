@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"keepup/apps/api/internal/config"
@@ -39,11 +40,12 @@ type webSocketPinger interface {
 
 // Server contains the HTTP handler dependencies.
 type Server struct {
-	appConfig config.AppConfig
-	db        HealthChecker
-	liveHub   *live.Hub
-	logger    *slog.Logger
-	routes    RouteService
+	disconnectedTimers sync.Map
+	appConfig          config.AppConfig
+	db                 HealthChecker
+	liveHub            *live.Hub
+	logger             *slog.Logger
+	routes             RouteService
 }
 
 // RouteService contains the first route lifecycle operations served over HTTP.
@@ -346,6 +348,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subscription := s.liveHub.Subscribe(authorized.Route.ID, authorized.Member.ID)
+	s.cancelDisconnectedTimer(authorized.Route.ID, authorized.Member.ID)
 	defer subscription.Close()
 
 	s.logger.Info("websocket subscribed",
@@ -427,6 +430,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				if !enqueueLiveEvent(r.Context(), outboundEventCh, commandAckEvent(message, "start_sharing")) {
 					return
 				}
+				resetTimer(staleOfflineCh)
 				if wasTracking {
 					continue
 				}
@@ -454,6 +458,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				if !enqueueLiveEvent(r.Context(), outboundEventCh, commandAckEvent(message, "stop_sharing")) {
 					return
 				}
+				resetTimer(staleOfflineCh)
 				if wasSpectating {
 					continue
 				}
@@ -495,6 +500,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					})
 				}
 				resetTimer(trackingHealthCh)
+				resetTimer(staleOfflineCh)
 				s.broadcastLiveEvent(result.RouteID, live.Event{
 					"type":      "position_updated",
 					"memberId":  result.MemberID,
@@ -525,7 +531,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		resetTimer(trackingHealthCh)
 	}
 	if authorized.Member.Status == routes.MemberStatusStale {
-		go s.markOfflineAfter(context.Background(), authorized.Route.ID, authorized.Member.ID, s.appConfig.TrackingOfflineAfter)
+		go s.markOfflineAfter(r.Context(), authorized.Route.ID, authorized.Member.ID, s.appConfig.TrackingOfflineAfter, staleOfflineCh)
 	}
 
 	for {
@@ -639,13 +645,35 @@ func (s *Server) handleDisconnectedMember(ctx context.Context, routeID, memberID
 				"type":   "member_became_stale",
 				"member": member,
 			})
-			go s.markDisconnectedMemberOfflineAfter(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
+			s.scheduleDisconnectedMemberOffline(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
 		}
 	case routes.MemberStatusSpectating:
-		go s.markDisconnectedMemberOfflineAfter(ctx, routeID, memberID, s.appConfig.SpectatorOfflineAfter)
+		s.scheduleDisconnectedMemberOffline(ctx, routeID, memberID, s.appConfig.SpectatorOfflineAfter)
 	case routes.MemberStatusStale:
-		go s.markDisconnectedMemberOfflineAfter(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
+		s.scheduleDisconnectedMemberOffline(ctx, routeID, memberID, s.appConfig.TrackingOfflineAfter)
 	}
+}
+
+type disconnectedTimer struct{ cancel context.CancelFunc }
+
+func (s *Server) cancelDisconnectedTimer(routeID, memberID string) {
+	if previous, ok := s.disconnectedTimers.LoadAndDelete([2]string{routeID, memberID}); ok {
+		previous.(*disconnectedTimer).cancel()
+	}
+}
+
+func (s *Server) scheduleDisconnectedMemberOffline(ctx context.Context, routeID, memberID string, delay time.Duration) {
+	ctx, cancel := context.WithCancel(ctx)
+	pending := &disconnectedTimer{cancel: cancel}
+	key := [2]string{routeID, memberID}
+	if previous, loaded := s.disconnectedTimers.Swap(key, pending); loaded {
+		previous.(*disconnectedTimer).cancel()
+	}
+	go func() {
+		defer cancel()
+		defer s.disconnectedTimers.CompareAndDelete(key, pending)
+		s.markDisconnectedMemberOfflineAfter(ctx, routeID, memberID, delay)
+	}()
 }
 
 func (s *Server) markDisconnectedMemberOfflineAfter(ctx context.Context, routeID, memberID string, delay time.Duration) {
@@ -662,24 +690,26 @@ func (s *Server) markDisconnectedMemberOfflineAfter(ctx context.Context, routeID
 		return
 	}
 
-	s.markMemberOffline(routeID, memberID)
+	s.markMemberOffline(ctx, routeID, memberID)
 }
 
-func (s *Server) markOfflineAfter(ctx context.Context, routeID, memberID string, delay time.Duration) {
+func (s *Server) markOfflineAfter(ctx context.Context, routeID, memberID string, delay time.Duration, recovered <-chan struct{}) {
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 
 	select {
 	case <-ctx.Done():
 		return
+	case <-recovered:
+		return
 	case <-timer.C:
 	}
 
-	s.markMemberOffline(routeID, memberID)
+	s.markMemberOffline(ctx, routeID, memberID)
 }
 
-func (s *Server) markMemberOffline(routeID, memberID string) {
-	member, changed, err := s.routes.MarkMemberOffline(context.Background(), routeID, memberID)
+func (s *Server) markMemberOffline(ctx context.Context, routeID, memberID string) {
+	member, changed, err := s.routes.MarkMemberOffline(ctx, routeID, memberID)
 	if err != nil {
 		s.logger.Error("offline transition failed", "error", err)
 		return

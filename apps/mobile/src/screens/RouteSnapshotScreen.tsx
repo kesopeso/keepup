@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { RouteMap } from '../components/RouteMap';
 import type { RouteMapRef } from '../components/RouteMap';
 import { snapshotGeometry } from '../map/snapshot-geometry';
@@ -9,6 +9,7 @@ import type { ViewingStatus } from '../live/viewing-session';
 import { createForegroundSharing } from '../location/foreground-sharing';
 import type { SharingState } from '../location/foreground-sharing';
 import { prepareLocation, requestLocationPermission, watchLocation } from '../location/native-location';
+import { watchScreenOffLocation, checkScreenOffLocation } from '../location/screen-off-location';
 import { getApiBaseUrl } from '../api/config';
 import { invalidMembership } from '../api/routes';
 import type { RoutesApi } from '../api/routes';
@@ -39,10 +40,15 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
   const locatedMembers = useMemo(() => new Set(snapshot ? snapshotGeometry(snapshot).markers.features.map((feature) => feature.properties.memberId) : []), [snapshot]);
 
   useEffect(() => {
-    const capture = createForegroundSharing({ requestPermission: requestLocationPermission, prepare: prepareLocation, watch: watchLocation,
-      command: (type) => viewing.command(type), send: (payload) => viewing.sendPosition(payload), onState: setSharingState });
+    const android = Platform.OS === 'android';
+    let viewing: ReturnType<typeof createViewingSession> | undefined;
+    const capture = createForegroundSharing({ keepWatchOnDisconnect: android,
+      requestPermission: requestLocationPermission, prepare: prepareLocation, watch: android ? watchScreenOffLocation : watchLocation,
+      wake: () => viewing?.wake(),
+      command: (type) => viewing!.command(type), send: (payload) => viewing!.sendPosition(payload),
+      onState: (state) => { setSharingState(state); viewing?.setBackgroundSharing(android && state.sharing); } });
     sharing.current = capture;
-    const viewing = createViewingSession({
+    viewing = createViewingSession({
       url: viewingSocketUrl(getApiBaseUrl()), member,
       load: (signal) => loadMemberSnapshot(api, repository, member, signal),
       onSnapshot: (result) => { capture.update(result); setSnapshot(result); setUpdatedAt(new Date()); setLoading(false); },
@@ -56,8 +62,11 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
     });
     session.current = viewing;
     viewing.setForeground(AppState.currentState === 'active');
-    const subscription = AppState.addEventListener('change', (state) => viewing.setForeground(state === 'active'));
-    return () => { subscription.remove(); capture.dispose(); sharing.current = null; viewing.stop(); session.current = null; };
+    const subscription = AppState.addEventListener('change', (state) => {
+      viewing!.setForeground(state === 'active');
+      if (state === 'active' && android) void checkScreenOffLocation();
+    });
+    return () => { subscription.remove(); capture.dispose(); sharing.current = null; viewing!.stop(); session.current = null; };
   }, [api, repository, member]);
 
   function refresh() {
@@ -78,7 +87,7 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
     {snapshot && <>
       {snapshot.route.status === 'active' && <View style={styles.card}>
         <Text style={styles.label}>{sharingState.recovery ? 'Continue sharing your location?' : 'Location sharing'}</Text>
-        <Text style={styles.text}>Keep KeepUp open to share your location. Leaving the app pauses GPS capture.</Text>
+        <Text style={styles.text}>{Platform.OS === 'android' ? 'Sharing continues with the screen locked. Allow location and notifications. Tap the KeepUp notification to return here and stop. Sharing uses battery and mobile data.' : 'Keep KeepUp open to share your location. Leaving the app pauses GPS capture.'}</Text>
         <ErrorMessage message={sharingState.error} />
         {sharingState.settings && <ActionButton label="Open app settings" secondary onPress={() => {
           void Linking.openSettings().catch(() => setSharingState((state) => ({ ...state, error: 'Could not open settings. Open KeepUp permissions from Android Settings.' })));

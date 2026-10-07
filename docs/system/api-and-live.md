@@ -109,7 +109,7 @@ Current backend accepts authenticated WebSocket `position_update` messages and b
 Current frontend connects to the authenticated WebSocket for active routes, sends `start_sharing`/`stop_sharing` commands, sends `position_update` messages while the viewer is tracking, applies `position_updated` events to the displayed map state, and applies sharing/status events without refreshing the route snapshot.
 Current frontend shows a blocking stale recovery prompt when an active route initially loads with the viewer as `stale`, with explicit resume-sharing and continue-as-spectator actions. A viewer who becomes stale during an existing live session can still recover automatically when accepted positions resume.
 
-Android also authenticates saved memberships to view active routes, applies accepted positions, and refreshes authenticated snapshots for membership and route events. Its reconnect and foreground recovery are owned by [mobile live viewing](mobile.md#live-viewing). Android also sends acknowledged sharing commands and measured GPS positions while explicitly sharing in the foreground; see [foreground sharing](mobile.md#foreground-location-sharing).
+Android also authenticates saved memberships to view active routes, applies accepted positions, and refreshes authenticated snapshots for membership and route events. Its reconnect and foreground recovery are owned by [mobile live viewing](mobile.md#live-viewing). Android also sends acknowledged sharing commands and measured GPS positions while explicitly sharing, including with the Android screen locked; see [sharing](mobile.md#foreground-location-sharing) and [screen-off tracking](mobile.md#screen-off-tracking).
 
 Live connection rules:
 
@@ -121,7 +121,8 @@ Live connection rules:
 - `tracking -> stale` happens immediately on live connection close, or after `ROUTES_TRACKING_STALE_AFTER` without accepted positions.
 - `stale -> offline` happens after `ROUTES_TRACKING_OFFLINE_AFTER` spent stale and closes open segments with reason `disconnected`.
 - `spectating -> offline` happens after `ROUTES_SPECTATOR_OFFLINE_AFTER` without reconnect.
-- A disconnect-started offline timer does not transition the member if a replacement live connection exists when the timer expires.
+- Authenticating a replacement connection cancels the previous disconnect timer. A later outage gets its own grace period; obsolete timers cannot shorten it.
+- A timer for a member who authenticates as stale belongs to that connection and is cancelled by successful Start/Stop or an accepted position. Recovered trackers and spectators cannot be marked offline by that old timer.
 - Default timing values are `20s`, `5m`, and `20s` respectively.
 
 

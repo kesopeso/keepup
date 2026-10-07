@@ -1,3 +1,4 @@
+import { PermissionsAndroid, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { LocationAccessError } from './foreground-sharing';
 import type { LocationSample } from './foreground-sharing';
@@ -7,6 +8,11 @@ export async function requestLocationPermission(): Promise<void> {
   if (!permission.granted) throw new LocationAccessError(permission.canAskAgain
     ? 'Location permission was denied. Tap Start sharing location to try again.'
     : 'Location permission is blocked. Open app settings and allow location while using KeepUp.', !permission.canAskAgain);
+  if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
+    const notification = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    if (notification !== PermissionsAndroid.RESULTS.GRANTED) throw new LocationAccessError(
+      'Allow KeepUp notifications so you can see when screen-off sharing is active. Open app settings to enable notifications.', true);
+  }
 }
 export async function prepareLocation(signal: AbortSignal): Promise<LocationSample> {
   if (!await Location.hasServicesEnabledAsync()) throw new LocationAccessError('Device location is turned off. Enable Location in Android settings, then try again.', true);

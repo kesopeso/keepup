@@ -55,18 +55,26 @@ export function createViewingSession(options: {
   onError: (message: string | null, invalid: boolean) => void;
   isInvalid: (error: unknown) => boolean;
   onLiveEvent?: (event: Record<string, unknown>) => void;
+  now?: () => number;
   createSocket?: (url: string) => ViewingSocket;
   schedule?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
   cancel?: (timer: ReturnType<typeof setTimeout>) => void;
 }) {
+  const now = options.now ?? Date.now;
   const schedule = options.schedule ?? setTimeout;
   const cancel = options.cancel ?? clearTimeout;
   let active = true;
   let foreground = true;
+  let backgroundSharing = false;
+  const running = () => foreground || backgroundSharing;
   let snapshot: RouteSnapshot | null = null;
   let socket: ViewingSocket | null = null;
   let established = false;
   let retry = 0;
+  let retryAt = 0;
+  let authenticateBy = 0;
+  let lastMessageAt = 0;
+  let requestStartedAt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let request: AbortController | null = null;
   let dirty = false;
@@ -87,19 +95,22 @@ export function createViewingSession(options: {
     const previous = socket; socket = null; previous?.close();
   }
   function retryLater() {
-    if (!active || !foreground || timer || snapshot?.route.status === 'closed') return;
+    if (!active || !running() || timer || snapshot?.route.status === 'closed') return;
     options.onStatus('reconnecting');
-    timer = schedule(() => { timer = null; void refresh(); }, Math.min(1000 * 2 ** retry++, 30000));
+    const delay = Math.min(1000 * 2 ** retry++, 30000);
+    retryAt = now() + delay;
+    timer = schedule(() => { timer = null; void refresh(); }, delay);
   }
   function connect() {
-    if (!active || !foreground || socket || snapshot?.route.status !== 'active') return;
+    if (!active || !running() || socket || snapshot?.route.status !== 'active') return;
     options.onStatus('connecting');
     duplicate = false;
     let next: ViewingSocket;
     try { next = (options.createSocket ?? ((url) => new WebSocket(url)))(options.url); }
     catch { retryLater(); return; }
     socket = next;
-    const current = () => active && foreground && socket === next;
+    const current = () => active && running() && socket === next;
+    authenticateBy = now() + 10000;
     watchdog = schedule(() => { if (current() && !established) { closeSocket(); retryLater(); } }, 10000);
     next.addEventListener('open', () => {
       if (!current()) return;
@@ -111,6 +122,7 @@ export function createViewingSession(options: {
       let event: unknown;
       try { event = JSON.parse(message.data); } catch { return; }
       if (!record(event)) return;
+      lastMessageAt = now();
       if ((event.type === 'command_ack' || event.type === 'command_rejected') && typeof event.requestId === 'string') {
         const pending = commands.get(event.requestId);
         if (pending) {
@@ -155,10 +167,10 @@ export function createViewingSession(options: {
   }
 
   async function refresh() {
-    if (!active || !foreground) return;
+    if (!active || !running()) return;
     if (request) { dirty = true; return; }
     if (timer) { cancel(timer); timer = null; }
-    const controller = new AbortController(); request = controller; buffered = []; dirty = false;
+    const controller = new AbortController(); requestStartedAt = now(); request = controller; buffered = []; dirty = false;
     try {
       let result = await options.load(controller.signal);
       if (!active || controller.signal.aborted || request !== controller) return;
@@ -179,21 +191,41 @@ export function createViewingSession(options: {
     } finally {
       if (request === controller) {
         request = null; buffered = [];
-        if (dirty && active && foreground) void refresh();
+        if (dirty && active && running()) void refresh();
       }
     }
+  }
+
+  function pause() {
+    closeSocket(); request?.abort(); request = null; buffered = [];
+    if (timer) { cancel(timer); timer = null; }
+    options.onStatus('paused');
   }
 
   void refresh();
   return {
     refresh,
+    // Android can pause JS timers while locked. Native task deliveries still execute JS.
+    wake() {
+      if (!active || !running()) return;
+      if (request && now() - requestStartedAt >= 15000) {
+        request.abort(); request = null; buffered = []; closeSocket(); retryLater();
+      } else if (socket && established && backgroundSharing && now() - lastMessageAt >= 45000) {
+        // A network switch may leave the native socket half-open without a close event.
+        closeSocket(); retryLater();
+      } else if (socket && !established && now() >= authenticateBy) {
+        closeSocket(); retryLater();
+      } else if (timer && now() >= retryAt) {
+        cancel(timer); timer = null; void refresh();
+      }
+    },
     sendPosition(payload: Record<string, unknown>): boolean {
-      if (!active || !foreground || !established || !socket || snapshot?.route.status !== 'active') return false;
+      if (!active || !running() || !established || !socket || snapshot?.route.status !== 'active') return false;
       try { socket.send(JSON.stringify({ ...payload, type: 'position_update' })); return true; }
       catch { closeSocket(); retryLater(); return false; }
     },
     command(type: 'start_sharing' | 'stop_sharing'): Promise<void> {
-      if (!active || !foreground || !established || !socket || snapshot?.route.status !== 'active') {
+      if (!active || !running() || !established || !socket || snapshot?.route.status !== 'active') {
         return Promise.reject(new Error('Wait for the live connection, then try again.'));
       }
       const requestId = `mobile-${++commandSequence}`;
@@ -208,14 +240,17 @@ export function createViewingSession(options: {
         catch { closeSocket(); retryLater(); }
       });
     },
+    setBackgroundSharing(value: boolean) {
+      if (!active || value === backgroundSharing) return;
+      backgroundSharing = value;
+      if (!running()) pause();
+      else if (!socket) void refresh();
+    },
     setForeground(value: boolean) {
       if (!active || value === foreground) return;
       foreground = value;
-      if (!value) {
-        closeSocket(); request?.abort(); request = null; buffered = [];
-        if (timer) { cancel(timer); timer = null; }
-        options.onStatus('paused');
-      } else void refresh();
+      if (!running()) pause();
+      else if (value) void refresh();
     },
     stop() {
       active = false; closeSocket(); request?.abort(); request = null;

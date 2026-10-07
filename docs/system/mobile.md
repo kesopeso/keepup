@@ -25,6 +25,7 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 | [Join screen](../../apps/mobile/src/screens/JoinRouteScreen.tsx) | Route code/link entry, access metadata, display name, transport mode, and conditional password |
 | [Snapshot screen](../../apps/mobile/src/screens/RouteSnapshotScreen.tsx) | Authenticated route details and members, refresh/retry, live connection status, and archive display |
 | [Native map](../../apps/mobile/src/components/RouteMap.tsx), [snapshot geometry](../../apps/mobile/src/map/snapshot-geometry.ts), [tile provider](../../apps/mobile/src/map/tile-provider.ts) | Native MapLibre rendering, member focus, camera fitting, and basemap configuration |
+| [Screen-off task](../../apps/mobile/src/location/screen-off-location.ts), [task lifecycle](../../apps/mobile/src/location/location-task.ts), [task tests](../../apps/mobile/tests/location-task.test.cjs) | Android foreground service, notification, task delivery, and serialized native cleanup |
 | [Foreground sharing](../../apps/mobile/src/location/foreground-sharing.ts), [native location](../../apps/mobile/src/location/native-location.ts), [sharing tests](../../apps/mobile/tests/sharing.test.cjs) | Explicit sharing intent, permissions, cancellable GPS capture, command confirmation, and rejection recovery |
 | [Viewing session](../../apps/mobile/src/live/viewing-session.ts), [live tests](../../apps/mobile/tests/viewing.test.cjs) | Authenticated sockets, automatic positions, lifecycle resync, reconnect, and foreground recovery |
 | [UI components](../../apps/mobile/src/components/ui.tsx) | Scrollable keyboard-aware screens, labeled inputs, buttons, and error feedback |
@@ -52,9 +53,9 @@ Accepted position events update the existing segment directly. The client valida
 
 After subscription, the client fetches another snapshot to cover changes between the initial fetch and subscription. Unexpected disconnections retry with exponential backoff from one second to 30 seconds and fetch a snapshot to recover missed events. Authentication has a ten-second client timeout. Duplicate-member connections retry without replacing the server's existing connection. Invalid REST access clears saved membership through the existing session loader and stops retrying. Temporary failures retain the last map and history.
 
-Leaving the Android foreground closes the socket and aborts pending requests. Returning fetches current state and reconnects. Leaving the screen cancels requests and timers and ignores old socket events. Closing a route refreshes its archive and stops live updates.
+Spectators leaving the Android foreground close the socket and abort pending requests. Explicit Android sharing keeps the same connection and reconnect loop active while the screen is locked. Returning fetches current state without replacing a healthy connection. Leaving the screen cancels requests and timers and ignores old socket events. Closing a route refreshes its archive and stops live updates.
 
-Live viewing and foreground location sharing use the same authenticated connection. Background tracking remains a separate [implementation checkpoint](../planning/status.md#android-implementation-checkpoints).
+Live viewing and foreground location sharing use the same authenticated connection. Screen-off sharing uses the Android service described below.
 
 ### Foreground location sharing
 
@@ -64,9 +65,19 @@ Sharing commands have request IDs and ten-second confirmation timeouts. Rejectio
 
 GPS rejection guidance persists until the viewer's own next accepted sample or confirmed Stop. Another member's accepted location cannot clear it. Native watcher failures stop capture and attempt to release the server tracking slot. Stop removes the watcher immediately, even if disconnected; when offline, the UI explains that spectator status still needs confirmation after reconnecting. Late callbacks and delayed watcher installations cannot restart capture.
 
-A transient network failure removes the watch and drops samples. A foreground sharing intent can resume after live reconnection and snapshot catch-up if the server still reports tracking or stale. Backgrounding clears that intent, aborts an initial fix, removes active watches, and closes the socket. Returning or reopening a previously tracking membership offers Resume sharing or Continue as spectator. Neither action is sent before the live connection is ready. Changing routes while sharing first confirms Stop.
+Android retains its location service through transient network failures and drops disconnected samples. Sharing resumes after live reconnection and snapshot catch-up if the server still reports tracking or stale. Locking the screen preserves an established sharing intent. Backgrounding during the initial GPS request cancels it. Reopening after process termination offers Resume sharing or Continue as spectator for a tracking/stale membership. Neither action is sent before the live connection is ready. Changing routes while sharing first confirms Stop.
 
-The Expo config plugin enables foreground location permissions only. No background location permission, foreground service, offline GPS queue, or automatic screen-off sharing is added. Physical Android testing remains an explicit [validation checkpoint](../planning/status.md#android-implementation-checkpoints).
+### Screen-off tracking
+
+Android uses Expo Location with Expo TaskManager and a location foreground service. Start requests location permission and, on Android 13 or later, notification permission. Denying notifications prevents sharing and offers settings guidance. The service starts while the activity is visible after sharing is acknowledged. It requests high accuracy at a five-second minimum interval and zero distance threshold. Its ongoing KeepUp notification opens the app, where Stop ends capture. The screen explains screen-off sharing and battery/data use before Start.
+
+The task is registered outside React in the entry module. A single in-memory owner receives callbacks. Native start/stop calls are serialized so delayed cleanup cannot stop a replacement session. Task delivery selects only the newest fix in a batch and drops fixes older than ten seconds. There is no application offline queue or replay. The server still validates every submitted point. The same authenticated WebSocket serves viewing and sharing; a background spectator has no connection.
+
+Network loss leaves the service registered because Android restricts starting foreground services from the background. Samples are dropped until the connection authenticates and its snapshot confirms tracking/stale status. Fixes measured before reconnection are also discarded. Native location callbacks check reconnect and request/authentication deadlines because Android can pause JavaScript timers while locked. An active sharing connection with no server messages for 45 seconds is replaced to recover sockets left half-open by network changes. Stop, invalid access, a closed route, loss of tracking status, or leaving the route screen remove capture. Returning checks permission, device Location, and task registration. A failed service requires explicit Resume. Force-stop and process termination do not grant consent to restart: startup unregisters any old task, and callbacks without an owner unregister themselves. Removing the app from Recents uses `killServiceOnDestroy: true`.
+
+The generated manifest includes foreground-service/location and notification permissions. `RECEIVE_BOOT_COMPLETED` is required by Expo TaskManager's persisted job scheduler; it does not authorize KeepUp to resume sharing after reboot. `ACCESS_BACKGROUND_LOCATION` is disabled because this service starts through an explicit foreground action. Android while-in-use permission covers this foreground-service model. iOS continues to use the foreground watcher and is unvalidated.
+
+Physical-phone screen locking, power-management behavior, and battery measurement remain an explicit [validation checkpoint](../planning/status.md#android-implementation-checkpoints). Emulator results cannot establish reliability on different Android manufacturers' devices.
 
 ### Shared backend integration
 
@@ -92,7 +103,7 @@ Credentials are saved before fetching the initial snapshot, so a failed snapshot
 
 Live viewing and foreground location sharing are implemented. Route creation and owner actions remain future mobile work.
 
-Screen-off tracking remains unimplemented. Foreground Android permission and lifecycle handling have emulator coverage; physical-device review is still needed. iOS needs its own platform-specific validation.
+Screen-off tracking is implemented. Android permission and lifecycle handling have emulator coverage; physical-device review is still needed. iOS needs its own platform-specific validation.
 
 ### Native snapshot map
 
@@ -120,7 +131,7 @@ Native dependency or configuration changes require regeneration and a new APK. J
 
 - [Mobile source](../../apps/mobile/), [app configuration](../../apps/mobile/app.json), and [ignore rules](../../apps/mobile/.gitignore)
 - [Web boundaries](frontend.md), [API and live protocol](api-and-live.md), and [Android workflow](../workflow/mobile-development.md)
-- [Expo Location](https://docs.expo.dev/versions/latest/sdk/location/)
+- [Expo Location](https://docs.expo.dev/versions/latest/sdk/location/), [TaskManager](https://docs.expo.dev/versions/latest/sdk/task-manager/), and [Android while-in-use location services](https://codelabs.developers.google.com/codelabs/while-in-use-location)
 - [Expo SecureStore](https://docs.expo.dev/versions/latest/sdk/securestore/) and [Expo Crypto](https://docs.expo.dev/versions/latest/sdk/crypto/)
 - [MapLibre requirements](https://maplibre.org/maplibre-react-native/docs/setup/getting-started/) and [Expo setup](https://maplibre.org/maplibre-react-native/docs/setup/expo/)
 - [Android implementation sequence](../planning/roadmap.md#phase-9-mobile-client-android-first) and [deferred iOS work](../planning/backlog.md#planned-later)

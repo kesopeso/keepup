@@ -1,3 +1,4 @@
+import './src/location/screen-off-location';
 import { registerRootComponent } from 'expo';
 
 import App from './App';

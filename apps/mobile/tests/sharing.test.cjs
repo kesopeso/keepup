@@ -98,3 +98,36 @@ test('leaving the foreground aborts an initial GPS fix and ignores a late result
   const pending = h.capture.start(); await flush(); h.capture.connection('paused');
   assert.equal(signal.aborted, true); resolve(fix()); await pending; assert.equal(h.commands.length, 0);
 });
+
+test('screen-off service remains registered during network loss but drops disconnected samples', async t => {
+  const h = harness(t, { keepWatchOnDisconnect: true }); await start(h);
+  const count = h.positions.length; h.capture.connection('reconnecting');
+  assert.equal(h.watches[0].removed, false); h.watches[0].sample(fix(Date.now() + 1000));
+  assert.equal(h.positions.length, count);
+  h.capture.update(snapshot('stale')); h.capture.connection('live'); await flush();
+  assert.equal(h.watches.length, 1); h.watches[0].sample(fix(Date.now() + 2000));
+  assert.equal(h.positions.length, count + 1);
+  await h.capture.stop(); assert.equal(h.watches[0].removed, true);
+});
+test('screen-off Stop while disconnected releases the service and never restarts on reconnect', async t => {
+  const h = harness(t, { keepWatchOnDisconnect: true }); await start(h);
+  h.capture.connection('reconnecting'); await h.capture.stop();
+  assert.equal(h.watches[0].removed, true);
+  h.capture.update(snapshot('stale')); h.capture.connection('live'); await flush();
+  assert.equal(h.watches.length, 1); assert.equal(h.states.at(-1).sharing, false);
+});
+test('screen-off service stops on invalid access, archive, or loss of server tracking state', async t => {
+  for (const end of ['invalid', 'archive', 'spectating']) {
+    const h = harness(t, { keepWatchOnDisconnect: true }); await start(h);
+    if (end === 'spectating') h.capture.update(snapshot(end)); else h.capture.connection(end);
+    assert.equal(h.watches[0].removed, true); assert.equal(h.states.at(-1).sharing, false);
+  }
+});
+
+test('screen-off delivery never replays a fix measured before reconnection', async t => {
+  const h = harness(t, { keepWatchOnDisconnect: true }); await start(h);
+  h.capture.connection('reconnecting'); const offlineFix = fix(Date.now() - 1000);
+  h.capture.update(snapshot('stale')); h.capture.connection('live'); const count = h.positions.length;
+  h.watches[0].sample(offlineFix); assert.equal(h.positions.length, count);
+  h.watches[0].sample(fix(Date.now() + 1)); assert.equal(h.positions.length, count + 1);
+});
