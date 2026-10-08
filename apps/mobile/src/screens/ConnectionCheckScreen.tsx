@@ -70,7 +70,7 @@ export function ConnectionCheckScreen({ onBack }: { onBack?: () => void }) {
     <View style={styles.container}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.content}>
-        <BrandHeader large />
+        <BrandHeader />
         <Text style={styles.subtitle}>Live route sharing</Text>
 
         <View style={styles.card}>
@@ -106,7 +106,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0c1014' },
   content: {
     flexGrow: 1,
-    justifyContent: 'center',
     width: '100%',
     maxWidth: 520,
     alignSelf: 'center',
