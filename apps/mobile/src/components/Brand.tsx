@@ -12,7 +12,7 @@ export function BrandText({ children, brand = false, ...props }: TextProps & { b
 
 export function BrandHeader({ large = false }: { large?: boolean }) {
   return <View style={styles.header}>
-    <Image source={require('../../assets/icon.png')} accessible={false}
+    <Image source={require('../../assets/header-logo.png')} accessible={false}
       style={{ width: large ? 44 : 40, height: large ? 44 : 40 }} resizeMode="contain" />
     <BrandText brand accessibilityRole="header" accessibilityLabel="keepup"
       style={[styles.wordmark, large && styles.large]}>keepup</BrandText>
