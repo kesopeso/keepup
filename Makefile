@@ -1,6 +1,6 @@
 COMPOSE ?= docker compose
 
-.PHONY: doctor doctor-mobile setup mobile-setup mobile up down logs ps restart lint-api
+.PHONY: doctor doctor-mobile setup mobile-setup mobile mobile-build up down logs ps restart lint-api
 
 doctor:
 	./bin/doctor.sh
@@ -17,6 +17,11 @@ mobile-setup: doctor-mobile
 	./bin/mobile-pnpm.sh install
 	./bin/mobile-pnpm.sh exec expo install --check
 	./bin/mobile-pnpm.sh exec expo run:android --device
+
+mobile-build: doctor-mobile
+	./bin/mobile-pnpm.sh exec expo prebuild --platform android
+	./bin/mobile-pnpm.sh exec expo run:android --device --no-bundler
+	./bin/start-metro.sh
 
 mobile: doctor-mobile
 	./bin/start-metro.sh

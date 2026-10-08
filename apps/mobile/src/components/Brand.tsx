@@ -2,11 +2,11 @@ import { Children } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import type { TextProps } from 'react-native';
 
-export function BrandText({ children, ...props }: TextProps) {
+export function BrandText({ children, brand = false, ...props }: TextProps & { brand?: boolean }) {
   return <Text {...props}>{Children.map(children, (child) => typeof child === 'string'
-    ? child.split(/(keepup)/gi).map((part, index) => /^keepup$/i.test(part)
+    ? brand ? child.split(/(keepup)/gi).map((part, index) => /^keepup$/i.test(part)
       ? <Text key={index} style={{ color: '#f8fafc' }}>keep<Text style={{ color: '#22c55e' }}>up</Text></Text>
-      : part)
+      : part) : child.replace(/keepup/gi, 'keepup')
     : child)}</Text>;
 }
 
@@ -14,7 +14,7 @@ export function BrandHeader({ large = false }: { large?: boolean }) {
   return <View style={styles.header}>
     <Image source={require('../../assets/icon.png')} accessible={false}
       style={{ width: large ? 44 : 40, height: large ? 44 : 40 }} resizeMode="contain" />
-    <BrandText accessibilityRole="header" accessibilityLabel="keepup"
+    <BrandText brand accessibilityRole="header" accessibilityLabel="keepup"
       style={[styles.wordmark, large && styles.large]}>keepup</BrandText>
   </View>;
 }

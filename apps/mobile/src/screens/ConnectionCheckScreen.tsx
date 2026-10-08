@@ -81,7 +81,7 @@ export function ConnectionCheckScreen({ onBack }: { onBack?: () => void }) {
             <Text style={styles.statusLabel}>Server connection</Text>
           </View>
           <View accessibilityLiveRegion="polite" accessibilityRole="text">
-            <Text style={styles.title}>{title}</Text>
+            <Text brand style={styles.title}>{title}</Text>
             <Text style={styles.message}>{message}</Text>
           </View>
 

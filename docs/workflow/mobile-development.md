@@ -127,7 +127,17 @@ Once the APK is installed, JavaScript/TypeScript work needs only Metro:
 make mobile
 ```
 
-`make mobile` runs the mobile readiness check, then calls the [Metro launcher](../../bin/start-metro.sh). That launcher runs the mobile helper with `expo start --dev-client --localhost --android --port 8081`. It prints the browser debugger link when Expo reports that Metro is ready, streams the normal logs, and preserves command failures. It resolves the repository root from its own location.
+Rebuild the development APK after changing native dependencies, permissions, icons, or app configuration:
+
+```sh
+make mobile-build
+```
+
+This regenerates the Android project with the current Expo configuration, builds and installs the development APK using Expo's device selector, then starts Metro through the same launcher. Keep the app installed to preserve saved access. Use `make mobile-setup` for first-time dependency and helper-image setup.
+
+Connect exactly one ready device or emulator when starting Metro. The launcher checks the installed app before starting the bundler. A missing development app, a release APK, or an app that cannot handle the current development scheme produces a clear `make mobile-build` instruction. This check does not detect every outdated native dependency; rebuild explicitly after native changes.
+
+`make mobile` runs the mobile readiness check, then calls the [Metro launcher](../../bin/start-metro.sh), which first runs the [installed app check](../../bin/check-mobile-app.sh). That launcher runs the mobile helper with `expo start --dev-client --localhost --android --port 8081`. It prints the browser debugger link when Expo reports that Metro is ready, streams the normal logs, and preserves command failures. It resolves the repository root from its own location.
 
 `--android` opens the installed app and establishes ADB forwarding from the device's port `8081` to the host's port `8081`. Leave this terminal running; Ctrl+C stops Metro. Fast Refresh applies supported code edits without rebuilding the APK.
 
@@ -211,6 +221,9 @@ Install dependencies, regenerate Android, and rebuild the APK using [build and i
 Emulator fixes use `adb emu geo fix <longitude> <latitude>` from the host SDK. ADB can lock with `adb shell input keyevent 223` and wake with keyevent `224`. Keep physical-device findings in [delivery status](../planning/status.md#android-implementation-checkpoints). The app uses a five-second minimum location interval; Android scheduling and GPS conditions can delay delivery.
 
 ### Troubleshooting
+
+- **Installed app cannot open the development link, or a development app is missing:** run `make mobile-build`. This updates the APK and starts Metro.
+- **More than one ready device is connected:** disconnect the extra device or stop the extra emulator before starting Metro.
 
 - **Cannot find native module ExpoTaskManager:** install dependencies, regenerate, and rebuild the APK.
 - **Sharing notification is missing:** enable KeepUp notifications in Android settings and restart sharing.

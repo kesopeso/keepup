@@ -44,7 +44,7 @@ export function MobileApp() {
   }, [attempt]);
 
   if (!environment) return <Screen>
-    <Text style={styles.title}>Opening KeepUp</Text>
+    <Text brand style={styles.title}>Opening KeepUp</Text>
     <ErrorMessage message={error} />
     {error ? <ActionButton label="Retry" onPress={() => { setError(null); setAttempt((previous) => previous + 1); }} /> :
       <ActivityIndicator color="#22c55e" accessibilityLabel="Restoring saved access" />}

@@ -4,6 +4,8 @@ set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
 
+./bin/check-mobile-app.sh
+
 ./bin/mobile-pnpm.sh exec expo start --dev-client --localhost --android --port 8081 |
   awk '
     { print; fflush() }
