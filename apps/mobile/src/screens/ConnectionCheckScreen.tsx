@@ -1,3 +1,4 @@
+import { BrandText as Text, BrandHeader } from '../components/Brand';
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
@@ -7,7 +8,6 @@ import {
   ScrollView,
   StatusBar as NativeStatusBar,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { getApiBaseUrl } from '../api/config';
@@ -70,7 +70,7 @@ export function ConnectionCheckScreen({ onBack }: { onBack?: () => void }) {
     <View style={styles.container}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.brand} accessibilityRole="header">KeepUp</Text>
+        <BrandHeader large />
         <Text style={styles.subtitle}>Live route sharing</Text>
 
         <View style={styles.card}>
@@ -114,7 +114,6 @@ const styles = StyleSheet.create({
     paddingTop: (Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 0 : 44) + 24,
     paddingBottom: 48,
   },
-  brand: { color: '#f8fafc', fontSize: 36, fontWeight: '800', letterSpacing: -1 },
   subtitle: { color: '#b5c2cb', fontSize: 16, marginTop: 8, marginBottom: 32 },
   card: { backgroundColor: '#151b20', borderColor: '#34404a', borderWidth: 1, borderRadius: 20, padding: 24 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 24 },

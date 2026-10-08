@@ -1,5 +1,6 @@
+import { BrandText as Text } from './components/Brand';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text } from 'react-native';
+import { ActivityIndicator } from 'react-native';
 import { ActionButton, ErrorMessage, Screen, styles } from './components/ui';
 import { getApiBaseUrl } from './api/config';
 import { createRoutesApi } from './api/routes';

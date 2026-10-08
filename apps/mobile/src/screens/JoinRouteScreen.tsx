@@ -1,9 +1,11 @@
+import { TransportSelect } from '../components/TransportSelect';
+import { BrandText as Text } from '../components/Brand';
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, View } from 'react-native';
 import { ActionButton, ErrorMessage, Field, Screen, styles } from '../components/ui';
 import type { RoutesApi } from '../api/routes';
 import { joinOrResume } from '../domain/join-session';
-import { parseRouteCode, transportLabels, transportModes } from '../domain/routes';
+import { parseRouteCode } from '../domain/routes';
 import type { Membership, Profile, RouteAccess } from '../domain/routes';
 import type { SessionRepository } from '../storage/session-repository';
 
@@ -98,15 +100,7 @@ export function JoinRouteScreen({ api, repository, profile, initialCode, initial
         {access.status === 'active' ? <>
           <Field label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Your name"
             autoCapitalize="words" editable={!busy} returnKeyType="next" />
-          <Text style={styles.label}>Transport mode</Text>
-          <View style={localStyles.modes}>
-            {transportModes.map((mode) => <Pressable key={mode} accessibilityRole="radio"
-              accessibilityLabel={`Transport: ${transportLabels[mode]}`} accessibilityState={{ checked: transportMode === mode, disabled: busy }}
-              disabled={busy} onPress={() => setTransportMode(mode)}
-              style={[localStyles.mode, transportMode === mode && localStyles.selectedMode, busy && styles.disabled]}>
-              <Text style={styles.label}>{transportLabels[mode]}</Text>
-            </Pressable>)}
-          </View>
+          <TransportSelect value={transportMode} onChange={setTransportMode} disabled={busy} />
           {access.requiresPassword && <Field label="Route password" value={password} onChangeText={setPassword}
             secureTextEntry autoCapitalize="none" autoComplete="current-password" editable={!busy}
             returnKeyType="go" onSubmitEditing={() => void submit()} />}
@@ -120,10 +114,3 @@ export function JoinRouteScreen({ api, repository, profile, initialCode, initial
     <ActionButton label="Check server connection" secondary disabled={busy} onPress={onConnectionCheck} />
   </Screen>;
 }
-
-const localStyles = StyleSheet.create({
-  modes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  mode: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 12,
-    borderColor: '#34404a', borderWidth: 1, borderRadius: 12, backgroundColor: '#20262d' },
-  selectedMode: { borderColor: '#22c55e', backgroundColor: '#173023' },
-});

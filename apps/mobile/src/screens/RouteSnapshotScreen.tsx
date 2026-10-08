@@ -1,5 +1,6 @@
+import { BrandText as Text } from '../components/Brand';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { RouteMap } from '../components/RouteMap';
 import type { RouteMapRef } from '../components/RouteMap';
 import { snapshotGeometry } from '../map/snapshot-geometry';

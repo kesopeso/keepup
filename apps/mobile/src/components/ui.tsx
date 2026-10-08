@@ -1,6 +1,7 @@
 import type { ReactNode, Ref } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar as NativeStatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar as NativeStatusBar, StyleSheet, TextInput, View } from 'react-native';
+import { BrandHeader, BrandText as Text } from './Brand';
 import type { TextInputProps } from 'react-native';
 
 export function Screen({ children, scrollRef }: { children: ReactNode; scrollRef?: Ref<ScrollView> }) {
@@ -8,7 +9,7 @@ export function Screen({ children, scrollRef }: { children: ReactNode; scrollRef
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar style="light" />
       <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
-        <Text style={styles.brand} accessibilityRole="header">KeepUp</Text>
+        <BrandHeader />
         {children}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -44,7 +45,6 @@ export const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#0c1014' },
   content: { flexGrow: 1, width: '100%', maxWidth: 560, alignSelf: 'center', paddingHorizontal: 24,
     paddingTop: (Platform.OS === 'android' ? NativeStatusBar.currentHeight ?? 0 : 44) + 24, paddingBottom: 48, gap: 20 },
-  brand: { color: '#f8fafc', fontSize: 32, fontWeight: '800', letterSpacing: -1 },
   title: { color: '#f8fafc', fontSize: 24, fontWeight: '700' },
   text: { color: '#b5c2cb', fontSize: 16, lineHeight: 24 },
   label: { color: '#f8fafc', fontSize: 16, fontWeight: '600' },
