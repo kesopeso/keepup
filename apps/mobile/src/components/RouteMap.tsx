@@ -12,7 +12,9 @@ import { routeMapStyle } from '../map/tile-provider';
 export type RouteMapRef = { focusMember: (id: string) => void };
 const presence = { tracking: 'Sharing location', spectating: 'Spectating', stale: 'Location delayed', offline: 'Offline', left: 'Left' };
 
-export function RouteMap({ snapshot, ref }: { snapshot: RouteSnapshot; ref?: Ref<RouteMapRef> }) {
+export function RouteMap({ snapshot, ref, topInset, bottomInset, controlsHidden }: {
+  snapshot: RouteSnapshot; ref?: Ref<RouteMapRef>; topInset: number; bottomInset: number; controlsHidden: boolean;
+}) {
   const geometry = useMemo(() => snapshotGeometry(snapshot), [snapshot]);
   const camera = useRef<CameraRef>(null);
   const [ready, setReady] = useState(false);
@@ -61,16 +63,16 @@ export function RouteMap({ snapshot, ref }: { snapshot: RouteSnapshot; ref?: Ref
     if (!bounds || !camera.current || !ready) return;
     const [west, south, east, north] = bounds;
     const options = { duration: animate && !reduceMotion ? 350 : 0, bearing: 0, pitch: 0,
-      padding: { top: 48, right: 36, bottom: 64, left: 36 } };
+      padding: { top: topInset + 24, right: 60, bottom: bottomInset + 64, left: 36 } };
     const stop = west === east && south === north
       ? { ...options, center: [west, south] as [number, number], zoom: 15 }
       : { ...options, bounds };
     void camera.current.setStop(stop).catch(() => setError('Could not position the map. Please retry.'));
-  }, [ready, reduceMotion]);
+  }, [ready, reduceMotion, topInset, bottomInset]);
 
   // Refresh and size changes only move the camera while automatic fitting is enabled.
   useEffect(() => { if (automaticRef.current) fit(geometry.bounds, false); }, [geometry, fit, size]);
-  const showFit = ready && !error && !automatic && !!geometry.bounds;
+  const showFit = ready && !error && !automatic && !!geometry.bounds && !controlsHidden;
   useEffect(() => {
     const animation = Animated.timing(opacity, { toValue: showFit ? 1 : 0, duration: reduceMotion ? 0 : 180, useNativeDriver: true });
     animation.start();
@@ -81,19 +83,22 @@ export function RouteMap({ snapshot, ref }: { snapshot: RouteSnapshot; ref?: Ref
     const person = geometry.members.find((member) => member.id === id);
     if (!person?.latest || !ready || error) return;
     setSelectedId(id);
+    automaticRef.current = false;
     setAutomatic(false);
     fit(boundsForPoints(person.points), true);
   }
   useImperativeHandle(ref, () => ({ focusMember }));
 
-  return <View style={local.container}>
+  return <View collapsable={false} style={local.container} accessibilityElementsHidden={controlsHidden}
+    importantForAccessibility={controlsHidden ? 'no-hide-descendants' : 'auto'}>
     <View style={local.mapFrame} onLayout={({ nativeEvent: { layout } }) => setSize(`${layout.width}:${layout.height}`)}>
       <Map key={attempt} testID="route-map" style={local.map} mapStyle={routeMapStyle} androidView="texture"
-        attribution logo={false} compass={false} touchRotate={false} touchPitch={false}
+        importantForAccessibility={controlsHidden ? 'no-hide-descendants' : 'auto'}
+        attribution={false} logo={false} compass={false} dragPan touchZoom doubleTapZoom touchRotate={false} touchPitch={false}
         onDidFinishLoadingStyle={() => setReady(true)}
         onDidFinishRenderingMapFully={() => { setReady(true); setRendered(true); }}
         onDidFailLoadingMap={() => setError('Could not load the map. Check your connection and retry.')}
-        onRegionWillChange={({ nativeEvent }) => { if (nativeEvent.userInteraction) { setAutomatic(false); setSelectedId(null); } }}>
+        onRegionWillChange={({ nativeEvent }) => { if (nativeEvent.userInteraction) { automaticRef.current = false; setAutomatic(false); setSelectedId(null); } }}>
         <Camera ref={camera} initialViewState={{ center: [14.5058, 46.0569], zoom: 11 }} maxZoom={16} />
         <GeoJSONSource id="route-paths" data={geometry.paths}>
           <Layer id="route-lines" type="line" layout={{ 'line-cap': 'round', 'line-join': 'round' }}
@@ -109,43 +114,47 @@ export function RouteMap({ snapshot, ref }: { snapshot: RouteSnapshot; ref?: Ref
             'circle-opacity': ['case', ['==', ['get', 'status'], 'tracking'], 1, 0.6] }} />
         </GeoJSONSource>
       </Map>
-      {!rendered && !error && <View pointerEvents="none" style={local.notice}>
+      {!controlsHidden && !rendered && !error && <View pointerEvents="none" style={[local.notice, { top: topInset }]}>
         <ActivityIndicator color="#22c55e" /><Text style={styles.text}>Loading map…</Text>
       </View>}
-      {rendered && !error && !geometry.bounds && <View pointerEvents="none" style={local.notice}>
+      {!controlsHidden && rendered && !error && !geometry.bounds && <View pointerEvents="none" style={[local.notice, { top: topInset }]}>
         <Text style={styles.label}>No locations yet</Text>
         <Text style={styles.text}>{snapshot.route.status === 'closed' ? 'This archive has no saved locations.' : 'Locations will appear when a member shares from a connected client.'}</Text>
       </View>}
-      <Animated.View style={[local.fit, { opacity }]} pointerEvents={showFit ? 'auto' : 'none'}
+      <Animated.View style={[local.fit, { opacity, bottom: bottomInset + 56 }]} pointerEvents={showFit ? 'auto' : 'none'}
         accessibilityElementsHidden={!showFit} importantForAccessibility={showFit ? 'auto' : 'no-hide-descendants'}>
         <Pressable accessibilityRole="button" accessibilityLabel="Fit group" disabled={!showFit} style={local.fitButton}
-          onPress={() => { setSelectedId(null); setAutomatic(true); fit(geometry.bounds, true); }}>
+          onPress={() => { setSelectedId(null); automaticRef.current = true; setAutomatic(true); fit(geometry.bounds, true); }}>
           <Text style={styles.label}>Fit group</Text>
         </Pressable>
       </Animated.View>
+      {!controlsHidden && <Pressable accessibilityRole="link" accessibilityLabel="OpenStreetMap copyright and contributors"
+        style={[local.attribution, { bottom: bottomInset + 4 }]}
+        onPress={() => { void Linking.openURL('https://www.openstreetmap.org/copyright').catch(() => setError('Could not open the map attribution link.')); }}>
+        <Text style={local.attributionText}>© OpenStreetMap contributors</Text>
+      </Pressable>}
+      {!controlsHidden && error && <View style={[local.notice, { top: topInset }]}>
+        <ErrorMessage message={error} />
+        <ActionButton label="Retry map" secondary onPress={() => {
+          setReady(false); setRendered(false); setError(null); automaticRef.current = true;
+          setAutomatic(true); setSelectedId(null); setAttempt((value) => value + 1);
+        }} />
+      </View>}
+      {!controlsHidden && selected?.latest && !error && <View style={[local.notice, { top: topInset }]} accessibilityLiveRegion="polite">
+        <Text style={styles.label}>{selected.displayName} · {presence[selected.status]}</Text>
+        <Text style={styles.text}>Last location {new Date(selected.latest.recordedAt).toLocaleString()}</Text>
+      </View>}
     </View>
-    <Pressable accessibilityRole="link" accessibilityLabel="OpenStreetMap copyright and contributors" style={local.attribution}
-      onPress={() => { void Linking.openURL('https://www.openstreetmap.org/copyright').catch(() => setError('Could not open the map attribution link.')); }}>
-      <Text style={local.attributionText}>© OpenStreetMap contributors</Text>
-    </Pressable>
-    <ErrorMessage message={error} />
-    {error && <ActionButton label="Retry map" secondary onPress={() => {
-      setReady(false); setRendered(false); setError(null); setAutomatic(true); setSelectedId(null); setAttempt((value) => value + 1);
-    }} />}
-    {selected?.latest && <View style={styles.card} accessibilityLiveRegion="polite">
-      <Text style={styles.label}>{selected.displayName} · {presence[selected.status]}</Text>
-      <Text style={styles.text}>Last location {new Date(selected.latest.recordedAt).toLocaleString()}</Text>
-    </View>}
   </View>;
 }
 
 const local = StyleSheet.create({
-  container: { gap: 12 },
-  mapFrame: { height: 360, borderRadius: 20, overflow: 'hidden', backgroundColor: '#151b20', borderWidth: 1, borderColor: '#34404a' },
+  container: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  mapFrame: { flex: 1, backgroundColor: '#151b20' },
   map: { flex: 1 },
   notice: { position: 'absolute', top: 20, left: 20, right: 20, borderRadius: 12, backgroundColor: '#151b20', padding: 16, gap: 8 },
   fit: { position: 'absolute', bottom: 20, right: 16 },
   fitButton: { minHeight: 48, backgroundColor: '#151b20', padding: 14, borderRadius: 12 },
-  attribution: { minHeight: 48, justifyContent: 'center', alignItems: 'flex-start' },
+  attribution: { position: 'absolute', left: 12, minHeight: 44, justifyContent: 'center', backgroundColor: '#151b20', borderRadius: 8, paddingHorizontal: 8 },
   attributionText: { color: '#b5c2cb', fontSize: 13, textDecorationLine: 'underline' },
 });

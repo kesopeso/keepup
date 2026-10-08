@@ -113,6 +113,11 @@ Physical-phone outdoor validation reported by the owner on 2026-10-07:
 - The test used the owner's Samsung phone from the preceding installation workflow. Android version, elapsed screen-lock duration, individual network-recovery/Stop/restart results, battery restrictions, and measured battery change were not supplied; no per-scenario measurements are inferred from the overall success report.
 - The owner selected Android route creation as the next implementation task, followed by owner controls to edit, close, and delete routes. These remain planned, not implemented.
 
+Android route map layout implemented on 2026-10-08:
+
+- The selected Lavish option A is implemented with a full-screen map and a drawer that rests only at Peek or Full. Layout and camera behavior are owned by [mobile map boundaries](../system/mobile.md#native-snapshot-map).
+- TypeScript and the existing 79 mobile regression tests passed through Docker. Android emulator review covered vertical map pan, zoom buttons, handle dragging and snapping, independent member scrolling, member focus returning to Peek, and manual-camera preservation after a position fixture. Permission/settings errors, recovery choices, reconnection with Stop available, and archives were reviewed with in-memory fixtures without changing backend data. Enlarged system text was reviewed at 1.5 times the default size. Automated synthetic pinch and double-tap input did not establish zoom behavior, but the owner confirmed pinch zoom works on the emulator on 2026-10-08. The zoom buttons were removed in favor of two-finger pinch. Physical-phone gesture verification remains pending.
+
 ## UI redesign
 
 The user selected the full layout refresh in an earlier Lavish visual proposal, then requested implementation. The app now uses simpler create/join forms, a map-led route layout, sharing controls above collapsible members, explicit presence badges, and a route-details dialog. Behavior is owned by [map experience](../product/experience.md); implementation boundaries by [frontend](../system/frontend.md).
