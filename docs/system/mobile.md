@@ -21,7 +21,8 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 
 | Source | Responsibility |
 |---|---|
-| [App.tsx](../../apps/mobile/App.tsx), [mobile app](../../apps/mobile/src/MobileApp.tsx) | Restore saved access and route between joining, snapshot, and connection-check screens |
+| [App.tsx](../../apps/mobile/App.tsx), [mobile app](../../apps/mobile/src/MobileApp.tsx) | Restore saved access and route between creation, joining, snapshot, and connection-check screens |
+| [Create screen](../../apps/mobile/src/screens/CreateRouteScreen.tsx), [creation session](../../apps/mobile/src/domain/create-session.ts), [creation tests](../../apps/mobile/tests/create.test.cjs) | Route form, create request, secure owner/member persistence, and saving retry without repeated creation |
 | [Join screen](../../apps/mobile/src/screens/JoinRouteScreen.tsx) | Route code/link entry, access metadata, display name, transport mode, and conditional password |
 | [Snapshot screen](../../apps/mobile/src/screens/RouteSnapshotScreen.tsx) | Authenticated route details and members, refresh/retry, live connection status, and archive display |
 | [Native map](../../apps/mobile/src/components/RouteMap.tsx), [snapshot geometry](../../apps/mobile/src/map/snapshot-geometry.ts), [tile provider](../../apps/mobile/src/map/tile-provider.ts) | Native MapLibre rendering, member focus, camera fitting, and basemap configuration |
@@ -31,8 +32,8 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 | [UI components](../../apps/mobile/src/components/ui.tsx) | Scrollable keyboard-aware screens, labeled inputs, buttons, and error feedback |
 | [Brand components](../../apps/mobile/src/components/Brand.tsx), [transport dropdown](../../apps/mobile/src/components/TransportSelect.tsx) | Shared logo and colored wordmark, brand spelling in screen copy, and accessible transport selection |
 | [Route domain types](../../apps/mobile/src/domain/routes.ts), [join session](../../apps/mobile/src/domain/join-session.ts) | Code/link parsing, API DTOs, and membership-before-snapshot ordering |
-| [Route API client](../../apps/mobile/src/api/routes.ts) | Access, join, and Bearer-authenticated snapshot requests with timeout/error handling |
-| [Native storage](../../apps/mobile/src/storage/native-session.ts), [session repository](../../apps/mobile/src/storage/session-repository.ts) | Encrypted device identity, profile, per-route membership, and last route |
+| [Route API client](../../apps/mobile/src/api/routes.ts) | Create, access, join, and Bearer-authenticated snapshot requests with timeout/error handling |
+| [Native storage](../../apps/mobile/src/storage/native-session.ts), [session repository](../../apps/mobile/src/storage/session-repository.ts) | Encrypted device identity, profile, per-route member/owner access, and last route |
 | [Connection-check screen](../../apps/mobile/src/screens/ConnectionCheckScreen.tsx) | Connecting, connected, and unavailable states; manual retry and lifecycle cancellation |
 | [API configuration](../../apps/mobile/src/api/config.ts) | API base URL validation and Android emulator development default |
 | [Health client](../../apps/mobile/src/api/health.ts) | Uncached health request, response validation, and five-second timeout |
@@ -102,15 +103,25 @@ The snapshot displays route name, description, code, active/closed state, sharin
 
 ### Saved membership
 
-Expo SecureStore persists a stable device UUID, display name and transport preference, a separate member token/id for each route, and the last opened route code. Expo Crypto generates the UUID and hashes the configured API base URL for the storage namespace. Credentials from different backends stay separate. The route password is never persisted. The SecureStore config plugin configures Android backup exclusions; tokens are encrypted using the platform's storage and keystore.
+Expo SecureStore persists a stable device UUID, display name and transport preference, a separate member token/id and optional owner token for each route, and the last opened route code. Expo Crypto generates the UUID and hashes the configured API base URL for the storage namespace. Credentials from different backends stay separate. The route password is never persisted. The SecureStore config plugin configures Android backup exclusions; tokens are encrypted using the platform's storage and keystore.
 
 Startup restores the last route and requests its snapshot with the saved token instead of posting another join. Entering a previously joined code similarly resumes its membership without requiring a password. Join another route changes the screen and preserves membership; it does not leave the route or revoke access.
 
 Credentials are saved before fetching the initial snapshot, so a failed snapshot can be retried without creating another member. If saving a successful join fails, its returned credentials remain in memory and Retry saves them again instead of repeating POST. Device storage errors are surfaced. Unmounting aborts network work and old responses cannot update another screen. There is no automatic POST retry: the shared join endpoint is not idempotent, so a lost join response can leave a server membership without recoverable credentials.
 
-Live viewing and foreground location sharing are implemented. Route creation and owner actions remain future mobile work.
+Live viewing and foreground location sharing are implemented. Route creation is implemented; owner edit, close, and delete actions remain future mobile work.
 
 Screen-off tracking is implemented. Android permission and lifecycle handling have emulator coverage; physical-device review is still needed. iOS needs its own platform-specific validation.
+
+### Android route creation
+
+Create a new route is available on the join screen. The keyboard-aware creation form collects route name, display name, and the saved transport preference. Expand Route settings for an optional description, optional password, and either shared location policy. Everyone can share is the default. The form checks required names, trims names/descriptions, and preserves password whitespace to match the shared API. Creating a route never starts location capture.
+
+The creation session saves the profile before `POST /routes`, validates returned owner/member access, and stores both tokens together in the backend-scoped SecureStore membership record before opening the existing native route screen. Previous memberships remain available. Existing non-owner records without an owner token remain compatible. Startup restores the new last route, including owner access, without creating or joining again. Invalid/deleted access clears the whole route record.
+
+Concurrent submissions share one request. A successful response remains in memory until credential and last-route writes succeed. If storage fails, the form shows the created code, locks inputs/navigation, and offers Retry saving access. Retry saves the same tokens without another POST. Snapshot failures use the existing route-screen retry and retain access. Passwords are never persisted and are cleared after successful creation or a returned creation response followed by a storage error.
+
+There is no automatic create-request retry. The existing endpoint is not idempotent; losing its response can leave a created route without recoverable owner credentials. Closing the app before failed credential storage is recovered can also lose access held only in memory. Owner tokens are retained for the next implementation checkpoint; Android edit, close, and delete controls are not yet implemented.
 
 ### Native snapshot map
 

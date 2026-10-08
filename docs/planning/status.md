@@ -7,7 +7,7 @@ status: active
 
 ## Immediate next step
 
-Implement route creation directly in Android, then owner controls to edit, close, and delete routes using the shared product rules and API. See the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
+Implement Android owner controls to edit, close, and delete routes using the shared product rules and API. Android route creation is complete. See the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
 The owner reported successful outdoor testing of the standalone production-connected Android build on 2026-10-07. The foreground and screen-off tracking physical-review checkpoints are complete on that report; detailed duration, network-recovery, and battery measurements were not supplied.
 
@@ -47,6 +47,14 @@ Android snapshot map validation on 2026-10-05:
 - An unavailable tile endpoint exposed MapLibre's separate native tile-error reporting. The map now turns those errors into readable feedback and Retry map. Restoring tile access and retrying recovered the basemap. The real provider was restored after the check.
 - Documentation links and heading fragments resolve. Metro remains running for review. Native GPS sharing and live updates are still pending; this establishes snapshot rendering, not native tracking reliability.
 
+Android route creation validation on 2026-10-08:
+
+- Added the native creation form with required route/display names, saved transport selection, optional description/password, and both sharing policies. Successful creation saves member and owner access in backend-scoped SecureStore and opens the native route screen without starting GPS.
+- Docker TypeScript checking and all 79 mobile tests passed. Eleven creation tests cover validation, response rejection, password handling, backend scope, restored owner access, concurrent submissions, credential/last-route write failures, cancellation, request recovery, snapshot failures, and invalid-access cleanup.
+- The Android 17/API 37 emulator displayed required-name feedback and created a password-protected, owner-only-sharing route with its description and saved Bicycle selection. A temporary runtime SecureStore failure after the response showed the created code and disabled navigation/inputs. Retry saved access and opened the route; the observed create POST count remained one.
+- Force-stop/reopen restored the protected route without a password prompt and displayed the same membership as You and Owner, spectating. Deleted the disposable routes with their returned owner credentials, verified deleted-access cleanup, and restored the emulator's original saved route. Runtime fault injection and temporary cleanup files were removed.
+- This change uses existing native modules and needs no development APK rebuild. Physical-device review of the creation form remains unverified. The existing create endpoint has no idempotency support; lost responses and app termination before recovering failed credential storage remain access-recovery limits.
+
 ## Android implementation checkpoints
 
 | Task | State | Acceptance |
@@ -54,8 +62,8 @@ Android snapshot map validation on 2026-10-05:
 | Live viewing | Complete | Automatic location, member, and route updates; reconnect catch-up; foreground recovery; manual viewport preservation; closed archives stop live connections |
 | Foreground location sharing | Complete; owner-reported outdoor validation | Android permission handling, Start/Stop sharing, accuracy and timestamp submissions, rejection feedback, and physical-phone verification with the app open |
 | Screen-off tracking | Complete; owner-reported outdoor validation | Android background tracking and notification; physical-phone verification of screen locking, network recovery, stop/restart, and battery behavior |
-| Android route creation | Next | Create a route using the shared product/API contract, retain owner/member access securely, and open its route screen |
-| Android owner controls | Planned after route creation | Owner-only editing, closing, and deletion with shared confirmation rules and correct archive/deleted-access handling |
+| Android route creation | Complete; emulator validated | Create a route using the shared product/API contract, retain owner/member access securely, and open its route screen |
+| Android owner controls | Next | Owner-only editing, closing, and deletion with shared confirmation rules and correct archive/deleted-access handling |
 
 Live viewing validation on 2026-10-06:
 

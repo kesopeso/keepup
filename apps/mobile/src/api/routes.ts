@@ -1,5 +1,5 @@
 import { isTransportMode } from '../domain/routes.ts';
-import type { JoinRequest, JoinResponse, RouteAccess, RouteSnapshot } from '../domain/routes.ts';
+import type { CreateRouteRequest, CreateRouteResponse, JoinRequest, JoinResponse, RouteAccess, RouteSnapshot } from '../domain/routes.ts';
 
 export const ROUTE_REQUEST_TIMEOUT_MS = 10_000;
 
@@ -90,6 +90,12 @@ export function createRoutesApi(baseUrl: string) {
   }
 
   return {
+    create: (input: CreateRouteRequest, signal: AbortSignal) => request<CreateRouteResponse>('/routes', signal,
+      (body) => record(body) && validRoute(body.route) && record(body.route) && body.route.status === 'active' &&
+        record(body.owner) && typeof body.owner.id === 'string' && body.owner.id.length > 0 &&
+        typeof body.memberToken === 'string' && body.memberToken.length > 0 &&
+        typeof body.ownerToken === 'string' && body.ownerToken.length > 0,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }),
     getAccess: (code: string, signal: AbortSignal) => request<RouteAccess>(`/routes/${encodeURIComponent(code)}/access`, signal,
       (body) => validRoute(body) && record(body) && body.code === code && typeof body.requiresPassword === 'boolean'),
     join: (code: string, input: JoinRequest, signal: AbortSignal) => request<JoinResponse>(`/routes/${encodeURIComponent(code)}/members`, signal,

@@ -8,6 +8,7 @@ import type { RoutesApi } from './api/routes';
 import type { Membership, Profile } from './domain/routes';
 import { createNativeSessionRepository } from './storage/native-session';
 import type { SessionRepository } from './storage/session-repository';
+import { CreateRouteScreen } from './screens/CreateRouteScreen';
 import { JoinRouteScreen } from './screens/JoinRouteScreen';
 import { RouteSnapshotScreen } from './screens/RouteSnapshotScreen';
 import { ConnectionCheckScreen } from './screens/ConnectionCheckScreen';
@@ -21,6 +22,7 @@ export function MobileApp() {
   const [attempt, setAttempt] = useState(0);
   const [initialCode, setInitialCode] = useState('');
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [creatingRoute, setCreatingRoute] = useState(false);
   const [checkingConnection, setCheckingConnection] = useState(false);
 
   useEffect(() => {
@@ -55,7 +57,17 @@ export function MobileApp() {
   if (member) return <RouteSnapshotScreen key={member.code} api={environment.api} repository={environment.repository} member={member}
     onChooseRoute={(code = '', message) => { setInitialCode(code); setJoinError(message ?? null); setMember(null); }} />;
 
+  function openRoute(saved: Membership, profile: Profile) {
+    setEnvironment((previous) => previous ? { ...previous, profile } : previous);
+    setMember(saved);
+    setJoinError(null);
+    setCreatingRoute(false);
+  }
+
+  if (creatingRoute) return <CreateRouteScreen api={environment.api} repository={environment.repository} profile={environment.profile}
+    onBack={() => setCreatingRoute(false)} onOpen={openRoute} />;
+
   return <JoinRouteScreen api={environment.api} repository={environment.repository} profile={environment.profile}
     initialCode={initialCode} initialError={joinError} onConnectionCheck={() => setCheckingConnection(true)}
-    onOpen={(saved, profile) => { setEnvironment({ ...environment, profile }); setMember(saved); setJoinError(null); }} />;
+    onCreate={() => setCreatingRoute(true)} onOpen={openRoute} />;
 }

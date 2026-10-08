@@ -173,7 +173,15 @@ Run mobile checks through Docker:
 
 The tests use the container's Node 24 built-in runner and TypeScript support, with no additional test dependency. They cover request failure, response validation, timeout through body consumption, cancellation, configuration, and retry recovery. Screen behavior is owned by [mobile boundaries](../system/mobile.md#shared-backend-integration).
 
-### Route joining and saved access
+### Route creation review
+
+Use Create a new route on the join screen. From an open route, use Join another route first; existing memberships remain saved. Enter route/display names and choose transport. Expand Route settings to add a description/password or limit sharing to the owner. Create route should open the native map screen as You and Owner, spectating; creation must not request location permission or start tracking.
+
+Verify blank-name feedback, both sharing policies, optional password handling, and request-failure recovery. After creation, force-stop/reopen and confirm the same owner membership loads without a password or another creation. Failed snapshot loading should retain access and offer Retry. A returned creation response followed by a SecureStore failure should show the code and Retry saving access with inputs/navigation disabled; recovering storage must save the original tokens without another POST.
+
+Use disposable local routes. Android owner deletion controls remain pending, so retain returned owner access in an isolated test harness and delete through the existing API during validation. Restore the device's original saved route afterward. Do not log tokens or passwords. JavaScript changes in this flow require Metro refresh on a development build; no new native dependency was added.
+
+## Route joining and saved access
 
 The app starts with Join a route or restores the last saved membership. Create a route in the web app at `http://localhost:3000`, then enter its code or paste its `/routes/{code}` share link in Android. After Continue, choose a display name and transport mode, and enter the password if required. Successful joining opens route details and members; use Refresh for current snapshots. Reopening uses saved membership, without creating another member or asking for the password again.
 

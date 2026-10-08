@@ -9,9 +9,9 @@ import { parseRouteCode } from '../domain/routes';
 import type { Membership, Profile, RouteAccess } from '../domain/routes';
 import type { SessionRepository } from '../storage/session-repository';
 
-export function JoinRouteScreen({ api, repository, profile, initialCode, initialError, onOpen, onConnectionCheck }: {
+export function JoinRouteScreen({ api, repository, profile, initialCode, initialError, onOpen, onConnectionCheck, onCreate }: {
   api: RoutesApi; repository: SessionRepository; profile: Profile; initialCode: string; initialError: string | null;
-  onOpen: (member: Membership, profile: Profile) => void; onConnectionCheck: () => void;
+  onOpen: (member: Membership, profile: Profile) => void; onConnectionCheck: () => void; onCreate: () => void;
 }) {
   const [routeInput, setRouteInput] = useState(initialCode);
   const [access, setAccess] = useState<RouteAccess | null>(null);
@@ -111,6 +111,7 @@ export function JoinRouteScreen({ api, repository, profile, initialCode, initial
         disabled={busy} onPress={() => void submit()} />}
       {access && <ActionButton label="Change route" disabled={busy} secondary onPress={changeRoute} />}
     </View>
+    <ActionButton label="Create a new route" secondary disabled={busy} onPress={onCreate} />
     <ActionButton label="Check server connection" secondary disabled={busy} onPress={onConnectionCheck} />
   </Screen>;
 }

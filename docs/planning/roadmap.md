@@ -95,15 +95,15 @@ The initial create → join → snapshot → live tracking → archive slice is 
 
 ## Phase 9: Mobile client, Android first
 
-The owner selected Android development now, with iOS later. The starter, tooling, API connection check, route joining, secure membership storage, authenticated snapshot screen, native snapshot map, and live viewing are complete; see [mobile delivery status](status.md#mobile-foundation). The app approach is owned by [mobile boundaries](../system/mobile.md).
+The owner selected Android development now, with iOS later. The starter, tooling, API connection check, route joining, secure membership storage, authenticated snapshot screen, native snapshot map, live viewing, and route creation are complete; see [mobile delivery status](status.md#mobile-foundation). The app approach is owned by [mobile boundaries](../system/mobile.md).
 
 The implementation checkpoints are:
 
 1. Live viewing, complete. Authenticate with saved membership, update paths and markers automatically, reflect membership and route changes, and recover missed events after reconnection. Preserve manual map positioning. Verify with a second client and an interrupted connection.
 2. Foreground location sharing, complete with owner-reported outdoor validation on 2026-10-07. Android location permission, Start/Stop sharing, accuracy/timestamp submissions, rejection feedback, and stale recovery are implemented.
 3. Screen-off tracking, complete with owner-reported outdoor validation on 2026-10-07. Android background tracking and its persistent notification are implemented. Detailed device/test measurements were not supplied; see [validation evidence](status.md#android-implementation-checkpoints).
-4. Create routes directly in Android, next. Use the shared [route rules](../product/routes.md) and [REST contract](../system/api-and-live.md). Persist returned owner/member access securely and open the new route in the existing native route screen. Validate input errors, request/storage failure recovery, and restored access.
-5. Add Android owner controls after route creation. Edit route metadata and provide close/delete actions using the shared owner and confirmation rules. Verify authorization, live metadata updates, close-to-archive behavior, tracking cleanup, and deleted-access cleanup.
+4. Create routes directly in Android, complete with emulator validation on 2026-10-08. Use the shared [route rules](../product/routes.md) and [REST contract](../system/api-and-live.md). Persist returned owner/member access securely and open the new route in the existing native route screen. Validate input errors, request/storage failure recovery, and restored access.
+5. Add Android owner controls, next. Edit route metadata and provide close/delete actions using the shared owner and confirmation rules. Verify authorization, live metadata updates, close-to-archive behavior, tracking cleanup, and deleted-access cleanup.
 6. Schedule further mobile behavior separately; iOS remains in the [backlog](backlog.md#planned-later).
 
-Each task is a separate implementation and validation checkpoint. Live viewing and native tracking are complete, with outdoor success reported by the owner. Android route creation and then owner edit/close/delete controls are the next selected implementation tasks.
+Each task is a separate implementation and validation checkpoint. Live viewing and native tracking are complete, with outdoor success reported by the owner. Android route creation is complete. Owner edit/close/delete controls are the next selected implementation task.

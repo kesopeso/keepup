@@ -36,7 +36,8 @@ export function createSessionRepository(store: KeyValueStore, namespace: string,
     if (!value || typeof value !== 'object') return false;
     const member = value as Partial<Membership>;
     return member.code === code && typeof member.memberId === 'string' && member.memberId.length > 0 &&
-      typeof member.memberToken === 'string' && member.memberToken.length > 0;
+      typeof member.memberToken === 'string' && member.memberToken.length > 0 &&
+      (member.ownerToken === undefined || (typeof member.ownerToken === 'string' && member.ownerToken.length > 0));
   }
   return {
     async getProfile(): Promise<Profile> {
@@ -61,7 +62,7 @@ export function createSessionRepository(store: KeyValueStore, namespace: string,
       return value;
     },
     async saveMembership(member: Membership) {
-      // Keep a successful join in memory even if the device write fails. Retry must not POST again.
+      // Keep successful access in memory even if the device write fails. Retry must not POST again.
       remembered.set(member.code, member);
       await write(memberKey(member.code), member);
       await write(`${prefix}.lastRoute`, member.code);

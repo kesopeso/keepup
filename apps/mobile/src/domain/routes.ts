@@ -7,7 +7,7 @@ export type MemberStatus = 'tracking' | 'spectating' | 'stale' | 'offline' | 'le
 export type RouteStatus = 'active' | 'closed';
 export type SharingPolicy = 'everyone_can_share' | 'joiners_can_view_only';
 export type Profile = { clientId: string; displayName: string; transportMode: TransportMode };
-export type Membership = { code: string; memberId: string; memberToken: string };
+export type Membership = { code: string; memberId: string; memberToken: string; ownerToken?: string };
 export type RouteAccess = {
   code: string; name: string; description: string; status: RouteStatus;
   requiresPassword: boolean; sharingPolicy: SharingPolicy;
@@ -32,6 +32,12 @@ export type RouteSnapshot = {
     canStartSharing: boolean; canStopSharing: boolean; canLeaveRoute: boolean;
     canCloseRoute: boolean; canDeleteRoute: boolean; canEditRoute: boolean;
   };
+};
+export type CreateRouteRequest = Profile & {
+  name: string; description: string; password: string; sharingPolicy: SharingPolicy;
+};
+export type CreateRouteResponse = {
+  route: RouteSummary; owner: { id: string }; memberToken: string; ownerToken: string;
 };
 export type JoinRequest = Profile & { password: string };
 export type JoinResponse = { route: RouteSummary; member: { id: string }; memberToken: string };
