@@ -24,6 +24,26 @@ For Android, continue with [first-time Android setup](mobile-development.md#firs
 
 Start the existing stack with `docker compose up -d`, then open `http://localhost:3000`. Run `./bin/migrate.sh up` when a pull adds migrations. Mobile developers also start their emulator and run `make mobile` in a separate terminal to keep Metro serving the installed app. See the [Android daily workflow](mobile-development.md#daily-development) for rebuild rules.
 
+## Web access from another device
+
+Localhost development needs no environment file. To open the web app from another device using your computer's LAN address or a custom hostname, copy the [development environment example](../../apps/web/.env.development.local.example) from the repository root:
+
+```sh
+cp apps/web/.env.development.local.example apps/web/.env.development.local
+```
+
+Edit `KEEPUP_DEV_ORIGINS` in the copied file. Replace the example address with the server IP or hostname used in the testing device's browser URL. Multiple entries are comma-separated, for example `192.168.1.42,my-laptop.local`. Use hostnames or IPs without a scheme, port, or path. The file is ignored by Git, so each developer can keep their own values.
+
+[Next.js configuration](../../apps/web/next.config.ts) splits the value on commas, trims entries, and removes empty entries before supplying `allowedDevOrigins`. Next.js loads the local file from the web app directory mounted by Compose. The `.example` file is a reference and is not loaded automatically. After editing the local file, restart the web service:
+
+```sh
+docker compose restart web
+```
+
+Open `http://YOUR_SERVER_HOST:3000` on the other device through the existing proxy. The device must be able to reach that address; custom hostnames also need to resolve on it. Update the local file and restart again if the browser hostname or IP changes. This setting allows Next.js development assets and hot reload from the listed hosts; native mobile API addresses are configured separately in the [Android workflow](mobile-development.md#api-connection).
+
+Hostname matching follows the [Next.js allowedDevOrigins documentation](https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins).
+
 ## Onboarding verification
 
 On a new Linux `x86_64` computer, use a fresh clone and follow [first-time setup](#first-time-setup), then [first-time Android setup](mobile-development.md#first-time-android-setup) if mobile work is needed. Confirm the web page and API health response, then join a route in the installed Android app and connect browser DevTools. Record any missing package, undocumented prompt, or failed command in this workflow before treating the guide as verified on a clean machine. Existing Docker images, SDK downloads, emulator state, and workspace dependencies can hide a missing step.

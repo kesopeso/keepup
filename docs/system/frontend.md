@@ -19,6 +19,8 @@ Production packaging uses [Next.js standalone output](../../apps/web/next.config
 
 Browser REST calls use same-origin `/api` paths. Live connections compute `/ws` from the browser origin when opening a connection, using `wss` on HTTPS pages. Nginx owns [upstream routing](../workflow/development.md#same-origin-proxy), so frontend images need no environment-specific URL configuration.
 
+For web development from another device, follow [web access from another device](../workflow/development.md#web-access-from-another-device).
+
 ### Main Screens
 
 - Create route
