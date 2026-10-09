@@ -2,6 +2,7 @@
 
 import { SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createBrowserId } from "../../../lib/browser-id";
 import {
   clearRouteAuth,
   getProfile,
@@ -728,7 +729,7 @@ function RouteSnapshotShell({
     socket.send(
       JSON.stringify({
         type,
-        requestId: crypto.randomUUID(),
+        requestId: createBrowserId(),
       }),
     );
   }

@@ -42,6 +42,8 @@ docker compose restart web
 
 Open `http://YOUR_SERVER_HOST:3000` on the other device through the existing proxy. The device must be able to reach that address; custom hostnames also need to resolve on it. Update the local file and restart again if the browser hostname or IP changes. This setting allows Next.js development assets and hot reload from the listed hosts; native mobile API addresses are configured separately in the [Android workflow](mobile-development.md#api-connection).
 
+HTTP access by IP supports development Start/Stop sharing using simulated positions. Browser ID generation falls back when the secure-context-only `crypto.randomUUID` method is unavailable; see [frontend boundaries](../system/frontend.md#current-frontend-foundation). `allowedDevOrigins` does not make an HTTP origin secure. Real browser geolocation requires HTTPS outside trusted local origins such as localhost; see [browser secure contexts](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Secure_Contexts) and [geolocation requirements](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API).
+
 Hostname matching follows the [Next.js allowedDevOrigins documentation](https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins).
 
 ## Onboarding verification

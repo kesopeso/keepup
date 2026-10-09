@@ -1,3 +1,5 @@
+import { createBrowserId } from "./browser-id.ts";
+
 export const transportModes = [
   "walking",
   "bicycle",
@@ -81,20 +83,10 @@ function normalizeRouteCode(code: string): string {
   return code.trim().toUpperCase();
 }
 
-function createClientId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `client_${Date.now().toString(36)}_${Math.random()
-    .toString(36)
-    .slice(2, 10)}`;
-}
-
 export function getOrCreateClientId(): string {
   const storage = getStorage();
   if (!storage) {
-    return createClientId();
+    return createBrowserId();
   }
 
   const existingClientId = storage.getItem(clientIdKey);
@@ -102,7 +94,7 @@ export function getOrCreateClientId(): string {
     return existingClientId;
   }
 
-  const clientId = createClientId();
+  const clientId = createBrowserId();
   try {
     storage.setItem(clientIdKey, clientId);
   } catch {

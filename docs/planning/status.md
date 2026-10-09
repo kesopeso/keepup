@@ -133,6 +133,15 @@ Validation reported by the owner on 2026-09-30:
 
 - Physical-phone outdoor testing passed for map readability, location permissions, and native sharing.
 
+## Web HTTP sharing validation
+
+Validated on 2026-10-09 after adding the [browser ID helper](../../apps/web/lib/browser-id.ts) for browser identity and sharing-command request IDs:
+
+- Docker production web build, including TypeScript checking, and all 10 web tests passed. Regression tests cover missing `randomUUID`, distinct UUID v4 request IDs, saved identity preservation, and the existing fallback when Web Crypto is absent.
+- Chrome used an isolated test context on an HTTP IP origin. Confirmed `isSecureContext` was false, `crypto.randomUUID` was undefined, and `getRandomValues` was available. Restarted the local web service to load the existing development-origin setting before testing.
+- Created a disposable route through the web UI. Start and Stop sharing generated distinct request IDs, received matching server acknowledgements, and changed the UI and authenticated snapshot between tracking and spectating. The API stored 21 simulated positions; the count remained 21 after Stop. No browser console or captured runtime errors occurred during the completed check.
+- Deleted the disposable route, confirmed its access endpoint returned 404, cleared its isolated saved route access, and closed the test tab. Existing browser memberships were not used. This verifies development sharing with simulated GPS, not real browser geolocation over HTTP.
+
 ## Implemented areas
 
 | Area | Owning reference |
