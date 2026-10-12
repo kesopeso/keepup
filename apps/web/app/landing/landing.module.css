@@ -1,0 +1,781 @@
+.page {
+  --map-base: #192321;
+  --map-block: #202c29;
+  --map-street: #283631;
+  --map-park: #233b2b;
+  --map-river: #254044;
+  --map-avenue: #3b4640;
+  --map-label: #859b8e;
+  width: 100%;
+  background: var(--bg);
+}
+
+.content {
+  width: 100%;
+  max-width: 1280px;
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.heroBand {
+  background: radial-gradient(ellipse at 78% 45%, #18432d44 0%, transparent 64%);
+}
+
+.useStripBand {
+  background: linear-gradient(90deg, #11251a, #1b3525 48%, #11251a);
+  border-top: 1px solid #2a4633;
+  border-bottom: 1px solid #2a4633;
+}
+
+.privacyBand {
+  background-color: #101e16;
+  background-image: url("/brand/landing-contours.svg");
+  background-size: cover;
+  background-position: center;
+  border-top: 1px solid #2a4332;
+  border-bottom: 1px solid #2a4332;
+}
+
+.finalCtaBand {
+  background: radial-gradient(ellipse at 50% 100%, #17472966 0%, transparent 75%);
+}
+
+.siteNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 26px 6%;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 23px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  flex: none;
+}
+
+.brand b {
+  color: var(--accent);
+}
+
+.brand img {
+  width: 35px;
+  height: 35px;
+}
+
+.navLinks {
+  display: flex;
+  gap: 28px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.navCreate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  color: var(--text);
+  border: 1px solid #3c4b43;
+  background: #17201b;
+  border-radius: 11px;
+  padding: 10px 16px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.navCreate span {
+  margin-left: 14px;
+  color: #86d6a0;
+}
+
+.hero {
+  padding: 54px 6% 66px;
+  display: grid;
+  grid-template-columns: minmax(0,1.03fr) minmax(0,1fr);
+  gap: 5%;
+  align-items: center;
+  position: relative;
+  padding-top: 40px;
+}
+
+.hero>* {
+  min-width: 0;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8cdda9;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  font-weight: 650;
+  text-transform: uppercase;
+  margin-bottom: 21px;
+}
+
+.liveDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.hero h1 {
+  font-size: clamp(45px,6vw,81px);
+  font-weight: 680;
+  letter-spacing: -.065em;
+  line-height: 1.055;
+  margin-bottom: 23px;
+}
+
+.hero h1 em {
+  font-style: normal;
+  color: #80dfa0;
+}
+
+.heroDescription {
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.8;
+  max-width: 38ch;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  color: #052e16;
+  background: var(--accent);
+  padding: 14px 20px;
+  min-height: 49px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 750;
+  transition: background .18s,transform .18s;
+}
+
+.primary:hover {
+  background: #48d77c;
+  transform: translateY(-2px);
+}
+
+.microcopy {
+  font-size: 10px;
+  color: #93a39a;
+  margin-top: 15px;
+}
+
+.mapDemo {
+  position: relative;
+  border: 1px solid #435449;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 25px 55px #0005;
+  background: var(--map-base);
+  min-width: 0;
+}
+
+.mapTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: absolute;
+  z-index: 2;
+  top: 17px;
+  left: 17px;
+  right: 17px;
+  font-size: 11px;
+  background: #151b20ed;
+  border: 1px solid #3c4b43;
+  border-radius: 11px;
+  padding: 10px 12px;
+}
+
+.sample {
+  margin-left: auto;
+  font-size: 9px;
+  color: #9faea4;
+}
+
+.cityMap {
+  width: 100%;
+  height: 425px;
+  object-fit: cover;
+}
+
+.mapCaption {
+  position: absolute;
+  bottom: 119px;
+  right: 16px;
+  font-size: 8px;
+  color: #95a89b;
+  background: #122018cf;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.groupCard {
+  position: absolute;
+  left: 17px;
+  right: 17px;
+  bottom: 17px;
+  padding: 15px;
+  background: #151b20f5;
+  border: 1px solid #435449;
+  border-radius: 13px;
+  box-shadow: 0 10px 20px #0003;
+}
+
+.groupHeading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 13px;
+  font-size: 11px;
+}
+
+.liveLabel {
+  font-size: 9px;
+  color: #9ef0b9;
+  background: #1e3c2b;
+  padding: 3px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+.people {
+  display: flex;
+  gap: 17px;
+  justify-content: space-between;
+}
+
+.people>span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 7px;
+  align-items: center;
+  font-size: 10px;
+  min-width: 0;
+}
+
+.people small {
+  color: #9aaba0;
+  font-size: 8px;
+}
+
+.avatar {
+  font-style: normal;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  border: 1px solid currentColor;
+  flex: none;
+}
+
+.green {
+  background: #173023;
+  color: #81e7a5;
+}
+
+.purple {
+  background: #2c283f;
+  color: #bdb0ff;
+}
+
+.amber {
+  background: #392f22;
+  color: #f6bf65;
+}
+
+.routeLine {
+  stroke-dasharray: 600;
+  stroke-dashoffset: 0;
+  animation: draw 2.3s ease both;
+}
+
+.delayed {
+  animation-delay: .25s;
+}
+
+.pulse {
+  animation: pulse 4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.useStrip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 23px 6%;
+  font-size: 11px;
+  color: #b5c2cb;
+  background: transparent;
+}
+
+.useStrip span:first-child {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: #6f9a7e;
+  letter-spacing: 1px;
+}
+
+.howSection {
+  padding: 80px 6%;
+  display: block;
+}
+
+.sectionHead h2 {
+  font-size: 35px;
+  letter-spacing: -1.4px;
+  font-weight: 650;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 25px;
+}
+
+.steps article {
+  min-width: 0;
+  background: #151b20;
+  border: 1px solid #34404a;
+  border-radius: 15px;
+  padding: 23px;
+}
+
+.stepNo {
+  display: inline-block;
+  color: #77bb8c;
+  font-size: 10px;
+  font-family: monospace;
+  margin-bottom: 22px;
+  border-top: 0;
+  width: 100%;
+  padding-top: 11px;
+  padding: 0;
+}
+
+.steps h3 {
+  font-size: 15px;
+  font-weight: 650;
+  margin-bottom: 12px;
+}
+
+.steps p {
+  font-size: 12px;
+  color: #a5b7aa;
+  line-height: 1.8;
+}
+
+.privacySection {
+  margin: 0;
+  padding: 66px 6%;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  display: grid;
+  grid-template-columns: 64px minmax(0,1.4fr) minmax(0,1fr);
+  gap: 28px;
+  align-items: center;
+}
+
+.privacySymbol {
+  width: 56px;
+  height: 56px;
+  padding: 11px;
+  border: 1px solid #426a4e;
+  border-radius: 16px;
+  color: #90d6a6;
+}
+
+.privacySection h2 {
+  font-size: 32px;
+  letter-spacing: -1px;
+  font-weight: 650;
+  margin-bottom: 15px;
+}
+
+.privacySection .eyebrow {
+  margin-bottom: 13px;
+}
+
+.privacySection p {
+  color: #adc2b3;
+  max-width: 50ch;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.privacyFacts {
+  display: grid;
+  gap: 17px;
+}
+
+.privacyFacts span {
+  color: #86d6a0;
+  margin-right: 10px;
+}
+
+.finalCta {
+  text-align: center;
+  padding: 80px 24px;
+}
+
+.finalCta .eyebrow {
+  justify-content: center;
+}
+
+.finalCta h2 {
+  font-size: 39px;
+  font-weight: 650;
+  letter-spacing: -1.5px;
+  margin-bottom: 25px;
+}
+
+.finalCta p {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 17px;
+}
+
+.siteFooter {
+  border-top: 1px solid #29372e;
+  margin: 0 6%;
+  padding: 23px 0;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.siteFooter .brand {
+  font-size: 18px;
+}
+
+.siteFooter img {
+  width: 26px;
+  height: 26px;
+}
+
+.siteFooter>span {
+  font-size: 10px;
+  color: #859c8b;
+}
+
+.actionCard {
+  background: #151b20;
+  border: 1px solid #344a3c;
+  border-radius: 17px;
+  padding: 20px;
+  margin-top: 27px;
+  max-width: 370px;
+}
+
+.actionCard>strong {
+  font-size: 12px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.actionCard .primary {
+  width: 100%;
+}
+
+.orLine {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 9px;
+  color: #8ba193;
+  margin: 15px 0;
+}
+
+.orLine:before,.orLine:after {
+  content: '';
+  height: 1px;
+  background: #344139;
+  flex: 1;
+}
+
+.joinDemo label {
+  display: block;
+  font-size: 10px;
+  color: #b5c2cb;
+  margin-bottom: 7px;
+}
+
+.joinRow {
+  display: flex;
+  gap: 8px;
+}
+
+.joinRow input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid #435349;
+  color: #fff;
+  background: #0c1014;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.secondary {
+  flex: none;
+  background: #26392c;
+  border: 1px solid #496e54;
+  color: #c9e2d1;
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.actionCard .microcopy {
+  font-size: 9px;
+  margin-top: 9px;
+}
+
+.sectionHead {
+  margin-bottom: 30px;
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 600;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pulse {
+  0%,100% {
+    opacity: .1;
+    transform: scale(.85);
+  }
+  50% {
+    opacity: .22;
+    transform: scale(1.15);
+  }
+}
+
+@media (max-width:760px) {
+  .siteNav {
+    padding: 20px;
+  }
+  .navLinks {
+    display: none;
+  }
+  .brand {
+    font-size: 21px;
+  }
+  .brand img {
+    width: 31px;
+    height: 31px;
+  }
+  .navCreate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    font-size: 10px;
+    padding: 8px 11px;
+  }
+  .navCreate span {
+    margin-left: 6px;
+  }
+  .hero {
+    grid-template-columns: minmax(0,1fr);
+    gap: 30px;
+    padding: 35px 22px 32px;
+  }
+  .hero h1 {
+    font-size: 45px;
+  }
+  .heroDescription {
+    font-size: 13px;
+  }
+  .eyebrow {
+    font-size: 9px;
+    margin-bottom: 17px;
+  }
+  .heroActions {
+    gap: 19px;
+    margin-top: 23px;
+  }
+  .primary {
+    font-size: 12px;
+    gap: 22px;
+  }
+  .quietLink {
+    font-size: 11px;
+  }
+  .cityMap {
+    height: 350px;
+  }
+  .people {
+    gap: 7px;
+  }
+  .people small {
+    display: none;
+  }
+  .mapCaption {
+    bottom: 111px;
+  }
+  .useStrip {
+    display: grid;
+    grid-template-columns: repeat(3,minmax(0,1fr));
+    gap: 12px;
+    padding: 19px 22px;
+    font-size: 9px;
+  }
+  .useStrip span:first-child {
+    grid-column: 1/-1;
+    font-size: 8px;
+  }
+  .howSection {
+    display: block;
+    padding: 45px 22px;
+  }
+  .sectionHead {
+    margin-bottom: 28px;
+  }
+  .sectionHead h2 {
+    font-size: 29px;
+  }
+  .steps {
+    grid-template-columns: minmax(0,1fr);
+    gap: 24px;
+  }
+  .steps article {
+    display: grid;
+    grid-template-columns: 27px minmax(0,1fr);
+    gap: 8px 12px;
+  }
+  .stepNo {
+    grid-row: 1/3;
+    border: 0;
+    padding-top: 2px;
+    margin: 0;
+  }
+  .steps h3 {
+    font-size: 16px;
+    margin: 0;
+  }
+  .steps p {
+    grid-column: 2;
+    font-size: 12px;
+  }
+  .privacySection {
+    margin: 0;
+    padding: 38px 22px;
+    grid-template-columns: minmax(0,1fr);
+    gap: 19px;
+  }
+  .privacySection h2 {
+    font-size: 30px;
+  }
+  .privacyFacts {
+    gap: 9px;
+  }
+  .privacySymbol {
+    width: 45px;
+    height: 45px;
+    padding: 9px;
+  }
+  .finalCta {
+    padding: 50px 22px;
+  }
+  .finalCta h2 {
+    font-size: 31px;
+  }
+  .siteFooter {
+    margin: 0 22px;
+    align-items: start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .siteFooter>span {
+    font-size: 9px;
+  }
+  .actionCard {
+    max-width: none;
+  }
+  .steps article {
+    padding: 20px;
+  }
+  .stepNo {
+    margin: 0;
+  }
+}
+
+.joinError {
+  color: #ffced7;
+  font-size: 11px;
+  margin-top: 8px;
+}
+
+.joinHelp {
+  color: var(--text-muted);
+  font-size: 9px;
+  margin: 7px 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page *, .page *::before, .page *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.brand {
+  text-decoration: none;
+  margin: 0;
+  color: var(--text);
+}
+
+.cityMap {
+  display: block;
+}
+
+.primary {
+  text-decoration: none;
+}
+
+.privacySymbol svg {
+  width: 100%;
+  height: auto;
+}
+
+.joinRow input[aria-invalid="true"] {
+  border-color: #ef9090;
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+
+.navLinks a,
+.navCreate {
+  text-decoration: none;
+}

@@ -16,7 +16,7 @@ make doctor
 make setup
 ```
 
-`make doctor` checks Docker access and the Compose configuration. `make setup` starts the proxy, web app, API, and PostGIS, then applies migrations through the existing manual migration helper. Open `http://localhost:3000`; the KeepUp create/join page should load. Check `http://localhost:3000/api/healthz` for an API response with `status: "ok"`. The first run builds images and downloads dependencies, so it takes longer than later starts. The local Compose database credentials are already configured; no `.env` file is required for this path.
+`make doctor` checks Docker access and the Compose configuration. `make setup` starts the proxy, web app, API, and PostGIS, then applies migrations through the existing manual migration helper. Open `http://localhost:3000`; the KeepUp landing page should load, with route creation at `/routes/new` and joining by route code. Check `http://localhost:3000/api/healthz` for an API response with `status: "ok"`. The first run builds images and downloads dependencies, so it takes longer than later starts. The local Compose database credentials are already configured; no `.env` file is required for this path.
 
 For Android, continue with [first-time Android setup](mobile-development.md#first-time-android-setup). Developers working only on the web or API can stop here.
 

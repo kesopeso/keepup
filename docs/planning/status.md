@@ -34,6 +34,8 @@ Route creation and the drawer layout have Docker TypeScript/regression checks an
 
 Web create/join forms, route map, sharing controls, member presence, dialogs, and brand assets are implemented. Browser layout/accessibility checks and owner-reported physical-phone testing are recorded in [UI validation](validation-history.md#ui-redesign). The owning facts live in [frontend boundaries](../system/frontend.md) and [experience](../product/experience.md).
 
+The selected web landing design and landing/create navigation rollout are implemented; see [frontend boundaries](../system/frontend.md#current-frontend-foundation).
+
 ## Web HTTP sharing validation
 
 Development Start/Stop sharing on HTTP IP origins is validated with simulated GPS. Real browser geolocation still requires a secure origin. See [dated HTTP checks](validation-history.md#web-http-sharing-validation) and [current frontend behavior](../system/frontend.md#current-frontend-foundation).
@@ -47,7 +49,7 @@ The development-only legacy copy fallback has desktop browser validation and own
 | Area | Owning reference |
 |---|---|
 | Compose tooling, API startup, health, manual migrations, deployment | [Development](../workflow/development.md), [backend](../system/backend.md) |
-| Web creation/joining, identity, snapshots, owner close/delete, maps, sharing, branding | [Frontend](../system/frontend.md) |
+| Web landing, creation/joining, identity, snapshots, owner close/delete, maps, sharing, branding | [Frontend](../system/frontend.md) |
 | Android creation/joining, saved access, native maps, live viewing, sharing | [Mobile](../system/mobile.md) |
 | REST lifecycle, snapshots, WebSocket authentication, presence, GPS validation | [API](../system/api-and-live.md) |
 | Stored segments and accepted points | [Persistence](../system/data.md) |

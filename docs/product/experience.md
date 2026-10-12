@@ -26,6 +26,15 @@ status: specified
 - Route code is visible but secondary to share action
 - Share uses native Web Share API when available, with copy-link fallback and a selectable URL when automatic sharing/copying fails
 
+## Landing page
+
+- Show the landing page at `/` and open route creation at `/routes/new`.
+- Explain live route sharing with an explicitly labeled example map and a prominent create action.
+- Let invited visitors enter a route code to open the existing route-access flow.
+- Explain link/code access, optional route passwords, and that joining does not start location sharing.
+- Let section backgrounds extend to the viewport edges while keeping their content centered; use faint static contour lines and soft green gradients.
+- Keep the landing page readable on mobile and respect reduced-motion preferences for decorative animation.
+
 ## Map Behavior
 
 - Initial load fits full known route history plus active markers

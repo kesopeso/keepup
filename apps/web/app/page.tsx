@@ -1,9 +1,12 @@
-import { CreateRouteForm } from "./create-route-form";
+import type { Metadata } from "next";
+import { LandingPage } from "./landing/landing-page";
 
-export default function HomePage() {
-  return (
-    <main className="page-shell">
-      <CreateRouteForm />
-    </main>
-  );
+export const metadata: Metadata = {
+  title: "KeepUp | Live route sharing for your group",
+  description:
+    "Keep your group in view on one live map. Create a route, share a link, and choose when to share your location. No account required.",
+};
+
+export default function Page() {
+  return <LandingPage createHref="/routes/new" />;
 }

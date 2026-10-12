@@ -196,7 +196,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
         code={code}
         memberToken={memberToken}
         ownerToken={ownerToken}
-        onDeleted={() => router.replace("/")}
+        onDeleted={() => router.replace("/routes/new")}
         onSnapshotChange={setSnapshot}
         snapshot={snapshot}
       />

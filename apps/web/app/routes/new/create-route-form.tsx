@@ -7,9 +7,9 @@ import {
   saveProfile,
   saveRouteAuth,
   type TransportMode,
-} from "../lib/identity-storage";
-import { createRoute, type SharingPolicy } from "../lib/routes-api";
-import { Brand, TransportField } from "./components/ui";
+} from "../../../lib/identity-storage";
+import { createRoute, type SharingPolicy } from "../../../lib/routes-api";
+import { Brand, TransportField } from "../../components/ui";
 
 const sharingPolicyOptions: Array<{
   value: SharingPolicy;
