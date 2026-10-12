@@ -142,6 +142,14 @@ Validated on 2026-10-09 after adding the [browser ID helper](../../apps/web/lib/
 - Created a disposable route through the web UI. Start and Stop sharing generated distinct request IDs, received matching server acknowledgements, and changed the UI and authenticated snapshot between tracking and spectating. The API stored 21 simulated positions; the count remained 21 after Stop. No browser console or captured runtime errors occurred during the completed check.
 - Deleted the disposable route, confirmed its access endpoint returned 404, cleared its isolated saved route access, and closed the test tab. Existing browser memberships were not used. This verifies development sharing with simulated GPS, not real browser geolocation over HTTP.
 
+## Web development clipboard fallback validation
+
+Validated on 2026-10-12 for the [development-only Share fallback](../system/frontend.md#current-frontend-foundation):
+
+- All 10 web tests and the Docker production build, including TypeScript checking, passed. The production client output contains no legacy copy command or unsafe-fallback notice.
+- On an HTTP IP origin in desktop Chrome, clicked Share and pasted the copied text to confirm the exact route URL. Verified the amber warning, manual-copy behavior when legacy copy reports failure, and silent native-share cancellation without attempting copy. A simulated native-share rejection also reached the successful copy fallback. Removed the temporary test input and deleted the disposable route.
+- The owner tested the fallback on mobile Chrome and confirmed it works.
+
 ## Implemented areas
 
 | Area | Owning reference |

@@ -2,6 +2,7 @@
 
 import { SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { copyWithDevelopmentFallback } from "../../../lib/development-clipboard";
 import { createBrowserId } from "../../../lib/browser-id";
 import {
   clearRouteAuth,
@@ -428,6 +429,15 @@ function RouteSnapshotShell({
       });
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
+      if (copyWithDevelopmentFallback(url)) {
+        addShareNotice({
+          id: ++nextShareNoticeId.current,
+          title: "Route link copied",
+          detail: "Link copied using an unsafe fallback. Development only.",
+          tone: "warning",
+        });
+        return;
+      }
       setManualShareUrl(url);
       addShareNotice({
         id: ++nextShareNoticeId.current,

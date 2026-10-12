@@ -501,6 +501,21 @@ h2 {
   transform-origin: left;
   animation: notification-progress 6s linear forwards;
 }
+.notification-warning {
+  border-color: #a87932;
+  background: #352817;
+}
+.notification-warning .notification-icon {
+  background: #946221;
+  color: #fff0cc;
+  font-weight: 800;
+}
+.notification-warning .notification-copy > span {
+  color: #ffdb9e;
+}
+.notification-warning .notification-timer {
+  background: #f4b64d;
+}
 .notification-error {
   border-color: #965563;
   background: #341e25;

@@ -76,7 +76,7 @@ export type NotificationItem = {
   id: number;
   title: string;
   detail: string;
-  tone: "success" | "error";
+  tone: "success" | "warning" | "error";
   leaving: boolean;
 };
 

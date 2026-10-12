@@ -44,6 +44,8 @@ Open `http://YOUR_SERVER_HOST:3000` on the other device through the existing pro
 
 HTTP access by IP supports development Start/Stop sharing using simulated positions. Browser ID generation falls back when the secure-context-only `crypto.randomUUID` method is unavailable; see [frontend boundaries](../system/frontend.md#current-frontend-foundation). `allowedDevOrigins` does not make an HTTP origin secure. Real browser geolocation requires HTTPS outside trusted local origins such as localhost; see [browser secure contexts](https://developer.mozilla.org/en-US/docs/Web/Security/Defenses/Secure_Contexts) and [geolocation requirements](https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API).
 
+The route-header Share button uses native sharing or the modern Clipboard API first. If either path would show "Copy link manually", development builds try the deprecated `document.execCommand("copy")` fallback. A successful copy shows an amber warning, "Link copied using an unsafe fallback. Development only." Browser support and user activation can still block this method; a failed copy keeps the manual link. Production never uses it. See [legacy copy browser limitations](https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand).
+
 Hostname matching follows the [Next.js allowedDevOrigins documentation](https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins).
 
 ## Onboarding verification
