@@ -9,15 +9,21 @@ Own development and knowledge-maintenance instructions.
 
 ## Inputs
 
-[Development](development.md), [Android development](mobile-development.md), [documentation maintenance](documentation.md).
+Choose a workflow and read only its relevant section:
+
+| Task | Read |
+|---|---|
+| Setup, web/API checks, migrations, LAN access, deployment | [Development](development.md) |
+| Android build, Metro, debugging, native review | [Android development](mobile-development.md) |
+| Scoped context loading and automatic ICM maintenance | [Documentation policy](documentation.md) |
 
 ## Contributor entry
 
-Start with [agent routing](../../AGENTS.md) and the [knowledge-base contract](../CONTEXT.md). Use the development and documentation references above, the [change-impact guide](../system/change-impact.md) before editing code, and the [implementation plan](../implementation-plan.md) to select current work.
+Start with [agent routing](../../AGENTS.md) and the [context map](../CONTEXT.md). Use the chosen workflow, the matching [change-impact row](../system/change-impact.md) before editing code, and [current status](../planning/status.md) only to select or assess current work.
 
 ## Process
 
-Read [agent rules](../../AGENTS.md), [Compose](../../docker-compose.yml), [proxy configuration](../../apps/proxy/nginx.conf), [Makefile](../../Makefile), [readiness check](../../bin/doctor.sh), [migration helper](../../bin/migrate.sh), and [web helper](../../bin/web-pnpm.sh) for workflow changes. For Android, also read the [mobile helper](../../bin/mobile-pnpm.sh), [Metro launcher](../../bin/start-metro.sh), [Dockerfile](../../apps/mobile/Dockerfile.dev), and [app configuration](../../apps/mobile/app.json).
+Follow the chosen reference's source links for the command or configuration being changed. Load Compose, helpers, proxy configuration, or native app configuration only when that workflow depends on them. Verify commands against source before editing the owning reference.
 
 ## Outputs
 

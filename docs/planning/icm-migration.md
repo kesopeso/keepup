@@ -1,11 +1,14 @@
 ---
 type: record
 status: active
+historical: true
 ---
 
 # ICM knowledge-base restructure
 
 Date: 2026-09-11. Source repository commit: `62d98cf` plus the existing uncommitted architecture skill-installation note. This records a documentation change, not application validation.
+
+Historical record, loaded only for migration reasoning. The all-docs startup policy recorded below is superseded by the current [documentation policy](../workflow/documentation.md); it is not an instruction for present sessions.
 
 ## Form and inventory
 

@@ -9,11 +9,21 @@ Own implementation boundaries and point editors to source.
 
 ## Inputs
 
-[Web frontend](frontend.md), [mobile client](mobile.md), [backend](backend.md), [API and live protocol](api-and-live.md), [persistence](data.md), [change impact](change-impact.md), [architecture decisions](../adr/CONTEXT.md).
+Choose only the route needed for the request:
+
+| Question | Read |
+|---|---|
+| What a code change affects | [Change-impact guide](change-impact.md), then its matching row |
+| Web screens, browser identity, rendering | [Frontend](frontend.md) |
+| Android screens, saved access, live viewing, native sharing | [Mobile](mobile.md), relevant section |
+| Go runtime, health, service ownership | [Backend](backend.md) |
+| REST, snapshots, WebSocket events, presence timers | [API and live protocol](api-and-live.md) |
+| Tables, constraints, accepted point history | [Persistence](data.md) |
+| Reason for a recorded architectural decision | [ADRs](../adr/CONTEXT.md), only when needed |
 
 ## Process
 
-Read the matching [product reference](../product/CONTEXT.md) and source links on the chosen page. Verify as-built claims against code before editing.
+Read the chosen page or section and its relevant source links. Before changing behavior, use the matching change-impact row and the specific [product rule](../product/CONTEXT.md). Verify as-built claims against code; expand to dependent surfaces only when they are affected. Do not load every system page or ADR.
 
 ## Outputs
 

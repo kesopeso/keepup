@@ -7,7 +7,7 @@ status: specified
 
 ## Product Summary
 
-KeepUp is a mobile-first web app for live route sharing between friends, groups, or coordinators monitoring participants across different vehicles. Users join routes via shareable links/codes and can watch live progress or share their own location when allowed.
+KeepUp is a mobile-first live route-sharing application with web and Android clients for friends, groups, or coordinators monitoring participants across different vehicles. Users join routes via shareable links/codes and can watch live progress or share their own location when allowed.
 
 ## Route Access
 

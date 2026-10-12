@@ -117,7 +117,7 @@ Connect the unlocked phone by USB, enable USB debugging, and accept its authoriz
 
 Replace `PHONE_SERIAL` with the connected phone's serial. If Android reports incompatible signing keys, uninstall the previous app before installing; uninstalling clears saved memberships. Expo's `--device` argument selects by name, whereas ADB's `-s` selects by serial. For a development rebuild, use `./bin/mobile-pnpm.sh exec expo run:android --device --no-bundler` and select the phone interactively.
 
-Open the app named KeepUp, join a disposable route created on the production website, and confirm another client sees its location. Disconnect USB and stop Metro, then reopen the app over cellular data to confirm the standalone setup before going outdoors. Follow the foreground and screen-off review below; record observations in delivery status.
+Open the app named KeepUp, join a disposable route created on the production website, and confirm another client sees its location. Disconnect USB and stop Metro, then reopen the app over cellular data to confirm the standalone setup before going outdoors. Follow the foreground and screen-off review below; summarize current limits in delivery status and keep dated observations in [validation history](../planning/validation-history.md#mobile-validation).
 
 ### Daily development
 
@@ -154,7 +154,7 @@ The configured `EXPO_UNSTABLE_HEADLESS=1` disables the Docker desktop DevTools l
 
 The emulator's `10.0.2.2` address points to the Ubuntu host. `localhost` inside the emulator normally means the virtual phone; ADB forwarding makes the Metro port an explicit exception.
 
-Start the separate backend stack with `docker compose up -d`. The mobile app calls its health endpoint on launch and manual retry. Backend routing remains owned by the [same-origin proxy contract](development.md#same-origin-proxy).
+Start the separate backend stack with `docker compose up -d`. The connection-check screen calls the health endpoint when opened and on manual retry; normal app startup restores saved access or opens joining. Backend routing remains owned by the [same-origin proxy contract](development.md#same-origin-proxy).
 
 Compose sets `EXPO_DEBUG=1`, which enables the browser debugger redirect in the installed Expo CLI and emits verbose logs. Use `/open-debugger` to discover the current runtime rather than saving a session-specific inspector URL. Keep the emulator app and Metro running while debugging.
 
@@ -193,7 +193,7 @@ Route/session tests cover code/link parsing, password/name errors, Bearer authen
 
 The snapshot map adds `@maplibre/maplibre-react-native` and its Expo config plugin. Regenerate and rebuild using [build and install](#build-and-install); Metro refresh alone cannot install the native renderer. When Metro is already running, use `./bin/mobile-pnpm.sh exec expo run:android --no-bundler` for the build and installation. Keep Metro's localhost address for browser debugging.
 
-The full-screen map and Peek/Full drawer are JavaScript layout changes. An installed APK that already contains MapLibre needs only Metro refresh for these changes. Verify vertical and horizontal pan, two-finger pinch and double-tap zoom, and both drawer positions. A short handle drag must snap back to Peek or Full; no intermediate resting position is available. Scroll the Full member list independently, use Android Back to return to Peek, and select a located member to focus their history while collapsing the drawer. Repeat with larger system text. Check sharing permission/settings errors, recovery choices, reconnection with Stop available, and archives.
+The full-screen map and Peek/Full drawer are JavaScript layout changes. An installed APK that already contains MapLibre needs only Metro refresh for these changes. Verify vertical and horizontal pan, two-finger pinch and double-tap zoom, and both drawer positions. Zoom uses native gestures; there are no zoom buttons. A short handle drag must snap back to Peek or Full; no intermediate resting position is available. Scroll the Full member list independently, use Android Back to return to Peek, and select a located member to focus their history while collapsing the drawer. Repeat with larger system text. Check sharing permission/settings errors, recovery choices, reconnection with Stop available, and archives.
 
 Join a route with saved locations from the web client, then Refresh in Android to see its paths and last-known markers. Pan or zoom to reveal Fit group. Refresh must preserve that manual view, and Fit group must fit the whole history and hide again. Tap a marker or a located member row to focus their history and read the location timestamp. Empty routes display an explanatory message; closed archives use the same map. A failed map load offers Retry map while route controls remain usable.
 
@@ -228,7 +228,7 @@ Install dependencies, regenerate Android, and rebuild the APK using [build and i
 5. Force-stop and reopen KeepUp. It must not silently resume capture. Check Resume and Continue as spectator. Also test disabled Location, revoked permissions, route closure, and route deletion during sharing.
 6. On a physical phone, record model, Android version, precise/approximate permission choice, battery restrictions, elapsed time, battery percentage before/after, and any update gaps. Compare a similar idle period. Test without a connected debugger and with the intended release build before claiming production reliability.
 
-Emulator fixes use `adb emu geo fix <longitude> <latitude>` from the host SDK. ADB can lock with `adb shell input keyevent 223` and wake with keyevent `224`. Keep physical-device findings in [delivery status](../planning/status.md#android-implementation-checkpoints). The app uses a five-second minimum location interval; Android scheduling and GPS conditions can delay delivery.
+Emulator fixes use `adb emu geo fix <longitude> <latitude>` from the host SDK. ADB can lock with `adb shell input keyevent 223` and wake with keyevent `224`. Keep current physical-device limits in [delivery status](../planning/status.md#android-implementation-checkpoints) and dated findings in [validation history](../planning/validation-history.md#mobile-validation). The app uses a five-second minimum location interval; Android scheduling and GPS conditions can delay delivery.
 
 ### Troubleshooting
 
@@ -259,4 +259,4 @@ Update this page when the Docker image, SDK mount, ADB forwarding, Metro flags, 
 
 ## Validation
 
-The owner verified the installed starter and browser debugger on Ubuntu. The connection-check screen was verified against the running backend and through API stop/restart with manual retry. Route joining, password/name errors, authenticated snapshots, and membership restoration were verified on the emulator; archive and deleted-route cleanup were also checked using the actual API/session client against a disposable route. See [delivery status](../planning/status.md#mobile-foundation) for the dated evidence and scope. Before continuing development, review these commands against the actual Compose configuration. Later native tracking must be tested on physical hardware; the emulator setup does not establish battery use or screen-off GPS reliability.
+Setup, browser debugging, API failure recovery, joining, restored access, native maps, live viewing, creation, and location-sharing controls have recorded emulator verification. The owner reported successful standalone outdoor foreground and screen-off tracking on 2026-10-07; detailed device, duration, and battery measurements were not supplied. See [current limits](../planning/status.md#mobile-foundation) and load [dated evidence](../planning/validation-history.md#mobile-validation) only for validation questions. Review affected commands against actual Compose and helper configuration when changing this workflow. Emulator results do not establish battery use or reliability across devices.

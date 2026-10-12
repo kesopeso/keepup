@@ -9,11 +9,19 @@ Own project progress and future work.
 
 ## Inputs
 
-[Status](status.md), [roadmap](roadmap.md), [backlog](backlog.md), [ICM migration record](icm-migration.md).
+Choose by question; these are conditional inputs:
+
+| Question | Read |
+|---|---|
+| What is implemented, what is next, what remains unverified | [Current status](status.md) |
+| Implementation order | Relevant phase of [roadmap](roadmap.md) |
+| Deferred scope | [Backlog](backlog.md) |
+| Dated test results or earlier validation limits | Relevant section of [validation history](validation-history.md), only on demand |
+| Previous documentation migrations | [Migration record](icm-migration.md), only on demand |
 
 ## Process
 
-Read the current request, [product contract](../product/CONTEXT.md), and relevant [system reference](../system/CONTEXT.md). Record completed work, next steps, and deferred scope without copying implementation details.
+Read the current request and chosen planning page. Check the relevant [product](../product/CONTEXT.md) or [system](../system/CONTEXT.md) reference only to resolve scope or implementation claims. Keep status current without copying behavior or accumulating dated logs; evidence belongs in the separate validation record. History is not a startup input.
 
 ## Outputs
 
