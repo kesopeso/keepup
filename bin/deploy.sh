@@ -2,26 +2,38 @@
 set -eu
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
-  echo "Usage: $0 <registry-username:registry-password> <ssh-username@host>"
+  echo "Usage: $0 <registry-username:registry-password@registry-url> <ssh-username@host>"
   echo "Publish latest images, copy migrations, and restart KeepUp as the supplied SSH user."
-  echo "Optional: PLATFORM=linux/amd64 $0 <registry-username:registry-password> <ssh-username@host>"
+  echo "Optional: PLATFORM=linux/amd64 $0 <registry-username:registry-password@registry-url> <ssh-username@host>"
   exit 0
 fi
 
 if [ "$#" -ne 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
-  echo "Usage: $0 <registry-username:registry-password> <ssh-username@host>" >&2
+  echo "Usage: $0 <registry-username:registry-password@registry-url> <ssh-username@host>" >&2
   exit 1
 fi
 
-# Split credentials at the first colon so passwords may contain colons.
+# Split at the last @ so passwords may contain @, then at the first colon.
 case "$1" in
-  *:*) registry_username=${1%%:*}; registry_password=${1#*:} ;;
-  *) echo "Provide registry credentials as username:password." >&2; exit 1 ;;
+  *@*) registry_credentials=${1%@*}; registry=${1##*@} ;;
+  *) echo "Provide registry credentials as username:password@registry-url." >&2; exit 1 ;;
 esac
-if [ -z "$registry_username" ] || [ -z "$registry_password" ]; then
-  echo "Registry username and password must both be nonempty." >&2
+case "$registry_credentials" in
+  *:*) registry_username=${registry_credentials%%:*}; registry_password=${registry_credentials#*:} ;;
+  *) echo "Provide registry credentials as username:password@registry-url." >&2; exit 1 ;;
+esac
+unset registry_credentials
+if [ -z "$registry_username" ] || [ -z "$registry_password" ] || [ -z "$registry" ]; then
+  echo "Registry username, password, and URL must all be nonempty." >&2
   exit 1
 fi
+# Docker image tags require a registry host, optionally with a port, without a scheme or path.
+case "$registry" in
+  [!a-zA-Z0-9\[]*|*[!a-zA-Z0-9.:\[\]_-]*)
+    echo "Provide a registry hostname or IP with an optional port, without a scheme or path." >&2
+    exit 1
+    ;;
+esac
 
 case "$2" in
   *@*) ssh_username=${2%%@*}; server_host=${2#*@} ;;
@@ -48,7 +60,6 @@ esac
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 remote_dir=/home/$ssh_username/projects/active-sites/keepup.kesopeso.eu
 
-registry=docker-registry.kesopeso.eu
 printf '%s' "$registry_password" | docker login "$registry" --username "$registry_username" --password-stdin
 unset registry_password
 set --

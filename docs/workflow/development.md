@@ -105,21 +105,21 @@ Integration tests create and remove isolated schemas and apply existing migratio
 
 ## Deploy to the production server
 
-Run [the deployment helper](../../bin/deploy.sh) with registry credentials (`username:password`) and an SSH connection (`username@host`):
+Run [the deployment helper](../../bin/deploy.sh) with registry credentials and address (`username:password@registry-url`) and an SSH connection (`username@host`):
 
 ```sh
-./bin/deploy.sh 'registry-user:your-password' deploy@203.0.113.10
-PLATFORM=linux/amd64 ./bin/deploy.sh 'registry-user:your-password' deploy@203.0.113.10
+./bin/deploy.sh 'registry-user:your-password@registry.example.com' deploy@203.0.113.10
+PLATFORM=linux/amd64 ./bin/deploy.sh 'registry-user:your-password@registry.example.com' deploy@203.0.113.10
 ```
 
 The script resolves the repository root from its own location and performs these steps:
 
-1. Log in to `docker-registry.kesopeso.eu` as the supplied registry user using Docker's `--password-stdin`.
+1. Log in to the registry supplied in the first argument as the supplied registry user using Docker's `--password-stdin`.
 2. Build both production Dockerfiles, then push `keepup-web:latest` and `keepup-api:latest`. Optional `PLATFORM` selects the build architecture.
 3. Copy all regular files (including hidden files, except `.gitkeep`) directly in `db/migrations/` to `/home/<ssh-username>/projects/active-sites/keepup.kesopeso.eu/db/migrations` as the supplied SSH user.
 4. Run `/home/<ssh-username>/projects/active-sites/keepup.kesopeso.eu/restart` from its containing directory.
 
-Registry credentials split at the first colon; the password may contain additional colons. Both parts must be nonempty. The SSH host may be an IPv4 address, a hostname, or an IPv6 address (bare or bracketed, for example `deploy@[2001:db8::10]`). The SSH username determines the remote `/home/<ssh-username>` path.
+The first argument splits at the last `@` to extract the registry address, then at the first colon to separate the username and password. Passwords may contain additional colons and `@` characters. All three parts must be nonempty. Supply a registry hostname or IP with an optional port, for example `registry.example.com:5000`, without a scheme or path. Login, image tags, and pushes all use this address. The SSH host may be an IPv4 address, a hostname, or an IPv6 address (bare or bracketed, for example `deploy@[2001:db8::10]`). The SSH username determines the remote `/home/<ssh-username>` path.
 
 The remote migrations directory must already exist. Remote migration files are not deleted. Each step must succeed before the next runs; a failure does not roll back published images or copied files. Both builds finish before either push, but pushes are sequential: if the second push fails, the first image is already published. The remote restart file must be executable and owns the server-side restart procedure.
 
