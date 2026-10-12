@@ -9,7 +9,7 @@ This pre-existing shelf has no decision records yet; its .gitkeep is retained.
 
 ## Inputs
 
-Read [system design](../architecture.md), the relevant source files, and the requested decision.
+Read only the relevant system reference, source files, and requested decision. This shelf is loaded for decision reasoning, not routine startup or documentation checks.
 
 ## Process
 

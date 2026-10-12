@@ -40,7 +40,7 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 | [Request tests](../../apps/mobile/tests/health.test.cjs) | Configuration, failed requests, timeouts, cancellation, and recovery |
 | [Route/session tests](../../apps/mobile/tests/routes.test.cjs) | API errors, persisted identity, credential scope, and recovery without repeat joining |
 | [Map tests](../../apps/mobile/tests/map.test.cjs) | Segment boundaries, latest locations, empty maps, invalid geometry, and antimeridian fitting |
-| [index.ts](../../apps/mobile/index.ts) | Registers the root React component |
+| [index.ts](../../apps/mobile/index.ts) | Registers the screen-off location task outside React, then the root component |
 | [package.json](../../apps/mobile/package.json) | `@keepup/mobile`, runtime dependencies, and Expo commands |
 | [app.json](../../apps/mobile/app.json) | Expo configuration, native identity, icons, theme, and config plugins |
 | [pnpm workspace](../../pnpm-workspace.yaml) and [lockfile](../../pnpm-lock.yaml) | Workspace membership and resolved dependencies |
@@ -85,7 +85,7 @@ Network loss leaves the service registered because Android restricts starting fo
 
 The generated manifest includes foreground-service/location and notification permissions. `RECEIVE_BOOT_COMPLETED` is required by Expo TaskManager's persisted job scheduler; it does not authorize KeepUp to resume sharing after reboot. `ACCESS_BACKGROUND_LOCATION` is disabled because this service starts through an explicit foreground action. Android while-in-use permission covers this foreground-service model. iOS continues to use the foreground watcher and is unvalidated.
 
-Physical-phone screen locking, power-management behavior, and battery measurement remain an explicit [validation checkpoint](../planning/status.md#android-implementation-checkpoints). Emulator results cannot establish reliability on different Android manufacturers' devices.
+Physical-phone foreground and screen-off tracking checkpoints are complete on the owner's outdoor success report. Detailed duration, power-management, and battery measurements were not supplied; see [current validation limits](../planning/status.md#android-implementation-checkpoints). This does not establish reliability across Android manufacturers.
 
 ### Shared backend integration
 
@@ -99,19 +99,19 @@ Mobile route operations use the same [REST contract](api-and-live.md) as the web
 
 Without saved access, Continue fetches route access metadata before collecting display name, one of the seven supported transport modes, and a password only when required. Join posts the profile and password, saves the returned membership, then opens the authenticated snapshot. Wrong passwords, duplicate names, missing routes, network failures, and unexpected responses show readable feedback with manual retry. Route requests have a ten-second timeout covering response parsing; concurrent form submissions are blocked.
 
-The snapshot displays route name, description, code, active/closed state, sharing policy, members, transport modes, written presence status, and owner/self labels. Refresh requests another snapshot; it does not open a live connection. Failed refreshes retain the last successful snapshot with its update time. Expired access or a deleted route clears saved route credentials and offers Join again. Existing saved members can view closed archives. The shared API currently rejects new members on closed routes, so the join screen explains that limitation; the product's broader closed-route access requirement remains a backend gap.
+The snapshot displays route name, description, code, active/closed state, sharing policy, members, transport modes, written presence status, and owner/self labels. Active routes open a live connection through the viewing session; Refresh requests another snapshot. Failed refreshes retain the last successful snapshot with its update time. Expired access or a deleted route clears saved route credentials and offers Join again. Existing saved members can view closed archives. The shared API currently rejects new members on closed routes, so the join screen explains that limitation; the product's broader closed-route access requirement remains a backend gap.
 
 ### Saved membership
 
 Expo SecureStore persists a stable device UUID, display name and transport preference, a separate member token/id and optional owner token for each route, and the last opened route code. Expo Crypto generates the UUID and hashes the configured API base URL for the storage namespace. Credentials from different backends stay separate. The route password is never persisted. The SecureStore config plugin configures Android backup exclusions; tokens are encrypted using the platform's storage and keystore.
 
-Startup restores the last route and requests its snapshot with the saved token instead of posting another join. Entering a previously joined code similarly resumes its membership without requiring a password. Join another route changes the screen and preserves membership; it does not leave the route or revoke access.
+Startup restores the last route and requests its snapshot with the saved token instead of posting another join. Entering a previously joined code similarly resumes its membership without requiring a password. Join another route changes the screen and preserves membership; it does not leave the route or revoke access. There is no explicit Leave route action in the current mobile client.
 
 Credentials are saved before fetching the initial snapshot, so a failed snapshot can be retried without creating another member. If saving a successful join fails, its returned credentials remain in memory and Retry saves them again instead of repeating POST. Device storage errors are surfaced. Unmounting aborts network work and old responses cannot update another screen. There is no automatic POST retry: the shared join endpoint is not idempotent, so a lost join response can leave a server membership without recoverable credentials.
 
 Live viewing and foreground location sharing are implemented. Route creation is implemented; owner edit, close, and delete actions remain future mobile work.
 
-Screen-off tracking is implemented. Android permission and lifecycle handling have emulator coverage; physical-device review is still needed. iOS needs its own platform-specific validation.
+Screen-off tracking is implemented, with Android permission/lifecycle emulator coverage and owner-reported outdoor physical-device success. Current review limits live in [delivery status](../planning/status.md#android-implementation-checkpoints). iOS remains unvalidated.
 
 ### Android route creation
 

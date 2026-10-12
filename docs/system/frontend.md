@@ -67,6 +67,7 @@ For web development from another device, follow [web access from another device]
 - The recovery actions wait for `connection_established`; resume requests browser location permission and sends `start_sharing`, while continue-as-spectator sends `stop_sharing`
 - The stale recovery prompt is dismissed by the resulting member status event rather than optimistically on command acknowledgement
 - Owner route management uses the route-scoped owner token with `PATCH /routes/{code}` for close and `DELETE /routes/{code}` for permanent deletion
+- The shared API supports metadata editing and explicit membership leave, but the web client currently exposes neither action; its owner controls provide close and delete only.
 - Close uses an explicit confirmation and applies the resulting `route_closed` event to connected clients; delete requires exact route-code confirmation, clears local route auth, and navigates the deleting owner to the create screen
 - If a second tab/device opens the same active route with the same member token, the route screen shows a blocking notice instead of map/member content after `live_connection_rejected`
 - Browser position access is isolated behind `apps/web/lib/navigation-service.ts`
