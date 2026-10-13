@@ -20,8 +20,8 @@ function PageBand({
 function Brand() {
   return (
     <a className={styles.brand} href="#top" aria-label="KeepUp">
+      <span>keep<span className={styles.brandAccent}>up</span></span>
       <img src="/brand/keepup-mark.svg" alt="" width="36" height="36" />
-      <span><b>Keep</b>Up</span>
     </a>
   );
 }
@@ -141,7 +141,7 @@ export function LandingPage({ createHref }: { createHref: string }) {
           <p>Road trips, bike rides, and meeting up across town.</p>
         </section>
       </PageBand>
-      <PageBand>
+      <PageBand className={styles.footerBand}>
         <footer className={styles.siteFooter}>
           <Brand />
           <span>Live route sharing for groups on the move.</span>

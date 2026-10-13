@@ -58,7 +58,7 @@
   flex: none;
 }
 
-.brand b {
+.brandAccent {
   color: var(--accent);
 }
 
@@ -454,8 +454,11 @@
   margin-top: 17px;
 }
 
-.siteFooter {
+.footerBand {
   border-top: 1px solid #29372e;
+}
+
+.siteFooter {
   margin: 0 6%;
   padding: 23px 0;
   display: flex;
