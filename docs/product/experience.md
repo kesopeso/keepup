@@ -51,6 +51,10 @@ status: specified
 - Show:
   - polyline for historical path
   - live marker for active trackers
+- Name labels sit above members with saved positions on both clients, using a compact dark pill with a 75% opaque background and fully opaque text
+- Long names truncate to one line; selecting a circle or visible name shows the full display name, written presence status, and last-location time
+- Last-known labels include a short written status for stale, offline, spectating, and left members
+- Hide overlapping labels while keeping circles at their exact coordinates; selected names take priority over other names, and map overlays retain their space
 - Do not show per-segment start/end markers in MVP
 
 ## Data and Timing

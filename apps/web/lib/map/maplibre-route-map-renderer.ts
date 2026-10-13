@@ -3,7 +3,9 @@ import type {
   LngLatBoundsLike,
   Map as MapLibreMap,
   MapLayerMouseEvent,
+  Marker,
 } from "maplibre-gl";
+import { memberLabelOffset, memberLocationStatus, visibleMemberLabels } from "./member-labels";
 import { routeMapStyle } from "./tile-provider";
 import type {
   RouteMapCallbacks,
@@ -28,6 +30,8 @@ const markerLayerId = "route-member-markers";
 export class MapLibreRouteMapRenderer implements RouteMapRenderer {
   private map: MapLibreMap | null = null;
   private mapElement: HTMLDivElement;
+  private labels = new Map<string, { marker: Marker; element: HTMLButtonElement }>();
+  private createLabelMarker?: (element: HTMLButtonElement) => Marker;
   private mapReady = false;
   private destroyed = false;
   private pendingUserMapInteraction = false;
@@ -145,7 +149,11 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
       this.userMapInteractionReset = null;
     }
 
+    for (const label of this.labels.values()) label.marker.remove();
+    this.labels.clear();
     if (this.map) {
+      this.map.off("move", this.layoutLabels);
+      this.map.off("resize", this.layoutLabels);
       this.map.remove();
       this.map = null;
     } else {
@@ -167,6 +175,12 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
       zoom: 11,
       attributionControl: false,
     });
+
+    this.createLabelMarker = (element) => new maplibregl.Marker({
+      element, anchor: "bottom", offset: [0, -memberLabelOffset],
+    });
+    this.map.on("move", this.layoutLabels);
+    this.map.on("resize", this.layoutLabels);
 
     this.map.addControl(
       new maplibregl.AttributionControl({ compact: true }),
@@ -201,6 +215,7 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
 
     this.setSourceData(pathSourceId, pathFeatures(this.state));
     this.setSourceData(markerSourceId, markerFeatures(this.state));
+    this.renderLabels();
 
     if (this.state.viewportMode === "fit_route") {
       this.fitBoundsForPoints(allVisiblePoints(this.state));
@@ -213,6 +228,53 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
       }
     }
   }
+
+  private renderLabels(): void {
+    if (!this.map || !this.createLabelMarker) return;
+    const located = this.state.members.filter((member) => member.latestPoint && isValidPoint(member.latestPoint));
+    const ids = new Set(located.map((member) => member.id));
+    for (const [id, label] of this.labels) {
+      if (!ids.has(id)) { label.marker.remove(); this.labels.delete(id); }
+    }
+    for (const member of located) {
+      let label = this.labels.get(member.id);
+      if (!label) {
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = "map-member-label";
+        const name = document.createElement("span");
+        name.className = "map-member-label-name";
+        const status = document.createElement("span");
+        status.className = "map-member-label-status";
+        element.append(name, status);
+        element.addEventListener("click", (event) => { event.stopPropagation(); this.fitToMember(member.id); });
+        label = { element, marker: this.createLabelMarker(element).setLngLat(pointToCoordinates(member.latestPoint!)).addTo(this.map) };
+        this.labels.set(member.id, label);
+      }
+      const status = memberLocationStatus(member.status);
+      label.element.children[0].textContent = member.displayName;
+      label.element.children[1].textContent = status;
+      (label.element.children[1] as HTMLElement).hidden = !status;
+      const description = `${member.displayName}, ${status || "Sharing location"}. Last location ${new Date(member.latestPoint!.recordedAt).toLocaleString()}`;
+      label.element.setAttribute("aria-label", description);
+      label.element.title = description;
+      label.element.classList.toggle("is-selected", member.id === this.state.focusedMemberId);
+      label.marker.setLngLat(pointToCoordinates(member.latestPoint!));
+    }
+    this.layoutLabels();
+  }
+
+  private layoutLabels = (): void => {
+    if (!this.map || this.destroyed) return;
+    const visible = new Set(visibleMemberLabels([...this.labels].map(([id, label]) => {
+      const point = this.map!.project(label.marker.getLngLat());
+      return { id, x: point.x, y: point.y, width: label.element.offsetWidth, height: label.element.offsetHeight };
+    }), { width: this.mapElement.clientWidth, height: this.mapElement.clientHeight, top: this.state.focusedMemberId ? 150 : 48, bottom: 32 }, this.state.focusedMemberId));
+    for (const [id, label] of this.labels) {
+      label.element.style.visibility = visible.has(id) ? "visible" : "hidden";
+      label.element.tabIndex = visible.has(id) ? 0 : -1;
+    }
+  };
 
   private addRouteLayers(): void {
     if (!this.map) {
@@ -302,7 +364,7 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
 
     this.map.fitBounds(bounds, {
       maxZoom: points.length === 1 ? 15 : 16,
-      padding: { top: 52, right: 36, bottom: 58, left: 36 },
+      padding: { top: this.state.focusedMemberId ? 220 : 120, right: 90, bottom: 58, left: 90 },
       duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
         ? 0
         : 350,
@@ -314,19 +376,21 @@ export class MapLibreRouteMapRenderer implements RouteMapRenderer {
       return;
     }
 
-    if (this.state.viewportMode === "manual") {
+    if (this.state.viewportMode === "manual" && !this.state.focusedMemberId) {
       return;
     }
 
     this.state = {
       ...this.state,
+      focusedMemberId: undefined,
       viewportMode: "manual",
     };
     this.callbacks.onMapInteraction?.();
     this.callbacks.onViewportChanged?.("manual");
   }
 
-  private readonly markUserMapInteraction = (): void => {
+  private readonly markUserMapInteraction = (event: Event): void => {
+    if (event.type !== "wheel" && (event.target as HTMLElement).closest?.(".map-member-label")) return;
     this.pendingUserMapInteraction = true;
 
     if (this.userMapInteractionReset) {

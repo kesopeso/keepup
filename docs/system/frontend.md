@@ -84,6 +84,7 @@ For web development from another device, follow [web access from another device]
 - Optional renderer readiness/error callbacks let the map wrapper explain failed initialization or tile loading without an unhandled rejection
 - Map fit animations honor the browser reduced-motion preference
 - Tile provider configuration lives separately from the renderer in `apps/web/lib/map/tile-provider.ts`
+- The [MapLibre adapter](../../apps/web/lib/map/maplibre-route-map-renderer.ts) keeps circle/path layers and attaches DOM name pills to saved member positions. System-font names truncate at 152px; their charcoal backgrounds have 0.75 alpha while text remains opaque. Non-tracking labels include written presence. [Label placement](../../apps/web/lib/map/member-labels.ts) hides names that overlap labels, circles, or reserved map edges, with selected-member priority. Position, camera, resize, and member updates recompute visibility; removed members and renderer teardown release DOM markers. Selecting a circle or label opens full name, presence, and localized last-location time in the [map wrapper](../../apps/web/app/components/route-map.tsx); pan and Fit group clear selection.
 - The MapLibre adapter renders historical path polylines and latest member point markers, fits the initial viewport to visible route geometry, and switches to manual viewport mode on map interaction so live updates do not reset user pan/zoom until `Fit group` is pressed again
 - The helper owns local storage access for:
   - stable `clientId`

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { memberLocationStatus } from "../../lib/map/member-labels";
 import { createRouteMapRenderer } from "../../lib/map/route-map-renderer-factory";
 import type {
   RouteMapRenderer,
@@ -17,6 +18,8 @@ export function RouteMap({
   archived: boolean;
   sharingCount: number;
 }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = state.members.find((member) => member.id === selectedId && member.latestPoint);
   const [mapError, setMapError] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<RouteMapRenderer | null>(null);
@@ -27,8 +30,9 @@ export function RouteMap({
     () => ({
       ...state,
       viewportMode,
+      focusedMemberId: selected?.id,
     }),
-    [state, viewportMode],
+    [state, viewportMode, selected?.id],
   );
 
   const pointCount = useMemo(
@@ -52,6 +56,8 @@ export function RouteMap({
 
     const renderer = createRouteMapRenderer(containerRef.current, {
       onViewportChanged: setViewportMode,
+      onMemberMarkerClick: setSelectedId,
+      onMapInteraction: () => setSelectedId(null),
       onError: () => setMapError(true),
       onReady: () => setMapError(false),
     });
@@ -75,6 +81,12 @@ export function RouteMap({
             ? "Saved route history"
             : `${sharingCount} sharing · ${state.members.length} ${state.members.length === 1 ? "member" : "members"}`}
         </div>
+        {selected?.latestPoint && !mapError ? (
+          <div className="map-member-detail" role="status">
+            <strong>{selected.displayName} · {memberLocationStatus(selected.status) || "Sharing location"}</strong>
+            <span>Last location {new Date(selected.latestPoint.recordedAt).toLocaleString()}</span>
+          </div>
+        ) : null}
         {mapError || pointCount === 0 ? (
           <div className="map-empty" role="status">
             <strong>
@@ -97,6 +109,7 @@ export function RouteMap({
           <button
             disabled={viewportMode === "fit_route"}
             onClick={() => {
+              setSelectedId(null);
               setViewportMode("fit_route");
               rendererRef.current?.fitToRoute();
             }}
