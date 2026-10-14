@@ -179,6 +179,7 @@ Standalone packaging follows the [Next.js output documentation](https://nextjs.o
 - `icm-architect` is installed at `.agents/skills/icm-architect` from https://github.com/RinDig/icm-architect.
 - The installation is scoped to this repository and includes the upstream skill, references, assets, and license.
 - Invoke it with `$icm-architect` when working in this project.
+- [Browser automation](browser-automation.md) owns the agent-browser skill integration, invocation override, and Docker session workflow.
 
 
 Sources: [Compose services](../../docker-compose.yml), [Makefile](../../Makefile), [readiness check](../../bin/doctor.sh), [migration helper](../../bin/migrate.sh), [web helper](../../bin/web-pnpm.sh).

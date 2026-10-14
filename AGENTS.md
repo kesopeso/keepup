@@ -10,6 +10,7 @@ At session start, read only [documentation discipline](docs/workflow/documentati
 | Product behavior | [Product contract](docs/product/CONTEXT.md) |
 | System design / API / change impact | [System contract](docs/system/CONTEXT.md) |
 | Mobile app / Android development | [System contract](docs/system/CONTEXT.md), [workflow contract](docs/workflow/CONTEXT.md) |
+| Browser automation / web QA | [Browser automation](docs/workflow/browser-automation.md) |
 | Current progress, next task, deferred work | [Planning contract](docs/planning/CONTEXT.md) |
 | Domain language | [Glossary](docs/product/glossary.md) |
 | New knowledge note | [Templates](docs/_templates/CONTEXT.md) |

@@ -1,0 +1,13 @@
+FROM node:24-bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates sudo \
+    && npm install -g agent-browser \
+    && HOME=/opt/agent-browser agent-browser install --with-deps \
+    && ln -s /opt/agent-browser/.agent-browser/browsers/chrome-*/chrome /usr/local/bin/agent-browser-chrome \
+    && npm cache clean --force \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/local/bin/agent-browser-chrome
+
+ENTRYPOINT ["agent-browser"]
