@@ -1,10 +1,20 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
 
 export const alt = "KeepUp. Live route sharing for groups on the move.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpenGraphImage() {
+export default async function OpenGraphImage() {
+  const resolve = createRequire(join(process.cwd(), "package.json")).resolve;
+  const [wordmarkFont, bodyFont] = await Promise.all([
+    readFile(join(process.cwd(), "assets/fonts/Ubuntu-Bold.ttf")),
+    // Preserve the renderer's existing default font for the description and URL.
+    readFile(join(dirname(resolve("next/package.json")), "dist/compiled/@vercel/og/Geist-Regular.ttf")),
+  ]);
+
   return new ImageResponse(
     (
       <div
@@ -17,6 +27,7 @@ export default function OpenGraphImage() {
           padding: "76px 88px",
           background: "linear-gradient(125deg, #173023, #234c36)",
           color: "#f8fafc",
+          fontFamily: "Geist",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 30 }}>
@@ -27,7 +38,7 @@ export default function OpenGraphImage() {
             <path d="m78 35 14-4-2 15" fill="none" stroke="#22c55e" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
             <circle cx="70.4" cy="79.1" r="7" fill="#f8fafc" stroke="#173023" strokeWidth="4" />
           </svg>
-          <span style={{ fontSize: 104, fontWeight: 700, letterSpacing: -5 }}>KeepUp</span>
+          <span style={{ display: "flex", fontFamily: "Ubuntu", fontSize: 104, fontWeight: 700, letterSpacing: -5 }}>keep<span style={{ color: "#22c55e" }}>up</span></span>
         </div>
         <div style={{ display: "flex", marginTop: 42, fontSize: 48, lineHeight: 1.2, maxWidth: 880 }}>
           Live route sharing for groups on the move.
@@ -37,6 +48,12 @@ export default function OpenGraphImage() {
         </div>
       </div>
     ),
-    size,
+    {
+      ...size,
+      fonts: [
+        { name: "Geist", data: bodyFont, weight: 400, style: "normal" },
+        { name: "Ubuntu", data: wordmarkFont, weight: 700, style: "normal" },
+      ],
+    },
   );
 }
