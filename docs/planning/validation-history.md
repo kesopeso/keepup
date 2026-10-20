@@ -8,6 +8,15 @@ historical: true
 
 Load only for dated evidence or previous review limits. These records preserve observations at the time of each check. Later records can supersede earlier pending tasks; use [current status](status.md) for today's progress and owning system references for current behavior. Test runs listed here were recorded previously, not rerun by the documentation audit.
 
+## Docker browser automation validation
+
+Previously recorded checks, with the original test date unrecorded:
+
+- The image build and browser launch were checked. Separate launcher calls opened a test page, returned its interactive button, and retained its title. A local KeepUp route was joined and its member list read through the Dockerized browser.
+- These checks establish the launcher and basic automation flow, not full web application coverage. They were not rerun when this evidence was moved here.
+
+Sources: [launcher](../../bin/agent-browser.sh), [image](../../Dockerfile.agent-browser). Current usage instructions belong to the custom [agent-browser skill](../../.agents/skills/agent-browser/SKILL.md).
+
 ## Mobile validation
 
 ### Android build workflow, 2026-10-08

@@ -15,7 +15,6 @@ Choose a workflow and read only its relevant section:
 |---|---|
 | Setup, web/API checks, migrations, LAN access, deployment | [Development](development.md) |
 | Android build, Metro, debugging, native review | [Android development](mobile-development.md) |
-| Browser automation, web UI testing, screenshots, page inspection | [Browser automation](browser-automation.md) |
 | Scoped context loading and automatic ICM maintenance | [Documentation policy](documentation.md) |
 
 ## Contributor entry

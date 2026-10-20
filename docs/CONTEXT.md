@@ -19,7 +19,6 @@ Read [agent rules](../AGENTS.md) and [documentation discipline](workflow/documen
 | Implementation and change impact | [System](system/CONTEXT.md) |
 | Mobile implementation | [System](system/CONTEXT.md), then its mobile route |
 | Local Android setup | [Workflow](workflow/CONTEXT.md), then its Android route |
-| Browser automation and web QA | [Workflow](workflow/CONTEXT.md), then its browser automation route |
 | Current status, sequencing, deferred work | [Planning](planning/CONTEXT.md) |
 | Development and documentation maintenance | [Workflow](workflow/CONTEXT.md) |
 | Add a knowledge note | [Templates](_templates/CONTEXT.md) |
