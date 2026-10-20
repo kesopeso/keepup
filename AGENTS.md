@@ -9,6 +9,7 @@ At session start, read only [documentation discipline](docs/workflow/documentati
 | Orient in the knowledge base | [Bundle contract](docs/CONTEXT.md) |
 | Product behavior | [Product contract](docs/product/CONTEXT.md) |
 | System design / API / change impact | [System contract](docs/system/CONTEXT.md) |
+| Code navigation after documentation routing | [Code exploration](docs/workflow/documentation.md#code-navigation) |
 | Mobile app / Android development | [System contract](docs/system/CONTEXT.md), [workflow contract](docs/workflow/CONTEXT.md) |
 | Current progress, next task, deferred work | [Planning contract](docs/planning/CONTEXT.md) |
 | Domain language | [Glossary](docs/product/glossary.md) |

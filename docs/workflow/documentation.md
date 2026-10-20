@@ -9,9 +9,21 @@ Treat `docs/` as project memory. At session start, read this policy and the [con
 
 Before application commands, read the relevant section of [development workflow](development.md); Android commands also use the [Android workflow](mobile-development.md). Application toolchains run through Docker Compose; migrations remain manual.
 
+## Code navigation
+
+Use documentation to identify product rules, implementation ownership, and the relevant change-impact row. For application code exploration, continue with the project [Graphify skill](../../.agents/skills/graphify/SKILL.md), using the documented paths, domain terms, or symbols as query starting points. The skill owns execution, indexing, and query instructions; keep those details out of project reference pages.
+
+Follow the skill's freshness check before relying on the index. Use focused graph queries to discover callers, dependencies, and connections across the API, web, and mobile clients. Request only the relationships needed for the task. Narrow a noisy query before expanding its output; do not load the full graph, report, or source tree for routine exploration. If the docs already answer a product or workflow question, no graph query is needed.
+
+Read the specific source sections identified by the graph to verify behavior before editing or making implementation claims. Source and configuration remain authoritative; a graph relationship is navigation evidence, and an absent edge is not proof that no dependency exists. Check affected tests and interfaces where relevant to the change.
+
+The current index covers `apps/`. For migrations, infrastructure, scripts, or other content outside that scope, follow the documented source links and use targeted search directly. If the index is missing, stale, or insufficient, follow the skill's refresh guidance or use targeted source search; state any remaining uncertainty instead of treating graph output as current proof.
+
 ## Automatic maintenance
 
 For every repository change you make, check whether the documented behavior, boundaries, API, data, workflow, scope, or delivery status becomes inaccurate. Update affected docs in the same change without waiting for a reminder. If the docs already describe the resulting state, leave them alone. Repository changes made outside the agent session do not trigger a background watcher.
+
+Whenever you add, modify, delete, or rename files under `apps/`, automatically refresh the application code index through the [Graphify skill](../../.agents/skills/graphify/SKILL.md) before reporting the task complete. Refresh after each coherent batch of edits and again if later edits change `apps/`; unchanged files can reuse cached extraction. Keep the repository root as the scan anchor and retain the existing `apps/` scope and root `graphify-out/` output. Follow the skill's execution and writer coordination rules. Verify the refresh succeeds; if it fails, report the failure and that the index may be stale. This is an agent maintenance requirement, not a filesystem watcher.
 
 When documentation needs updating, use the installed [icm-architect skill](../../.agents/skills/icm-architect/SKILL.md). Read it once when first needed, then only the references relevant to the maintenance task. Use [core rules](../../.agents/skills/icm-architect/references/core.md) for contracts and ownership; use [system-map guidance](../../.agents/skills/icm-architect/references/system-map.md) for source boundaries and change impact. Do not run a full restructure or audit for each edit.
 

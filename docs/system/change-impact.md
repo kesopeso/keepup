@@ -7,6 +7,8 @@ status: active
 
 This is a compact edit map. Read only the row matching the change, then the relevant sections of its owning references and affected source. Shared API or snapshot changes can affect both clients. Sources remain authoritative; this guide does not define a second specification.
 
+Use the paths in a matching row as starting points for the [code-navigation workflow](../workflow/documentation.md#code-navigation), rather than reading every listed file. The row establishes likely boundaries; graph exploration and targeted source verification establish the actual change impact.
+
 | Change | Read first | Direct code surfaces | Usually unaffected |
 |---|---|---|---|
 | Route access, owner actions, membership | [Routes](../product/routes.md), [API](api-and-live.md) | [Service](../../apps/api/internal/routes/service.go), [repository](../../apps/api/internal/routes/postgres.go), [HTTP](../../apps/api/internal/httpapi/server.go), [web client](../../apps/web/lib/routes-api.ts), [web screen](../../apps/web/app/routes/[code]/join-route-screen.tsx), [mobile client](../../apps/mobile/src/api/routes.ts), [mobile session](../../apps/mobile/src/domain/join-session.ts), [mobile creation](../../apps/mobile/src/domain/create-session.ts) | Tile provider for lifecycle-only changes |

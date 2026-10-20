@@ -28,5 +28,6 @@ tmp/
 .tmp/
 
 # tools
+graphify-out/
 .lavish/
 .obsidian/

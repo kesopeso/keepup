@@ -1,0 +1,14 @@
+FROM python:3.13-slim-bookworm
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git util-linux \
+    && pip install --no-cache-dir 'graphifyy[sql,leiden]==0.9.92' \
+    && rm -rf /var/lib/apt/lists/*
+
+# Each invocation gets disposable caches outside the mounted checkout.
+ENV HOME=/tmp \
+    GRAPHIFY_BACKEND=none \
+    GRAPHIFY_QUERY_LOG_DISABLE=1
+
+WORKDIR /workspace
+ENTRYPOINT ["graphify"]

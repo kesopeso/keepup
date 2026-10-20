@@ -15,6 +15,7 @@ Choose a workflow and read only its relevant section:
 |---|---|
 | Setup, web/API checks, migrations, LAN access, deployment | [Development](development.md) |
 | Android build, Metro, debugging, native review | [Android development](mobile-development.md) |
+| Code exploration after documentation routing | [Code navigation](documentation.md#code-navigation) |
 | Scoped context loading and automatic ICM maintenance | [Documentation policy](documentation.md) |
 
 ## Contributor entry

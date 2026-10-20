@@ -9,7 +9,7 @@ This is an ICM knowledge bundle with a compact edit map. Topic folders have no n
 
 ## Inputs
 
-Read [agent rules](../AGENTS.md) and [documentation discipline](workflow/documentation.md) once per session. This page is the context map. Choose one shelf contract below, then read only the owning page or section and source files needed for the request. A contract's links are conditional inputs, not instructions to load the entire shelf.
+Read [agent rules](../AGENTS.md) and [documentation discipline](workflow/documentation.md) once per session. This page is the context map. Choose one shelf contract below, then read only the owning page or section needed for the request. A contract's links are conditional inputs, not instructions to load the entire shelf.
 
 ## Routing
 
@@ -25,7 +25,7 @@ Read [agent rules](../AGENTS.md) and [documentation discipline](workflow/documen
 
 ## Process
 
-Follow the subject link; edit its owning page and cited code where relevant. Product pages state desired behavior, system pages describe implementation, and planning pages state delivery status. A requirement is not proof of implementation. Use source code to resolve as-built conflicts and record gaps in planning.
+Follow the subject link. When implementation exploration is needed, use the [code-navigation workflow](workflow/documentation.md#code-navigation) to explore relationships with Graphify and verify the relevant source. Edit the owning page and affected code where relevant. Product pages state desired behavior, system pages describe implementation, and planning pages state delivery status. A requirement is not proof of implementation. Use source code to resolve as-built conflicts and record gaps in planning.
 
 Read planning status only for progress, task selection, or a relevant implementation gap. Load dated validation records, migration history, ADRs, and Git history only to answer an evidence or decision question. Expand context when a dependency or uncertainty requires it; do not recursively open every link. A full audit is reserved for an explicit audit request.
 

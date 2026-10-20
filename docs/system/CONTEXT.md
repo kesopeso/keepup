@@ -23,7 +23,7 @@ Choose only the route needed for the request:
 
 ## Process
 
-Read the chosen page or section and its relevant source links. Before changing behavior, use the matching change-impact row and the specific [product rule](../product/CONTEXT.md). Verify as-built claims against code; expand to dependent surfaces only when they are affected. Do not load every system page or ADR.
+Read the chosen page or section. Before changing behavior, use the matching change-impact row and the specific [product rule](../product/CONTEXT.md). Continue through the [code-navigation workflow](../workflow/documentation.md#code-navigation), using the reference's source links as starting points. Verify as-built claims against the relevant source; expand to dependent surfaces only when they are affected. Do not load every system page or ADR.
 
 ## Outputs
 
