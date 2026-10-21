@@ -55,6 +55,7 @@ func NewAccountHandler(logger *slog.Logger, cfg config.AuthConfig, env string, s
 	mux.HandleFunc("POST /auth/password/forgot", h.forgotPassword)
 	mux.HandleFunc("POST /auth/password/reset", h.resetPassword)
 	mux.HandleFunc("POST /auth/password/change", h.changePassword)
+	h.googleRoutes(mux)
 	return h.protect(mux)
 }
 
@@ -96,6 +97,10 @@ func (h *accountHandler) protect(next http.Handler) http.Handler {
 			}
 		}
 		// Cookie and bearer authorities must never be mixed or selected by precedence.
+		if r.Header.Get("X-KeepUp-Client") != "" && !h.native(r) {
+			h.fail(w, http.StatusForbidden, "invalid_transport")
+			return
+		}
 		if r.Header.Get("Authorization") != "" && !h.native(r) {
 			h.fail(w, http.StatusForbidden, "invalid_transport")
 			return
@@ -105,7 +110,11 @@ func (h *accountHandler) protect(next http.Handler) http.Handler {
 }
 
 func accountDecode(w http.ResponseWriter, r *http.Request, dst any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+	return accountDecodeLimit(w, r, dst, 4096)
+}
+
+func accountDecodeLimit(w http.ResponseWriter, r *http.Request, dst any, limit int64) error {
+	r.Body = http.MaxBytesReader(w, r.Body, limit)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(dst); err != nil {
@@ -273,6 +282,8 @@ func (h *accountHandler) writeError(w http.ResponseWriter, err error) {
 		{auth.ErrInvalidInput, 400}, {auth.ErrEmailTaken, 409}, {auth.ErrUsernameTaken, 409},
 		{auth.ErrCredentials, 401}, {auth.ErrSession, 401}, {auth.ErrPending, 403}, {auth.ErrRateLimited, 429},
 		{auth.ErrInvalidToken, 400}, {auth.ErrTokenExpired, 400},
+		{auth.ErrGoogleCredential, 401}, {auth.ErrInvalidFlow, 400}, {auth.ErrFlowExpired, 400},
+		{auth.ErrIdentityConflict, 409}, {auth.ErrGoogleDisabled, 503},
 	} {
 		if errors.Is(err, entry.err) {
 			if entry.status == 429 {

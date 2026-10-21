@@ -48,8 +48,8 @@ func accountTestPool(t *testing.T) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	// Only account migration, with no reads/writes to application schemas.
-	for _, name := range []string{"0003_accounts_and_sessions.up.sql", "0004_auth_recovery_and_outbox.up.sql"} {
+	// Only account migrations, with no reads/writes to application schemas.
+	for _, name := range []string{"0003_accounts_and_sessions.up.sql", "0004_auth_recovery_and_outbox.up.sql", "0005_google_authentication.up.sql"} {
 		sql, readErr := os.ReadFile(filepath.Join("../../../../db/migrations", name))
 		if readErr != nil {
 			t.Fatal(readErr)

@@ -38,6 +38,9 @@ func (r *PostgresRepository) signup(ctx context.Context, input SignupInput, hash
 		return Session{}, fmt.Errorf("begin signup: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err = accountKeyLock(ctx, tx, "account:email:"+NormalizeIdentifier(input.Email)); err != nil {
+		return Session{}, err
+	}
 	var session Session
 	err = tx.QueryRow(ctx, `INSERT INTO users (email,email_key,username,username_key,password_hash)
 		VALUES ($1,$2,$3,$4,$5) RETURNING id,email,username,verified_at IS NOT NULL`,

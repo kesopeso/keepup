@@ -21,6 +21,7 @@ type AuthConfig struct {
 	MailProvider   string
 	SMTP           maildelivery.SMTPConfig
 	TrustedProxies []netip.Prefix
+	Google         auth.GoogleConfig
 }
 
 func loadAuth(env string) (AuthConfig, error) {
@@ -70,6 +71,9 @@ func loadAuth(env string) (AuthConfig, error) {
 		return cfg, fmt.Errorf("AUTH_ALLOWED_ORIGINS is required when AUTH_ENABLED is true")
 	}
 	if err := loadRecovery(&cfg, env); err != nil {
+		return cfg, err
+	}
+	if err := loadGoogle(&cfg); err != nil {
 		return cfg, err
 	}
 	return cfg, nil

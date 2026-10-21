@@ -69,9 +69,9 @@ On a new Linux `x86_64` computer, use a fresh clone and follow [first-time setup
 
 ## Staged account API
 
-Password/session and verification/recovery APIs are implemented behind a disabled-by-default flag. This intermediate backend increment includes mail delivery but has no Google, account-bound route access, or client screens. See the [contract](../system/authentication-contract.md) and [task handoff](../planning/authentication-tasks.md). Do not use enablement as the production authentication rollout.
+Password/session, verification/recovery and Google APIs are implemented behind a disabled-by-default flag. This intermediate backend increment includes mail delivery and Google onboarding/linking but has no account-bound route access or client screens. See the [contract](../system/authentication-contract.md) and [task handoff](../planning/authentication-tasks.md). Do not use enablement as the production authentication rollout.
 
-Apply migrations 0003/0004 manually to the intended development database before enabling the API. They add account/session/counter and recovery/outbox tables without resetting route data. The implementation session tested them only in disposable schemas. The API never applies migrations on startup. Enablement also requires the secrets, public link origin and provider settings in [authentication email configuration](authentication-email.md).
+Apply migrations 0003–0005 manually to the intended development database before enabling the API. They add account/session/counter, recovery/outbox and Google flow/identity tables without resetting route data. Implementation checks use disposable schemas. The API never applies migrations on startup. Enablement also requires the secrets, public link origin and provider settings in [authentication email configuration](authentication-email.md). Google is optional and requires the audience allowlists in [Google configuration](authentication-google.md); password authentication can run without Google configured.
 
 | Environment variable | Default | Validation / use |
 |---|---|---|
@@ -82,7 +82,7 @@ Apply migrations 0003/0004 manually to the intended development database before 
 | `AUTH_LOGIN_ATTEMPTS` | `20` | 1–10000 attempts per identifier and peer address per window |
 | `AUTH_SIGNUP_ATTEMPTS` | `5` | 1–10000 attempts per peer address per window |
 
-Run account checks using the existing race-enabled API command and `TEST_DATABASE_URL` below. Account tests create/drop only isolated schemas and run migrations 0003/0004 there. Local SMTP tests use disposable TLS servers; they do not send external email. Browser requests require the configured Origin and `X-KeepUp-Request: 1`; native requests use `X-KeepUp-Client: native` with no browser cookies/Origin. Forwarded source addresses require explicitly configured trusted proxy CIDRs. Cleanup and mail delivery run with the enabled API worker. Actual deployment CIDRs, credentials and real email smoke checks remain R1.
+Run account checks using the existing race-enabled API command and `TEST_DATABASE_URL` below. Account tests create/drop only isolated schemas and run migrations 0003–0005 there. Local SMTP tests use disposable TLS servers; Google verification tests use locally signed proofs and a local key endpoint. They do not send external email or contact Google. Browser requests require the configured Origin and `X-KeepUp-Request: 1`; native requests use `X-KeepUp-Client: native` with no browser cookies/Origin. Forwarded source addresses require explicitly configured trusted proxy CIDRs. Cleanup and mail delivery run with the enabled API worker. Actual deployment CIDRs, credentials and real Google/email smoke checks remain R1.
 
 ## GPS validation
 

@@ -26,6 +26,8 @@ Production packaging uses a [multi-stage Dockerfile](../../apps/api/Dockerfile) 
 
 The staged account service is in [auth](../../apps/api/internal/auth/service.go), with [dedicated HTTP handling](../../apps/api/internal/httpapi/auth.go). Startup mounts `/auth/` only when `AUTH_ENABLED=true`; it bypasses the legacy route handler's wildcard CORS middleware. Enabled startup also runs the [delivery/cleanup worker](../../apps/api/internal/auth/outbox.go), joined before pool shutdown. Verification/recovery use transactional purpose tokens and encrypted mail queueing through an interchangeable SMTP/fake provider. The [account contract](authentication-contract.md) separates delivered endpoints from future integration. Route services and current clients still use legacy authority. Configuration and enablement are in the [development workflow](../workflow/development.md#staged-account-api) and [email configuration](../workflow/authentication-email.md).
 
+Optional [Google authentication](../../apps/api/internal/auth/google.go) uses `go-oidc` for signature/standard-claim verification and cached Google keys, with transport-bound nonce flows and transactional subject/email linking. Third-party email ownership uses the existing encrypted outbox. No Google callback, SDK or client UI is included in this backend increment. [Google configuration](../workflow/authentication-google.md) owns audience and flow settings.
+
 - API config is loaded from environment variables
 - PostgreSQL connectivity is established on startup with retry/backoff inside a bounded startup window
 - API dev tooling runs inside the Docker Compose API service, including `golangci-lint`

@@ -13,26 +13,14 @@ import (
 // tokens/outbox. This also serializes mail quotas and concurrent password changes.
 func (r *PostgresRepository) issueToken(ctx context.Context, tx pgx.Tx, userID, purpose string, recovery *recoveryRuntime) error {
 	p := recovery.config.Policy
-	var count int
-	var cooling bool
-	err := tx.QueryRow(ctx, `SELECT count(*),COALESCE(bool_or(purpose=$3 AND created_at>now()-$4*interval '1 second'),false)
-        FROM auth_tokens WHERE user_id=$1 AND created_at>now()-$2*interval '1 second'`, userID, p.MailWindow.Seconds(), purpose, p.ResendCooldown.Seconds()).Scan(&count, &cooling)
-	if err != nil {
-		return fmt.Errorf("check mail quota: %w", err)
+	var emailKey string
+	if err := tx.QueryRow(ctx, `SELECT email_key FROM users WHERE id=$1`, userID).Scan(&emailKey); err != nil {
+		return err
 	}
-	// Cooldown is checked separately if configured longer than the mail window.
-	if !cooling {
-		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM auth_tokens WHERE user_id=$1 AND purpose=$2 AND created_at>now()-$3*interval '1 second')`, userID, purpose, p.ResendCooldown.Seconds()).Scan(&cooling)
+	if err := r.checkMailQuota(ctx, tx, emailKey, purpose, recovery); err != nil {
+		return err
 	}
-	if err != nil {
-		return fmt.Errorf("check mail cooldown: %w", err)
-	}
-	if count >= p.MailPerAccount {
-		return &RateLimitError{RetryAfter: p.MailWindow}
-	}
-	if cooling {
-		return &RateLimitError{RetryAfter: p.ResendCooldown}
-	}
+	var err error
 	if err = r.invalidatePurpose(ctx, tx, userID, purpose); err != nil {
 		return err
 	}

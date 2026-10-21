@@ -13,7 +13,7 @@ Each task below is an independent change with its own validation. Web and Androi
 
 ## Resume point
 
-B1/B2/B3 are complete as staged backend increments. Continue with B4 Google, then B5/B6 route/live authority. Web and Android can proceed independently against B1 fixtures and integrate completed endpoints. The account API is disabled by default; migrations 0003/0004 have only been exercised in disposable test schemas, not applied to application tables. No deployment, database reset, or commit has been performed for these increments. Current routes and clients still use legacy identity until their integration tasks.
+B1/B2/B3/B4 are complete as staged backend increments. Continue with B5 account route authorization/My routes, then B6 live authority. Web and Android can proceed independently against B1 fixtures and integrate completed endpoints. The account API is disabled by default. Implementation checks apply migrations 0003–0005 only in disposable test schemas; this session did not migrate/reset application tables or deploy. Current routes and clients still use legacy identity until their integration tasks.
 
 B2 implements pending signup, normalized uniqueness and immutable identifiers, Argon2id, email/username login, hashed opaque sessions, idle extension, explicit atomic rotation, current/all-session revocation, configurable attempt limits, and protected browser/native transports. B3 adds purpose-bound token consumption/replacement, pending activation, reset/change revocation, encrypted transactional outbox, SMTP/fake providers, quotas, trusted-proxy support, and cleanup. Race-enabled PostgreSQL and local TLS SMTP tests cover these boundaries. The active-account gate is ready for B5; existing route handlers do not use it yet. Live cleanup remains B6, link/form UI remains W1/A1, and actual SMTP credentials/proxy CIDRs/real delivery remain R1.
 
@@ -21,7 +21,7 @@ B2 implements pending signup, normalized uniqueness and immutable identifiers, A
 
 ### B1: Define contracts and fixtures
 
-State: complete. Target endpoints, transports, policies, route summaries, live events and deterministic success/failure fixtures are in the shared contract. Endpoints outside B2/B3 remain specified, not implemented.
+State: complete. Target endpoints, transports, policies, route summaries, live events and deterministic success/failure fixtures are in the shared contract. Endpoints outside B2/B3/B4 remain specified, not implemented.
 
 - Depends on accepted PRD/ADR. Specify auth endpoints, cookie/native transports, Google proof exchange, pending state, redirects, validation, errors, session expiry/rotation, and single-use socket tickets.
 - Specify account membership, owner authority, sender/viewer presence, sharing generations, route-list schema, filter semantics, pagination, and safe former-member summaries.
@@ -45,6 +45,8 @@ State: complete for backend account authority. Source: [recovery service](../../
 - Done when expiry/replay/replacement, mismatch validation, generic recovery responses, SMTP failure/retry, pending activation restrictions, and required session revocation are tested. Use fake mail in automated tests.
 
 ### B4: Google accounts
+
+State: complete for the backend ID-token flow. Source: [verifier](../../apps/api/internal/auth/google_verifier.go), [flow/account transactions](../../apps/api/internal/auth/google_postgres.go), [challenge queueing](../../apps/api/internal/auth/google_email.go), [HTTP endpoints](../../apps/api/internal/httpapi/google.go), and [migration 0005](../../db/migrations/0005_google_authentication.up.sql). [Google configuration](../workflow/authentication-google.md) covers audiences, nonce transport, optional enablement and client responsibilities. Tests use real signatures with a local key endpoint plus mocked identity-provider claims against isolated PostgreSQL schemas. Client SDK/buttons/link pages, OAuth code callbacks and real Google acceptance are not included; W1/A1/R1 remain pending.
 
 - Depends on B2/B3. Validate Google proofs for approved web/native clients, map provider subjects, add username/password onboarding, and link existing accounts without replacing their password.
 - Cover authoritative email, third-party email challenge, cancelled/expired onboarding, provider collision, and pending-account claim protection.
@@ -109,5 +111,5 @@ State: complete for backend account authority. Source: [recovery service](../../
 ## Release boundaries
 
 - Owner accepted credential/default proposals and authorized implementation on 2026-10-21. The contract fixes the engineering defaults for independent tasks.
-- B4/B5/B6, W1/W2, A1/A2 and R1/R2 remain pending. Do not expose the staged account API as a complete login system or treat pending signup as usable route authority.
+- B5/B6, W1/W2, A1/A2 and R1/R2 remain pending. Do not expose the staged account API as a complete login system or treat pending signup as usable route authority.
 - Production data reset and deployment still require explicit authorization for the concrete rollout.

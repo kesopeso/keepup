@@ -39,7 +39,12 @@ func main() {
 	routeService := routes.NewService(routes.NewPostgresRepository(dbPool), cfg.Routes.DefaultMaxTrackingMembers, cfg.Routes.PositionValidation)
 	handler := httpapi.NewHandler(logger, cfg.App, dbPool, routeService)
 	if cfg.Auth.Enabled {
-		accountService, initErr := auth.NewService(auth.NewPostgresRepository(dbPool), cfg.Auth.Policy, cfg.Auth.Recovery)
+		var options []auth.ServiceOption
+		if len(cfg.Auth.Google.WebClientIDs)+len(cfg.Auth.Google.NativeClientIDs) > 0 {
+			presenters := append(append([]string(nil), cfg.Auth.Google.WebClientIDs...), cfg.Auth.Google.NativeClientIDs...)
+			options = append(options, auth.WithGoogle(cfg.Auth.Google, auth.NewGoogleVerifier(ctx, cfg.Auth.Google.RequestTimeout, presenters)))
+		}
+		accountService, initErr := auth.NewService(auth.NewPostgresRepository(dbPool), cfg.Auth.Policy, cfg.Auth.Recovery, options...)
 		if initErr != nil {
 			logger.Error("initialize account service")
 			os.Exit(1)

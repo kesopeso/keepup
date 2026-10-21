@@ -26,10 +26,30 @@ type Service struct {
 	work      chan struct{}
 	dummyHash string
 	recovery  *recoveryRuntime
+	google    *googleRuntime
+}
+
+// ServiceOption configures an optional identity provider before serving requests.
+type ServiceOption func(*Service) error
+
+// WithGoogle enables server-bound Google flows using an injected proof verifier.
+func WithGoogle(cfg GoogleConfig, verifier GoogleProofVerifier) ServiceOption {
+	return func(s *Service) error {
+		if err := cfg.Validate(); err != nil {
+			return err
+		}
+		if verifier == nil {
+			return errors.New("google verifier is required")
+		}
+		cfg.WebClientIDs = append([]string(nil), cfg.WebClientIDs...)
+		cfg.NativeClientIDs = append([]string(nil), cfg.NativeClientIDs...)
+		s.google = &googleRuntime{config: cfg, verifier: verifier}
+		return nil
+	}
 }
 
 // NewService constructs account authority using a validated, nonzero policy.
-func NewService(repo *PostgresRepository, policy Policy, recovery RecoveryConfig) (*Service, error) {
+func NewService(repo *PostgresRepository, policy Policy, recovery RecoveryConfig, options ...ServiceOption) (*Service, error) {
 	runtime, err := newRecovery(recovery)
 	if err != nil {
 		return nil, err
@@ -50,7 +70,13 @@ func NewService(repo *PostgresRepository, policy Policy, recovery RecoveryConfig
 	if recovery.Policy.Retention < policy.AttemptWindow {
 		return nil, errors.New("retention must cover authentication attempt window")
 	}
-	return &Service{repo: repo, policy: policy, work: make(chan struct{}, 2), dummyHash: hashPassword(newToken()), recovery: runtime}, nil
+	s := &Service{repo: repo, policy: policy, work: make(chan struct{}, 2), dummyHash: hashPassword(newToken()), recovery: runtime}
+	for _, option := range options {
+		if err := option(s); err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
 }
 
 // Rotate replaces the credential atomically without changing session identity.

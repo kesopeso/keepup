@@ -9,7 +9,7 @@ Record consequential architectural choices and their review state.
 
 | Decision | State |
 |---|---|
-| [0001: Account authentication and route identity](0001-account-authentication.md) | Accepted; password/session and recovery foundation implemented, Google/route/client integration pending |
+| [0001: Account authentication and route identity](0001-account-authentication.md) | Accepted; password/session, recovery and Google backend implemented, route/client integration pending |
 
 ## Inputs
 

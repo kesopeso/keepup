@@ -5,11 +5,11 @@ status: active
 
 # Authentication email and recovery configuration
 
-B3 adds verification, password recovery/change, SMTP delivery and the transactional mail queue. The [account contract](../system/authentication-contract.md) owns endpoint behavior; the [task handoff](../planning/authentication-tasks.md) owns release state. Authentication remains disabled by default. This backend increment does not provide client link pages, Google sign-in, account-bound route access or live revocation yet.
+B3 adds verification, password recovery/change, SMTP delivery and the transactional mail queue; B4 reuses it for [Google email challenges](authentication-google.md). The [account contract](../system/authentication-contract.md) owns endpoint behavior; the [task handoff](../planning/authentication-tasks.md) owns release state. Authentication remains disabled by default. This backend increment does not provide client link pages, account-bound route access or live revocation yet.
 
 ## Enablement and secrets
 
-Apply migrations 0003 and 0004 manually to the intended development database before setting `AUTH_ENABLED=true`. No application migrations or reset were performed by the implementation session. The API starts its mail/cleanup worker only when authentication is enabled; shutdown cancels and joins it before closing the database pool.
+Apply migrations 0003–0005 manually to the intended development database before setting `AUTH_ENABLED=true`. This implementation session did not migrate/reset application tables. The API starts its mail/cleanup worker only when authentication is enabled; shutdown cancels and joins it before closing the database pool.
 
 Supply `AUTH_ALLOWED_ORIGINS`, `AUTH_PUBLIC_URL`, `AUTH_OUTBOX_KEY`, and a delivery provider alongside the [base account settings](development.md#staged-account-api). Origins are exact scheme/host/port values without paths, query strings or credentials. HTTPS is required outside `APP_ENV=development`. The public origin is trusted deployment configuration; links never use an inbound Host header.
 
@@ -62,7 +62,7 @@ Mail requests share a per-source budget. Account quotas/cooldowns are serialized
 
 Signup writes account, pending session, verification token and encrypted outbox row in one transaction. Resending invalidates the prior token and cancels queued retries. Verification activates without creating a session for the device opening the link; a pending session can observe activation through `/auth/me`.
 
-The worker locks the account before claiming an outbox row, using SKIP LOCKED to coordinate API processes. It holds that lock during bounded sending so token replacement/consumption cannot commit between validity checking and sending. Failed attempts retry on schedule; expired, consumed, superseded or undecryptable messages are not sent. Failure leaves the account pending and permits a later controlled resend.
+The worker locks the account, or the initiating flow for a Google challenge, before claiming an outbox row, using SKIP LOCKED to coordinate API processes. It holds that lock during bounded sending so token replacement/consumption cannot commit between validity checking and sending. Failed attempts retry on schedule; expired, consumed, superseded or undecryptable messages are not sent. Failure leaves the account/flow pending and permits a later controlled resend. Recipient quotas span verification, reset and Google messages, including flows with no account yet.
 
 Delivery is at least once. SMTP can accept a message before a database commit or acknowledgment fails, causing a duplicate email after retry. Single-use tokens still prevent replay. An email can expire while in transit. Terminal success/failure/cancellation clears the ciphertext. Cleanup removes expired token/session records and old counters after retention, preserves users, and wipes expired pending payloads.
 

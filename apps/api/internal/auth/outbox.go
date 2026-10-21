@@ -11,8 +11,8 @@ import (
 	"keepup/apps/api/internal/maildelivery"
 )
 
-// DeliverOne claims an account using SKIP LOCKED, then its next queued message.
-// The user lock is held during bounded delivery so a replacement/consumption
+// DeliverOne claims an account or Google flow using SKIP LOCKED, then its next message.
+// The owner lock is held during bounded delivery so a replacement/consumption
 // cannot commit between validity checking and sending. SMTP remains at least once.
 func (s *Service) DeliverOne(ctx context.Context, sender maildelivery.Sender) (bool, error) {
 	p := s.recovery.config.Policy
@@ -29,20 +29,38 @@ func (s *Service) DeliverOne(ctx context.Context, sender maildelivery.Sender) (b
         WHERE t.user_id=u.id AND o.status='pending' AND o.next_attempt_at<=clock_timestamp())
         ORDER BY u.id LIMIT 1 FOR UPDATE OF u SKIP LOCKED`).Scan(&userID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
+		userID = ""
+	} else if err != nil {
 		return false, fmt.Errorf("claim mail account: %w", err)
+	}
+	var userOwner, flowOwner *string
+	if userID != "" {
+		userOwner = &userID
+	} else {
+		var flowID string
+		err = tx.QueryRow(ctx, `SELECT f.id FROM auth_google_flows f WHERE EXISTS (
+			SELECT 1 FROM auth_tokens t JOIN auth_mail_outbox o ON o.token_id=t.id
+			WHERE t.google_flow_id=f.id AND o.status='pending' AND o.next_attempt_at<=clock_timestamp())
+			ORDER BY f.id LIMIT 1 FOR UPDATE OF f SKIP LOCKED`).Scan(&flowID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		if err != nil {
+			return false, fmt.Errorf("claim Google mail context: %w", err)
+		}
+		flowOwner = &flowID
 	}
 	var id, tokenID, purpose, to string
 	var payload []byte
 	var failures int
 	var invalid bool
-	err = tx.QueryRow(ctx, `SELECT o.id,t.id,t.purpose,u.email,o.payload,o.failures,
+	err = tx.QueryRow(ctx, `SELECT o.id,t.id,t.purpose,COALESCE(u.email,f.email),o.payload,o.failures,
         t.consumed_at IS NOT NULL OR t.invalidated_at IS NOT NULL OR t.expires_at<=clock_timestamp()
-        FROM auth_mail_outbox o JOIN auth_tokens t ON t.id=o.token_id JOIN users u ON u.id=t.user_id
-        WHERE t.user_id=$1 AND o.status='pending' AND o.next_attempt_at<=clock_timestamp()
-        ORDER BY o.next_attempt_at,o.id LIMIT 1 FOR UPDATE OF o SKIP LOCKED`, userID).Scan(&id, &tokenID, &purpose, &to, &payload, &failures, &invalid)
+        OR (f.id IS NOT NULL AND (f.status<>'email_verification_required' OR f.expires_at<=clock_timestamp()))
+        FROM auth_mail_outbox o JOIN auth_tokens t ON t.id=o.token_id
+        LEFT JOIN users u ON u.id=t.user_id LEFT JOIN auth_google_flows f ON f.id=t.google_flow_id
+        WHERE (t.user_id=$1 OR t.google_flow_id=$2) AND o.status='pending' AND o.next_attempt_at<=clock_timestamp()
+		ORDER BY o.next_attempt_at,o.id LIMIT 1 FOR UPDATE OF o SKIP LOCKED`, userOwner, flowOwner).Scan(&id, &tokenID, &purpose, &to, &payload, &failures, &invalid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -57,6 +75,9 @@ func (s *Service) DeliverOne(ctx context.Context, sender maildelivery.Sender) (b
 			subject, text := "Verify your KeepUp email", "Confirm your email to activate your account."
 			if purpose == "reset" {
 				subject, text = "Reset your KeepUp password", "Choose a new password. This logs out all devices."
+			}
+			if purpose == "google_email" {
+				subject, text = "Confirm your KeepUp Google sign-in", "Confirm that you own this email address to continue Google sign-in on the device where you started. This link does not sign in this device."
 			}
 			deliveryCtx, stop := context.WithTimeout(ctx, p.DeliveryTimeout)
 			sendErr := sender.Send(deliveryCtx, maildelivery.Message{ID: id, To: to, Subject: subject, Text: text + "\n\n" + link + "\n\nIf you did not request this, you can ignore this message.\n"})
@@ -91,6 +112,7 @@ func (s *Service) DeliverOne(ctx context.Context, sender maildelivery.Sender) (b
 func (s *Service) Cleanup(ctx context.Context) error {
 	retention := s.recovery.config.Policy.Retention.Seconds()
 	for _, query := range []string{
+		`DELETE FROM auth_google_flows WHERE expires_at<clock_timestamp()-$1*interval '1 second'`,
 		`DELETE FROM auth_tokens WHERE expires_at<clock_timestamp()-$1*interval '1 second'`,
 		`DELETE FROM auth_sessions WHERE expires_at<clock_timestamp()-$1*interval '1 second' OR revoked_at<clock_timestamp()-$1*interval '1 second'`,
 		`DELETE FROM auth_attempts WHERE window_started_at<clock_timestamp()-$1*interval '1 second'`,
@@ -102,7 +124,8 @@ func (s *Service) Cleanup(ctx context.Context) error {
 	// Wipe encrypted payloads as soon as an otherwise unprocessed link expires.
 	_, err := s.repo.pool.Exec(ctx, `UPDATE auth_mail_outbox o SET status='cancelled',payload=NULL,finished_at=clock_timestamp()
         FROM auth_tokens t WHERE o.token_id=t.id AND o.status='pending'
-        AND (t.expires_at<=clock_timestamp() OR t.consumed_at IS NOT NULL OR t.invalidated_at IS NOT NULL)`)
+        AND (t.expires_at<=clock_timestamp() OR t.consumed_at IS NOT NULL OR t.invalidated_at IS NOT NULL
+        OR EXISTS(SELECT 1 FROM auth_google_flows f WHERE f.id=t.google_flow_id AND (f.expires_at<=clock_timestamp() OR f.status<>'email_verification_required')))`)
 	if err != nil {
 		return fmt.Errorf("clean expired mail payloads: %w", err)
 	}

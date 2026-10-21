@@ -5,7 +5,7 @@ status: accepted
 
 # ADR 0001: Account authentication and route identity
 
-Date: 2026-10-20. Accepted for implementation on 2026-10-21. Password/session and verification/recovery foundations are implemented behind a disabled feature flag; other parts remain scheduled in the task checklist.
+Date: 2026-10-20. Accepted for implementation on 2026-10-21. Password/session, verification/recovery and Google foundations are implemented behind a disabled feature flag; route/live authority and clients remain scheduled in the task checklist.
 
 ## Context
 
@@ -33,11 +33,11 @@ Replace standalone member/owner token authority with account session plus server
 
 ### Google identity and linking
 
-Validate Google credentials server-side with a maintained library: signature, issuer, audience allowlist for web/Android, expiry, and flow replay/nonce protections. OAuth redirect flows require state validation and PKCE where applicable. Key external identity by provider subject, not email. Never trust a client-supplied email or decoded-but-unverified token.
+Validate Google credentials server-side with a maintained library: signature, issuer, audience allowlist for web/Android, expiry, and flow replay/nonce protections. B4 uses `go-oidc` with Google's fixed HTTPS key endpoint and an adapter that validates audiences/presenter, verified email and nonce-bound server context. OAuth redirect flows require state validation and PKCE where applicable; only ID-token proof exchange is currently implemented. Key external identity by provider subject, not email. Never trust a client-supplied email or decoded-but-unverified token.
 
 Automatic initial email linking requires current ownership evidence. Google documents authoritative email for Gmail and verified hosted-domain accounts. A third-party Google account email may require another ownership challenge even when `email_verified` is true. Require a fresh KeepUp email challenge in that case, then link without demanding the existing password. Source: [Google backend authentication](https://developers.google.com/identity/sign-in/web/backend-auth). This exception is called out in the PRD for review.
 
-Create user, password credential, and Google identity atomically after signup completion. Serialize concurrent password/Google registration and linking with database constraints and retry-safe transactions. Never overwrite an existing user's password from a Google onboarding form. In particular, if a pending password registration is claimed via authoritative Google, require a fresh password setup and revoke old pending sessions so an earlier registrant cannot retain access. An already active password account keeps its password and username.
+Create user, password credential, and Google identity atomically after signup completion. Serialize concurrent password/Google registration and linking with database constraints and retry-safe transactions. Never overwrite an existing active user's password from a Google onboarding form. In particular, if a pending password registration is claimed after Google/email ownership is established, require a fresh password setup, invalidate old verification/reset links and revoke old pending sessions so an earlier registrant cannot retain access. Its existing username remains immutable and is exposed read-only during onboarding. An already active password account keeps its password and username, including one activated during onboarding.
 
 ### Sharing and presence
 
@@ -78,4 +78,4 @@ Affected implementation routes: [route service](../../apps/api/internal/routes/s
 
 ## Validation and acceptance
 
-Use the PRD acceptance criteria and delivery tasks. Test concurrent linking/registration, normalized uniqueness, token replay, CSRF/origin enforcement, live revocation, sender/viewer disconnect independence, simultaneous lease acquisition, and late position rejection. B2/B3 validate password accounts, normalized uniqueness, expiry, rotation, revocation, browser/native transports, purpose-bound token consumption/replacement, signup/queue atomicity, recovery quotas, encryption, worker coordination, retries and local TLS SMTP behavior. Google-linking, account-bound routes and live leases remain unimplemented; acceptance of this architecture does not mark them delivered. Real provider delivery remains R1.
+Use the PRD acceptance criteria and delivery tasks. Test concurrent linking/registration, normalized uniqueness, token replay, CSRF/origin enforcement, live revocation, sender/viewer disconnect independence, simultaneous lease acquisition, and late position rejection. B2/B3 validate password accounts, normalized uniqueness, expiry, rotation, revocation, browser/native transports, purpose-bound token consumption/replacement, signup/queue atomicity, recovery quotas, encryption, worker coordination, retries and local TLS SMTP behavior. B4 adds real-signature verification against local provider keys, nonce/transport binding, account linking, pending claim protection, challenge exchange, concurrency and rollback checks. Account-bound routes and live leases remain unimplemented; acceptance of this architecture does not mark them delivered. Real Google/client integration and provider delivery remain R1.
