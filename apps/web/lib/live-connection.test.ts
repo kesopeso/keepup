@@ -113,3 +113,27 @@ test("intentional stop cancels reconnect and leaves no active socket", () => {
   scheduled[0]();
   assert.equal(connection.current(), null);
 });
+
+test("account tickets are obtained before opening and are renewed on reconnect", async () => {
+  const sockets: FakeSocket[] = [];
+  const scheduled: Array<() => void> = [];
+  let resolveTicket!: (value: object) => void;
+  let tickets = 0;
+  const connection = connectRouteLiveSocket({
+    memberToken: "account-cookie", url: "wss://example.test/ws",
+    authenticate: () => { tickets++; return new Promise(resolve => { resolveTicket = resolve; }); },
+    createSocket: () => { const socket = new FakeSocket(); sockets.push(socket); return socket; },
+    onMessage: () => {}, onSocketChange: () => {},
+    scheduleReconnect: callback => { scheduled.push(callback); return callback; }, cancelReconnect: () => {},
+  });
+  assert.equal(sockets.length, 0);
+  resolveTicket({ ticket: "one-use-ticket" }); await Promise.resolve();
+  sockets[0].emit("open");
+  assert.deepEqual(JSON.parse(sockets[0].sent[0]), { type: "authenticate", ticket: "one-use-ticket" });
+  sockets[0].emit("close"); scheduled[0]();
+  assert.equal(tickets, 2);
+  assert.equal(sockets.length, 1);
+  connection.stop();
+  resolveTicket({ ticket: "late-ticket" }); await Promise.resolve();
+  assert.equal(sockets.length, 1);
+});

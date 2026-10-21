@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { authRequest, AuthError, passwordError, usernameError } from "./auth-api.ts";
+import { authRequest, accountRequest, AuthError, passwordError, usernameError } from "./auth-api.ts";
 import { checkedDestination, rememberDestination, safeDestination, savedDestination } from "./auth-destination.ts";
 
 test("signup password validation counts Unicode characters without trimming or changing passwords", () => {
@@ -51,7 +51,7 @@ test("requests serialize cookie rotation with reads and recover after failures",
     return new Response(JSON.stringify({ error: "rate_limited" }), { status: 429, headers: { "Retry-After": "61" } });
   });
   const mutation = authRequest("password/change", {});
-  const read = authRequest("me");
+  const read = accountRequest("/me/routes?view=active");
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.deepEqual(calls, ["/api/auth/password/change"]);
   release(); await mutation;

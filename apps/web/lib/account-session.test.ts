@@ -1,8 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { currentSession, refreshAccountSession, setAccountSession, watchAccountSession } from "./account-session.ts";
+import { defaultRouteFilters, saveRouteListState, readRouteListState, markRouteListReturn, isRouteListReturn } from "./my-routes-state.ts";
 
 const account = { user: { id: "account-1", email: "rider@example.test", username: "Rider", verified: true }, expiresAt: "2026-11-21T00:00:00Z" };
+
+test("logout and account switch clear retained summaries and return navigation", () => {
+  const values = new Map<string, string>();
+  Object.defineProperty(globalThis, "sessionStorage", { configurable: true, value: { getItem: (key: string) => values.get(key), setItem: (key: string, value: string) => values.set(key, value), removeItem: (key: string) => values.delete(key) } });
+  setAccountSession(account, false);
+  saveRouteListState({ userId: account.user.id, filters: defaultRouteFilters, result: null, scroll: 500 });
+  markRouteListReturn();
+  setAccountSession({ ...account, user: { ...account.user, id: "another-account" } }, false);
+  assert.equal(readRouteListState(account.user.id), null);
+  assert.equal(isRouteListReturn(), false);
+  saveRouteListState({ userId: "another-account", filters: defaultRouteFilters, result: null, scroll: 800 });
+  setAccountSession(null, false);
+  assert.equal(values.size, 0);
+});
 
 test("a delayed session lookup cannot restore an account after local logout", async (t) => {
   let resolve!: (response: Response) => void;

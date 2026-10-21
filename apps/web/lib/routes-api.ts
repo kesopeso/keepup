@@ -1,4 +1,16 @@
 import type { TransportMode } from "./identity-storage";
+import { accountRequest, AuthError } from "./auth-api.ts";
+import { setAccountSession } from "./account-session.ts";
+
+export const accountAuthority = "account-cookie";
+export async function accountRouteRequest<T>(path: string, method = "GET", body?: object): Promise<T> {
+  try { return await accountRequest<T>(path, method, body); }
+  catch (error) {
+    if (error instanceof AuthError && error.code === "session_expired") setAccountSession(null);
+    if (error instanceof AuthError) throw new ApiError(error.code === "offline" ? "Cannot reach KeepUp. Check your connection and try again." : routeErrorMessage(error.status, error.code), error.status, error.code);
+    throw error;
+  }
+}
 
 export type SharingPolicy = "everyone_can_share" | "joiners_can_view_only";
 
@@ -134,7 +146,12 @@ export class ApiError extends Error {
 
 export async function createRoute(
   request: CreateRouteRequest,
+  account = false,
 ): Promise<CreateRouteResponse> {
+  if (account) {
+    const { clientId: _clientId, displayName: _displayName, ...body } = request;
+    return accountRouteRequest("/routes", "POST", body);
+  }
   const response = await fetch(`${apiUrl}/routes`, {
     method: "POST",
     headers: {
@@ -162,7 +179,8 @@ export async function createRoute(
   return (await response.json()) as CreateRouteResponse;
 }
 
-export async function getRouteAccess(code: string): Promise<RouteAccess> {
+export async function getRouteAccess(code: string, account = false): Promise<RouteAccess> {
+  if (account) return accountRouteRequest(`/routes/${encodeURIComponent(code)}/access`);
   const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}/access`);
 
   if (!response.ok) {
@@ -187,7 +205,9 @@ export async function getRouteAccess(code: string): Promise<RouteAccess> {
 export async function joinRoute(
   code: string,
   request: JoinRouteRequest,
+  account = false,
 ): Promise<JoinRouteResponse> {
+  if (account) return accountRouteRequest(`/routes/${encodeURIComponent(code)}/members`, "POST", { transportMode: request.transportMode, password: request.password });
   const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}/members`, {
     method: "POST",
     headers: {
@@ -219,6 +239,7 @@ export async function getRouteSnapshot(
   code: string,
   memberToken: string,
 ): Promise<RouteSnapshot> {
+  if (memberToken === accountAuthority) return accountRouteRequest(`/routes/${encodeURIComponent(code)}`);
   const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}`, {
     headers: {
       Authorization: `Bearer ${memberToken}`,
@@ -248,6 +269,7 @@ export async function closeRoute(
   code: string,
   ownerToken: string,
 ): Promise<RouteSummary> {
+  if (ownerToken === accountAuthority) return accountRouteRequest(`/routes/${encodeURIComponent(code)}`, "PATCH", { status: "closed" });
   const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}`, {
     method: "PATCH",
     headers: {
@@ -265,6 +287,7 @@ export async function closeRoute(
 }
 
 export async function deleteRoute(code: string, ownerToken: string): Promise<void> {
+  if (ownerToken === accountAuthority) return accountRouteRequest(`/routes/${encodeURIComponent(code)}`, "DELETE", {});
   const response = await fetch(`${apiUrl}/routes/${encodeURIComponent(code)}`, {
     method: "DELETE",
     headers: {
@@ -294,6 +317,8 @@ async function routeApiError(response: Response): Promise<ApiError> {
 }
 
 function routeErrorMessage(status: number, code?: string): string {
+  if (code === "sharing_on_another_device") return "You are sharing this route on another device. Stop sharing there before starting here.";
+  if (code === "session_expired") return "Your session expired. Sign in again.";
   if (code === "invalid_input" || status === 400) {
     return "Check the details and try again.";
   }

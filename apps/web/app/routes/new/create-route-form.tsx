@@ -28,7 +28,13 @@ const sharingPolicyOptions: Array<{
   },
 ];
 
+import { RouteAccount } from "../../components/route-account";
+import type { AccountSession } from "../../../lib/auth-api";
+
 export function CreateRouteForm() {
+  return <RouteAccount destination="/routes/new">{session => <CreateForm session={session} />}</RouteAccount>;
+}
+function CreateForm({ session }: { session: AccountSession | null }) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [transportMode, setTransportMode] = useState<TransportMode>("car");
@@ -42,7 +48,7 @@ export function CreateRouteForm() {
 
   useEffect(() => {
     const profile = getProfile();
-    setDisplayName(profile.displayName);
+    setDisplayName(session?.user.username ?? profile.displayName);
     setTransportMode(profile.transportMode);
   }, []);
 
@@ -63,7 +69,7 @@ export function CreateRouteForm() {
     setIsSubmitting(true);
 
     try {
-      const profile = saveProfile({
+      const profile = session ? { clientId: "", displayName: session.user.username, transportMode } : saveProfile({
         displayName,
         transportMode,
       });
@@ -76,9 +82,9 @@ export function CreateRouteForm() {
         description,
         password,
         sharingPolicy,
-      });
+      }, !!session);
 
-      saveRouteAuth(result.route.code, {
+      if (!session) saveRouteAuth(result.route.code, {
         memberToken: result.memberToken,
         ownerToken: result.ownerToken,
       });
@@ -101,6 +107,7 @@ export function CreateRouteForm() {
       aria-busy={isSubmitting}
     >
       <Brand />
+      {session ? <a href="/my-routes">My routes</a> : null}
       <div className="form-header">
         <p className="eyebrow">Live route sharing</p>
         <h1>Start a route together.</h1>
@@ -125,6 +132,7 @@ export function CreateRouteForm() {
         <label className="field">
           <span>Your name</span>
           <input
+            readOnly={!!session}
             autoComplete="name"
             name="displayName"
             onChange={(event) => setDisplayName(event.target.value)}

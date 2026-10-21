@@ -44,6 +44,7 @@ export function LandingPage({ createHref }: { createHref: string }) {
           <div className={styles.navLinks}>
             <a href="#how-it-works">How it works</a>
             <a href="#your-privacy">Your privacy</a>
+            <a href="/my-routes">My routes</a>
           </div>
           <a className={styles.navCreate} href={createHref}>
             Create a route <span aria-hidden="true">↗</span>
@@ -78,7 +79,7 @@ export function LandingPage({ createHref }: { createHref: string }) {
         <div className={styles.useStrip}>
           <span>One route. Your whole group.</span>
           <span>Share a link</span>
-          <span>No account needed</span>
+          <span>Your routes, together</span>
           <span>Choose when to share</span>
         </div>
       </PageBand>

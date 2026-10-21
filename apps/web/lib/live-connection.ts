@@ -20,6 +20,7 @@ type ReconnectHandle = unknown;
 type RouteLiveSocketOptions = {
   url: string;
   memberToken: string;
+  authenticate?: () => Promise<object>;
   createSocket?: (url: string) => LiveSocket;
   onMessage: (event: MessageEvent<string>) => void;
   onSocketChange: (socket: LiveSocket | null) => void;
@@ -61,6 +62,7 @@ export function connectRouteLiveSocket(
   let reconnectAttempt = 0;
   let reconnectHandle: ReconnectHandle | null = null;
   let socket: LiveSocket | null = null;
+  let preparing = 0;
 
   function connect() {
     if (!active) {
@@ -68,6 +70,22 @@ export function connectRouteLiveSocket(
     }
 
     reconnectHandle = null;
+    if (options.authenticate) {
+      const attempt = ++preparing;
+      options.authenticate().then(proof => {
+        if (active && preparing === attempt) openSocket(proof);
+      }).catch(() => {
+        if (!active || preparing !== attempt) return;
+        options.onError?.();
+        options.onDisconnected?.();
+        reconnectHandle = scheduleReconnect(connect, reconnectDelayMs(reconnectAttempt++));
+      });
+      return;
+    }
+    openSocket({ memberToken: options.memberToken });
+  }
+
+  function openSocket(proof: object) {
     const nextSocket = createSocket(options.url);
     socket = nextSocket;
     options.onSocketChange(nextSocket);
@@ -80,7 +98,7 @@ export function connectRouteLiveSocket(
       nextSocket.send(
         JSON.stringify({
           type: "authenticate",
-          memberToken: options.memberToken,
+          ...proof,
         }),
       );
     });

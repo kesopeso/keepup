@@ -38,17 +38,29 @@ For web development from another device, follow [web access from another device]
 
 ### Account authentication
 
-W1 supplies public `/auth/login`, `/auth/signup`, `/auth/verify`, `/auth/forgot-password`, `/auth/reset-password`, `/auth/google`, and `/auth/google/verify` screens plus protected `/account` settings. Short `/auth`, `/auth/forgot`, and `/auth/reset` aliases share the same screens. The [screen](../../apps/web/app/auth/auth-screen.tsx) follows the approved [authentication design](../product/authentication-ui.html), with password visibility, autofill, confirmation validation, immutable identifiers, inline errors, resend cooldowns, and pending-account activation. Account navigation and route integration remain W2.
+W1 supplies public `/auth/login`, `/auth/signup`, `/auth/verify`, `/auth/forgot-password`, `/auth/reset-password`, `/auth/google`, and `/auth/google/verify` screens plus protected `/account` settings. Short `/auth`, `/auth/forgot`, and `/auth/reset` aliases share the same screens. The [screen](../../apps/web/app/auth/auth-screen.tsx) follows the approved [authentication design](../product/authentication-ui.html), with password visibility, autofill, confirmation validation, immutable identifiers, inline errors, resend cooldowns, and pending-account activation. W2 adds account navigation, My routes, and account route integration.
 
 The [account API client](../../apps/web/lib/auth-api.ts) uses same-origin cookies, no-store requests, JSON and the CSRF header. JavaScript never stores session credentials. Requests serialize cookie rotation with account reads, using Web Locks across tabs when available and a local queue otherwise. The [session store](../../apps/web/lib/account-session.ts) rechecks authority on focus, online, visibility and cross-tab notifications, and every five seconds while visible. Notifications contain no account data or credentials. Stale lookups cannot restore a locally logged-out account. `/account` requires a verified session; pending sessions go to verification.
 
-The [destination helper](../../apps/web/lib/auth-destination.ts) accepts only `/my-routes`, `/account`, `/routes/new`, or a six-character route-code path. A `next` parameter and a credential-free local record retain the destination across authentication and restarts, with a 24-hour record lifetime. Invitation access is checked again before returning; unavailable routes offer My routes. W2 must implement `/my-routes` and account route access before enabling account mode for the web client. Existing route screens still use legacy identity.
+The [destination helper](../../apps/web/lib/auth-destination.ts) accepts only `/my-routes`, `/account`, `/routes/new`, or a six-character route-code path. A `next` parameter and a credential-free local record retain the destination across authentication and restarts, with a 24-hour record lifetime. Invitation access is checked again before returning; unavailable routes offer My routes. W2 supplies `/my-routes` and account route access. The route gate identifies account mode through `/auth/me`; only an explicit disabled-account response permits legacy identity. Missing or pending sessions return through authentication with the protected destination retained.
 
 Email links capture fragment tokens into component memory and immediately remove the fragment. Explicit POST confirmation consumes verification links; GET never activates an account. Reloading a token page requires reopening the email link. No analytics or Google SDK loads on link pages, and account pages use a no-referrer policy. Verification elsewhere activates the original pending session without signing in the link-opening browser. Reset success returns to login and clears the local session.
 
 Google uses the official Identity Services popup button with a server nonce, then the backend proof endpoint. The SDK loads only after choosing Google. Cancellation ignores late callbacks. Cookie-bound context polling restores onboarding or email-challenge progress; confirmation/exchange and password setup use B4. Runtime public configuration comes from `/auth/config`, reading the web server's `AUTH_GOOGLE_WEB_CLIENT_ID`; see [Google configuration](../workflow/authentication-google.md). Real provider acceptance remains a release check.
 
 Validation and limits are recorded in [W1 browser evidence](../planning/validation-history.md#web-authentication-w1-on-2026-10-21).
+
+### My routes and account route authority
+
+The [dashboard](../../apps/web/app/my-routes/page.tsx) follows the reviewed [My routes design](../product/my-routes-ui.html). It renders Active/Archived tabs, additive owned/joined/left filters, full server counts, and 20-item cursor pages deduplicated by route ID. Fresh visits use Active with owned/joined selected. Opening a route records filters, summaries, loaded pages and scroll in credential-free, account-scoped session storage. Returning restores that position and revalidates the loaded pages. Logout, expired/revoked authority and account switches clear the retained data. Cached summaries never grant route access; offline opening, create and join are disabled while safe route-link sharing remains available.
+
+The dashboard has explicit loading, no-routes, no-matches, no-selected-filters, offline and retry states. The account menu links settings and logout; creation and route-code joining remain explicit actions. Every row, including left and archived routes, uses the same [share helper](../../apps/web/lib/route-share.ts) as the route screen, with native sharing, silent cancellation, clipboard feedback and manual fallback. No session credential or route password enters the shared URL. Dashboard pages exclude indexing and use no-referrer metadata.
+
+The [route gate](../../apps/web/app/components/route-account.tsx) and [route API client](../../apps/web/lib/routes-api.ts) restore account membership and owner authority through cookies. Account create/join omit legacy identifiers and tokens, and show the immutable account username. Current memberships open without repeated join/password entry; former memberships, including closed archives and former owners, go through the server access and rejoin gate. Account route details expose explicit membership leave when permitted. Snapshot, ticket and mutation requests share the account HTTP rotation lock and CSRF transport. The disabled-by-default legacy mode retains its separate existing identity flow.
+
+Account live bootstrap fetches a fresh one-use ticket before opening each socket. Multiple viewers remain connected; only the sender acknowledged with a sharing generation captures GPS or submits generation-bearing positions/stops. Connection-specific `viewer_updated` capabilities override room membership status. Other viewers show the other-device restriction; reconnect discards sender authority and remains a viewer until explicit Start. Account stale snapshots never automatically resume capture. Session revocation unmounts route data and stops location capture; membership/deletion rejection after disconnect returns to access checks. Owner close/delete use account authority without route-scoped credentials.
+
+W2 validation and limits are in [dated evidence](../planning/validation-history.md#web-my-routes-w2-on-2026-10-22). Native integration and real provider/device rollout checks remain separate tasks.
 
 ### Current Frontend Foundation
 
@@ -60,12 +72,12 @@ Validation and limits are recorded in [W1 browser evidence](../planning/validati
 - Browser identity and sharing-command request IDs use [the browser ID helper](../../apps/web/lib/browser-id.ts). It uses native `randomUUID` when available, otherwise UUID v4 from `getRandomValues`, with the existing timestamp/random fallback when Web Crypto is absent. Saved client IDs are retained; authentication tokens are generated by the API.
 - Route API helpers live in `apps/web/lib/routes-api.ts`
 - The [creation entry](../../apps/web/app/routes/new/page.tsx) at `/routes/new` renders the [create form](../../apps/web/app/routes/new/create-route-form.tsx), which posts to `POST /routes`. The static `new` segment is separate from the six-character route codes used by `/routes/{code}`.
-- Successful create responses save route-scoped member/owner tokens before navigating to `/routes/{code}`
-- `/routes/{code}` checks for saved member access before showing the join flow
-- Browsers without saved access fetch `GET /routes/{code}/access`, then join with `POST /routes/{code}/members`
-- Successful join responses save the route-scoped member token before fetching the authenticated snapshot
-- Browsers with saved member access fetch `GET /routes/{code}` with `Authorization: Bearer <memberToken>`
-- Unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
+- In legacy mode, successful create responses save route-scoped member/owner tokens before navigating to `/routes/{code}`
+- In legacy mode, `/routes/{code}` checks for saved member access before showing the join flow
+- Legacy browsers without saved access fetch `GET /routes/{code}/access`, then join with `POST /routes/{code}/members`
+- Legacy successful join responses save the route-scoped member token before fetching the authenticated snapshot
+- Legacy browsers with saved member access fetch `GET /routes/{code}` with `Authorization: Bearer <memberToken>`
+- Legacy unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
 - The authenticated route screen uses a route header with the K4-10 logo and KeepUp wordmark beside the route title, a MapLibre-backed map surface, and a member bottom sheet
 - The member bottom sheet renders sharing state/actions first, then a collapsible member list with initials, member colors, and explicit presence badges
 - Route details and owner controls live in a native modal dialog with keyboard focus containment and restoration
@@ -85,10 +97,10 @@ Validation and limits are recorded in [W1 browser evidence](../planning/validati
 - Active route snapshots that initially load with a `stale` current viewer show a blocking recovery prompt; later stale events in the same live session do not trigger it
 - The recovery actions wait for `connection_established`; resume requests browser location permission and sends `start_sharing`, while continue-as-spectator sends `stop_sharing`
 - The stale recovery prompt is dismissed by the resulting member status event rather than optimistically on command acknowledgement
-- Owner route management uses the route-scoped owner token with `PATCH /routes/{code}` for close and `DELETE /routes/{code}` for permanent deletion
-- The shared API supports metadata editing and explicit membership leave, but the web client currently exposes neither action; its owner controls provide close and delete only.
+- Legacy owner route management uses the route-scoped owner token with `PATCH /routes/{code}` for close and `DELETE /routes/{code}` for permanent deletion
+- The shared API supports metadata editing, which the web client does not expose. Account mode exposes explicit membership leave; legacy mode does not. Owner controls provide close and delete.
 - Close uses an explicit confirmation and applies the resulting `route_closed` event to connected clients; delete requires exact route-code confirmation, clears local route auth, and navigates the deleting owner to `/routes/new`
-- If a second tab/device opens the same active route with the same member token, the route screen shows a blocking notice instead of map/member content after `live_connection_rejected`
+- In legacy mode, if a second tab/device opens the same active route with the same member token, the route screen shows a blocking notice instead of map/member content after `live_connection_rejected`
 - Browser position access is isolated behind `apps/web/lib/navigation-service.ts`
 - Browser geolocation failures are normalized by the navigation service into denied, unavailable, timeout, and generic failure codes before the route screen renders actionable guidance
 - In development, sharing bypasses browser location permission and real GPS. The navigation service starts at simulated coordinates `46.0569, 14.5058`, emits a sample immediately with `5m` accuracy, and broadcasts simulated movement every 2 seconds in roughly 10m direction-biased steps with small random turns. Stopping cancels the timer; restarting retains the last simulated coordinates, refreshes the timestamp, and immediately resumes samples.

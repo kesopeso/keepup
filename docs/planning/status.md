@@ -9,7 +9,7 @@ Current progress and material validation limits. Read only for task selection, d
 
 ## Immediate next step
 
-Account authentication B1–B6 and W1 web authentication/account settings are implemented. The [task handoff](authentication-tasks.md) resumes at W2 web My routes/account route integration or independent A1 Android authentication. Authentication remains disabled by default. Existing route screens still use legacy identity, so web account mode requires W2 before rollout. Native authentication and both My routes screens remain pending. W1 has real backend browser checks in a disposable schema, regression tests, a production build and accessibility checks; browser process-restart restoration and revoked-cookie rejection are verified. Real Google and email delivery checks remain R1. See [web account boundaries](../system/frontend.md#account-authentication) and [dated evidence](validation-history.md#web-authentication-w1-on-2026-10-21).
+Account authentication B1–B6 and W1/W2 web authentication, My routes and account route integration are implemented. The [task handoff](authentication-tasks.md) continues with A1 Android authentication and A2 route integration, which are pending in this branch. Authentication remains disabled by default. W2 has real backend browser checks in a disposable schema, 28 passing web regression tests, a production build, responsive review and zero dashboard accessibility violations. W1 browser-restart restoration remains verified. Real Google/email and cross-client/device release checks remain R1. See [web account boundaries](../system/frontend.md#my-routes-and-account-route-authority) and [dated evidence](validation-history.md#web-my-routes-w2-on-2026-10-22).
 
 Account mode requires verified sessions and implements multiple viewers, exclusive sharing generations, synchronous revocation cleanup and startup recovery. Its process-local live hub requires one API runtime per database/schema. Backend tests use isolated schemas through migration 0007, locally signed Google proofs and local TLS SMTP. No application tables were migrated/reset and nothing was deployed. The existing Android task below remains pending.
 
@@ -60,9 +60,9 @@ The development-only legacy copy fallback has desktop browser validation and own
 
 ## Specification versus implementation
 
-The shared API rejects new memberships on closed routes despite the [archive access requirement](../product/routes.md#route-access). Existing members can read archive snapshots. Android reports this backend limitation. Android owner edit/close/delete controls remain unimplemented.
+Legacy mode rejects new memberships on closed routes despite the [archive access requirement](../product/routes.md#route-access). Existing members can read archive snapshots. The current legacy Android client reports this limitation. Account mode supports explicit archive rejoin, including password gates, and W2 uses it. Android owner edit/close/delete controls remain unimplemented.
 
-Metadata editing and explicit membership leave exist in the API but lack current client controls; see [web boundaries](../system/frontend.md#current-frontend-foundation) and [mobile saved access](../system/mobile.md#saved-membership). This gap does not change the selected next task.
+Metadata editing exists in the API but lacks current client controls. W2 exposes account membership leave; legacy web and current Android clients do not; see [web boundaries](../system/frontend.md#current-frontend-foundation) and [mobile saved access](../system/mobile.md#saved-membership). This gap does not change the selected next task.
 
 Shared GPS validation is implemented. API race/PostGIS integration tests, Go vet, and lint passed in the recorded 2026-10-03 checks; presence recovery also has recorded 2026-10-07 verification. These are prior results, not fresh validation of the current checkout. See [GPS evidence](validation-history.md#gps-validation) and [mobile evidence](validation-history.md#mobile-validation).
 

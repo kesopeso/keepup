@@ -5,12 +5,16 @@ import type {
   RouteSnapshot,
   RouteSummary,
   SnapshotMember,
+  ViewerCapabilities,
 } from "./routes-api";
 
 export type LiveEvent =
   | {
       type: "connection_established";
+      viewer?: ViewerCapabilities;
     }
+  | { type: "viewer_updated"; viewer: ViewerCapabilities }
+  | { type: "session_revoked"; reason: string }
   | {
       type: "member_joined" | "member_left";
       member: MemberSummary;
@@ -32,6 +36,7 @@ export type LiveEvent =
       type: "command_ack";
       requestId?: string;
       command?: string;
+      sharingGeneration?: string;
     }
   | {
       type: "command_rejected";
@@ -107,6 +112,7 @@ export function parseLiveEvent(
       event.type === "command_rejected" ||
       event.type === "live_connection_rejected" ||
       event.type === "connection_established"
+      || event.type === "viewer_updated" || event.type === "session_revoked"
     ) {
       return event as LiveEvent;
     }

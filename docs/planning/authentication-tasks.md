@@ -13,7 +13,7 @@ Each task below is an independent change with its own validation. Web and Androi
 
 ## Resume point
 
-B1–B6 and W1 implementation are complete. Continue with W2 web My routes/account route integration or the independent A1 Android task. Browser-restart restoration is verified; real Google and email delivery remain R1. `AUTH_ENABLED` remains false by default; enabling it replaces route/socket authority as well as mounting account endpoints. Implementation checks apply migrations through 0007 only in disposable schemas; this session did not migrate/reset application tables or deploy. Existing route clients still use legacy identity and need W2 or A1/A2 before account-mode use.
+B1–B6, W1 and W2 implementation are complete in this branch. Continue with A1 Android authentication, followed by A2 route integration. Browser-restart restoration is verified; real Google and email delivery remain R1. `AUTH_ENABLED` remains false by default; enabling it replaces route/socket authority as well as mounting account endpoints. Implementation checks apply migrations through 0007 only in disposable schemas; this session did not migrate/reset application tables or deploy. The web client supports account route authority; the Android route client still needs A1/A2 before account-mode use.
 
 B2 implements pending signup, normalized uniqueness and immutable identifiers, Argon2id, email/username login, hashed opaque sessions, idle extension, explicit atomic rotation, current/all-session revocation, configurable attempt limits, and protected browser/native transports. B3 adds purpose-bound token consumption/replacement, pending activation, reset/change revocation, encrypted transactional outbox, SMTP/fake providers, quotas, trusted-proxy support, and cleanup. B4 adds Google proof/onboarding/linking; B5 applies active-account authority to routes, dashboard lists and live bootstrap. B6 adds independent viewers, exclusive sharing generations and immediate live revocation cleanup. Race-enabled PostgreSQL and local TLS SMTP tests cover these boundaries. Web link/form UI is implemented; native UI remains A1, and actual SMTP credentials/proxy CIDRs/real delivery remain R1.
 
@@ -81,6 +81,8 @@ State: complete for W1. Source and behavior are in [web account boundaries](../s
 
 ### W2: My routes and account route integration
 
+State: complete. [Web boundaries](../system/frontend.md#my-routes-and-account-route-authority) own the implementation. Docker regression tests, production build, real account API/browser checks and responsive/accessibility review passed. [Dated evidence](validation-history.md#web-my-routes-w2-on-2026-10-22) separates real API checks from synthetic GPS/share/offline fixtures and remaining native/provider release gates. Authentication remains disabled by default.
+
 - Depends on B1 fixtures, W1, and the reviewed My routes UI. Build list, tabs, all three filters, pagination, retained view state, actions, and loading/empty/offline/error states. Give every route a Share action using the existing web route-screen share flow and feedback; test native share, cancellation, copy and manual fallbacks.
 - Remove editable route aliases, restore account access, support concurrent watching, and show other-device sharing restriction. Account menu links to W1 settings. Create/Join stay explicit actions; opening a list item never starts tracking.
 - Done when reviewed desktop/phone layouts and B5/B6 integration cover all filters, left-route rejoin, archive gates, back navigation, data isolation after account switch, logout cleanup, and multi-device sharing.
@@ -117,5 +119,5 @@ State: complete for W1. Source and behavior are in [web account boundaries](../s
 ## Release boundaries
 
 - Owner accepted credential/default proposals and authorized implementation on 2026-10-21. The contract fixes the engineering defaults for independent tasks.
-- W2, A1/A2 and R1/R2 remain pending. Do not expose the staged account API as a complete login system or treat pending signup as usable route authority.
+- A1/A2 and R1/R2 remain pending in this branch. W1/W2 web implementation is complete. Do not expose the staged account API as a complete login system or treat pending signup as usable route authority.
 - Production data reset and deployment still require explicit authorization for the concrete rollout.

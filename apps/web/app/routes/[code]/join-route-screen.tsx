@@ -2,7 +2,7 @@
 
 import { SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { copyWithDevelopmentFallback } from "../../../lib/development-clipboard";
+import { shareRouteLink } from "../../../lib/route-share";
 import { createBrowserId } from "../../../lib/browser-id";
 import {
   clearRouteAuth,
@@ -33,6 +33,8 @@ import {
   type NavigationPosition,
 } from "../../../lib/navigation-service";
 import {
+  accountAuthority,
+  accountRouteRequest,
   ApiError,
   closeRoute,
   deleteRoute,
@@ -56,7 +58,14 @@ import {
   transportLabels,
 } from "../../components/ui";
 
+import { RouteAccount } from "../../components/route-account";
+import { setAccountSession } from "../../../lib/account-session";
+import type { AccountSession } from "../../../lib/auth-api";
+
 export function JoinRouteScreen({ code }: { code: string }) {
+  return <RouteAccount destination={`/routes/${code}`}>{session => <JoinScreen code={code} session={session} />}</RouteAccount>;
+}
+function JoinScreen({ code, session }: { code: string; session: AccountSession | null }) {
   const router = useRouter();
   const [access, setAccess] = useState<RouteAccess | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -73,9 +82,24 @@ export function JoinRouteScreen({ code }: { code: string }) {
     let isMounted = true;
 
     const profile = getProfile();
-    setDisplayName(profile.displayName);
+    setDisplayName(session?.user.username ?? profile.displayName);
     setTransportMode(profile.transportMode);
 
+    if (session) {
+      setMemberToken(accountAuthority);
+      setOwnerToken(accountAuthority);
+      getRouteSnapshot(code, accountAuthority).then(value => {
+        if (isMounted) { setSnapshot(value); setIsLoading(false); }
+      }).catch(async caught => {
+        if (!isMounted) return;
+        if (caught instanceof ApiError && caught.status === 403) {
+          try { const value = await getRouteAccess(code, true); if (isMounted) setAccess(value); }
+          catch (error) { if (isMounted) setError(error instanceof Error ? error.message : "Could not load route."); }
+        } else setError(caught instanceof Error ? caught.message : "Could not load route.");
+        if (isMounted) setIsLoading(false);
+      });
+      return () => { isMounted = false; };
+    }
     const routeAuth = getRouteAuth(code);
     setOwnerToken(routeAuth?.ownerToken ?? "");
     if (routeAuth?.memberToken) {
@@ -147,7 +171,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
     setIsJoining(true);
 
     try {
-      const profile = saveProfile({
+      const profile = session ? { clientId: "", displayName: session.user.username, transportMode } : saveProfile({
         displayName,
         transportMode,
       });
@@ -157,15 +181,15 @@ export function JoinRouteScreen({ code }: { code: string }) {
         displayName: profile.displayName,
         transportMode: profile.transportMode,
         password,
-      });
+      }, !!session);
 
-      saveRouteAuth(result.route.code, {
+      if (!session) saveRouteAuth(result.route.code, {
         memberToken: result.memberToken,
       });
-      setMemberToken(result.memberToken);
+      setMemberToken(session ? accountAuthority : result.memberToken);
       const routeSnapshot = await getRouteSnapshot(
         result.route.code,
-        result.memberToken,
+        session ? accountAuthority : result.memberToken,
       );
       setSnapshot(routeSnapshot);
     } catch (caughtError) {
@@ -196,8 +220,13 @@ export function JoinRouteScreen({ code }: { code: string }) {
         code={code}
         memberToken={memberToken}
         ownerToken={ownerToken}
-        onDeleted={() => router.replace("/routes/new")}
+        onDeleted={() => router.replace(session ? "/my-routes" : "/routes/new")}
         onSnapshotChange={setSnapshot}
+        onAccessLost={async () => {
+          setSnapshot(null); setAccess(null);
+          try { setAccess(await getRouteAccess(code, true)); }
+          catch (error) { setError(error instanceof Error ? error.message : "Route access is unavailable."); }
+        }}
         snapshot={snapshot}
       />
     );
@@ -238,6 +267,7 @@ export function JoinRouteScreen({ code }: { code: string }) {
         <label className="field">
           <span>Your name</span>
           <input
+            readOnly={!!session}
             autoComplete="name"
             name="displayName"
             onChange={(event) => setDisplayName(event.target.value)}
@@ -320,6 +350,7 @@ function RouteSnapshotShell({
   ownerToken,
   onDeleted,
   onSnapshotChange,
+  onAccessLost,
   snapshot,
 }: {
   code: string;
@@ -327,8 +358,12 @@ function RouteSnapshotShell({
   ownerToken: string;
   onDeleted: () => void;
   onSnapshotChange: (snapshot: RouteSnapshot) => void;
+  onAccessLost: () => void;
   snapshot: RouteSnapshot;
 }) {
+  const router = useRouter();
+  const accountMode = memberToken === accountAuthority;
+  const generation = useRef<string | null>(null);
   const [sharingAction, setSharingAction] = useState<"start" | "stop" | null>(
     null,
   );
@@ -345,7 +380,7 @@ function RouteSnapshotShell({
   const [liveConnectionReady, setLiveConnectionReady] = useState(false);
   const [showStaleRecovery, setShowStaleRecovery] = useState(
     () =>
-      snapshot.route.status === "active" && snapshot.viewer.status === "stale",
+      !accountMode && snapshot.route.status === "active" && snapshot.viewer.status === "stale",
   );
   const [lifecycleAction, setLifecycleAction] = useState<
     "close" | "delete" | null
@@ -373,7 +408,7 @@ function RouteSnapshotShell({
   const isViewerTracking =
     memberToken !== "" &&
     snapshot.route.status === "active" &&
-    snapshot.viewer.status === "tracking";
+    snapshot.viewer.status === "tracking" && (!accountMode || (snapshot.viewer.canStopSharing && liveConnectionReady));
 
   const isArchive = snapshot.route.status === "closed";
   const sharingCount = snapshot.members.filter(
@@ -382,7 +417,8 @@ function RouteSnapshotShell({
   const occupiedSlots = snapshot.members.filter(
     (member) => member.status === "tracking" || member.status === "stale",
   ).length;
-  const sharingTitle = isArchive
+  const otherDevice = accountMode && ["tracking", "stale"].includes(snapshot.viewer.status) && !snapshot.viewer.canStopSharing;
+  const sharingTitle = otherDevice ? "Sharing on another device" : isArchive
     ? "Route archive"
     : !liveConnectionReady
       ? "Live connection unavailable"
@@ -391,7 +427,7 @@ function RouteSnapshotShell({
         : snapshot.viewer.status === "stale"
           ? "Location updates interrupted"
           : "You're spectating";
-  const sharingDescription = isArchive
+  const sharingDescription = otherDevice ? "Stop sharing on your other device before starting here. You can keep watching this route." : isArchive
     ? "This route is closed. Its recorded paths remain available."
     : !liveConnectionReady
       ? "Waiting for the live connection. If it does not connect, reload this page."
@@ -411,43 +447,10 @@ function RouteSnapshotShell({
   async function handleShareRoute() {
     setIsSharingLink(true);
     setManualShareUrl("");
-    const url = new URL(
-      `/routes/${encodeURIComponent(code)}`,
-      window.location.origin,
-    ).href;
     try {
-      if (navigator.share) {
-        await navigator.share({ title: snapshot.route.name, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      addShareNotice({
-        id: ++nextShareNoticeId.current,
-        title: "Route link copied",
-        detail: "Ready to paste and share",
-        tone: "success",
-      });
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") return;
-      if (copyWithDevelopmentFallback(url)) {
-        addShareNotice({
-          id: ++nextShareNoticeId.current,
-          title: "Route link copied",
-          detail: "Link copied using an unsafe fallback. Development only.",
-          tone: "warning",
-        });
-        return;
-      }
-      setManualShareUrl(url);
-      addShareNotice({
-        id: ++nextShareNoticeId.current,
-        title: "Copy link manually",
-        detail: "Select the link in the route header",
-        tone: "error",
-      });
-    } finally {
-      setIsSharingLink(false);
-    }
+      const result = await shareRouteLink(code, snapshot.route.name);
+      if (result) { setManualShareUrl(result.manualUrl ?? ""); addShareNotice({ id: ++nextShareNoticeId.current, title: result.title, detail: result.detail, tone: result.tone }); }
+    } finally { setIsSharingLink(false); }
   }
 
   function addShareNotice(notice: Omit<NotificationItem, "leaving">) {
@@ -506,11 +509,17 @@ function RouteSnapshotShell({
     connection = connectRouteLiveSocket({
       url: routeWebSocketUrl(),
       memberToken,
+      ...(accountMode ? { authenticate: async () => accountRouteRequest<{ ticket: string }>(`/routes/${encodeURIComponent(code)}/socket-ticket`, "POST", {}).then(value => ({ ticket: value.ticket })) } : {}),
       onSocketChange: (socket) => {
         websocketRef.current = socket;
       },
       onDisconnected: () => {
+        generation.current = null;
         setLiveConnectionReady(false);
+        if (accountMode) onSnapshotChange({ ...snapshotRef.current, viewer: { ...snapshotRef.current.viewer, canStopSharing: false } });
+        if (accountMode) void getRouteSnapshot(code, accountAuthority).catch(error => {
+          if (error instanceof ApiError && [403, 404].includes(error.status)) { connection.stop(); onAccessLost(); }
+        });
       },
       onMessage: (event) => {
         const liveEvent = parseLiveEvent(event.data);
@@ -518,6 +527,19 @@ function RouteSnapshotShell({
           return;
         }
 
+        if (liveEvent.type === "session_revoked") {
+          generation.current = null;
+          connection.stop();
+          setAccountSession(null);
+          return;
+        }
+        if (liveEvent.type === "viewer_updated" || (liveEvent.type === "connection_established" && liveEvent.viewer)) {
+          const next = { ...snapshotRef.current, viewer: liveEvent.viewer! };
+          snapshotRef.current = next;
+          onSnapshotChange(next);
+          if (!liveEvent.viewer?.canStopSharing) generation.current = null;
+          if (liveEvent.type === "viewer_updated") return;
+        }
         if (liveEvent.type === "position_updated") {
           if (liveEvent.memberId === snapshotRef.current.viewer.memberId) {
             setLiveTrackingError("");
@@ -568,6 +590,8 @@ function RouteSnapshotShell({
         }
 
         if (liveEvent.type === "command_ack") {
+          if (liveEvent.command === "start_sharing" && liveEvent.sharingGeneration) generation.current = liveEvent.sharingGeneration;
+          if (liveEvent.command === "stop_sharing") generation.current = null;
           if (snapshotRef.current.viewer.status !== "stale") {
             setSharingAction(null);
           }
@@ -591,6 +615,7 @@ function RouteSnapshotShell({
             snapshotRef.current,
             liveEvent,
           );
+          if (accountMode) updatedSnapshot.viewer = { ...snapshotRef.current.viewer, status: updatedSnapshot.viewer.status };
           snapshotRef.current = updatedSnapshot;
           onSnapshotChange(updatedSnapshot);
           setMapState((current) =>
@@ -623,13 +648,14 @@ function RouteSnapshotShell({
           return;
         }
 
-        socket.send(JSON.stringify(positionUpdatePayload(position)));
+        if (accountMode && !generation.current) return;
+        socket.send(JSON.stringify({ ...positionUpdatePayload(position), ...(accountMode ? { sharingGeneration: generation.current } : {}) }));
       },
       (locationError) => {
         setLiveTrackingError(locationErrorMessage(locationError));
       },
     );
-  }, [isViewerTracking]);
+  }, [isViewerTracking, liveConnectionReady]);
 
   async function handleSharingControl() {
     if (!canUseSharingControl) {
@@ -740,6 +766,7 @@ function RouteSnapshotShell({
       JSON.stringify({
         type,
         requestId: createBrowserId(),
+        ...(accountMode && type === "stop_sharing" ? { sharingGeneration: generation.current } : {}),
       }),
     );
   }
@@ -788,6 +815,7 @@ function RouteSnapshotShell({
           </div>
         </div>
         <div className="route-header-actions">
+          {accountMode ? <a className="text-action" href="/my-routes">My routes</a> : null}
           <button
             className="primary-action compact-action"
             disabled={isSharingLink}
@@ -1007,6 +1035,11 @@ function RouteSnapshotShell({
               <strong>{formatRole(snapshot.viewer.role)}</strong>
             </p>
           </div>
+              {accountMode ? <div className="route-actions"><a href="/my-routes">My routes</a><a href="/account">Account settings</a>{snapshot.viewer.canLeaveRoute ? <button type="button" onClick={async () => {
+                if (!window.confirm("Leave this route? You will need to rejoin to view it again.")) return;
+                try { await accountRouteRequest(`/routes/${encodeURIComponent(code)}/members/me`, "DELETE", {}); router.replace("/my-routes"); }
+                catch (error) { setLifecycleError(error instanceof Error ? error.message : "Could not leave route."); }
+              }}>Leave route</button> : null}</div> : null}
           {snapshot.viewer.canCloseRoute || snapshot.viewer.canDeleteRoute ? (
             <div className="management-actions">
               <h3>Manage route</h3>
@@ -1232,6 +1265,8 @@ function commandRejectedMessage(reason?: string) {
   if (reason === "tracking_limit_reached") {
     return "All tracking slots are currently in use.";
   }
+  if (reason === "sharing_on_another_device") return "You are sharing on another device. Stop sharing there before starting here.";
+  if (reason === "sharing_expired") return "Sharing expired. Start again when available.";
   if (reason === "sharing_not_allowed") {
     return "This route only allows the owner to share location.";
   }

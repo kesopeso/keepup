@@ -17,28 +17,33 @@ export class AuthError extends Error {
 
 let pending: Promise<unknown> = Promise.resolve();
 export function authRequest<T>(path: string, body?: object): Promise<T> {
+  return accountRequest<T>(`/auth/${path}`, body === undefined ? "GET" : "POST", body);
+}
+
+// All cookie-authenticated HTTP calls share the rotation lock, including route reads.
+export function accountRequest<T>(path: string, method = "GET", body?: object): Promise<T> {
   const execute = () => {
     // A delayed /me response must not restore the cookie that password change rotated.
     // Web Locks also serialize cookie-changing requests across tabs where supported.
     if (typeof navigator !== "undefined" && navigator.locks) {
-      return navigator.locks.request("keepup.account.http", () => sendAuthRequest<T>(path, body));
+      return navigator.locks.request("keepup.account.http", () => sendAuthRequest<T>(path, method, body));
     }
-    return sendAuthRequest<T>(path, body);
+    return sendAuthRequest<T>(path, method, body);
   };
   const result = pending.then(execute, execute);
   pending = result.catch(() => undefined);
   return result;
 }
 
-async function sendAuthRequest<T>(path: string, body?: object): Promise<T> {
+async function sendAuthRequest<T>(path: string, method: string, body?: object): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`/api/auth/${path}`, {
-      method: body === undefined ? "GET" : "POST",
+    response = await fetch(`/api${path}`, {
+      method,
       credentials: "same-origin",
       cache: "no-store",
       signal: AbortSignal.timeout(15000),
-      headers: body === undefined ? {} : { "Content-Type": "application/json", "X-KeepUp-Request": "1" },
+      headers: method === "GET" ? {} : { "Content-Type": "application/json", "X-KeepUp-Request": "1" },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
   } catch {
