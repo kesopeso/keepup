@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -21,6 +22,12 @@ type AccountService struct {
 	position                   config.PositionValidationConfig
 	idle, ticketTTL, retention time.Duration
 	cursorKey                  []byte
+	liveConfig                 config.AppConfig
+	liveEvent                  func(string, string, Member)
+	liveRevoked                func(auth.Revocation)
+	liveAccessLost             func(string, string, *Route)
+	liveStopped                atomic.Bool
+	livePID                    atomic.Uint32
 }
 
 // NewAccountService shares lifecycle persistence but never accepts legacy route tokens.
@@ -30,7 +37,7 @@ func NewAccountService(pool *pgxpool.Pool, maxTracking int, position config.Posi
 	}
 	mac := hmac.New(sha256.New, key)
 	_, _ = mac.Write([]byte("keepup.routes.cursor.v1"))
-	return &AccountService{pool: pool, maxTracking: maxTracking, position: position, idle: idle, ticketTTL: ticketTTL, retention: retention, cursorKey: mac.Sum(nil)}, nil
+	return &AccountService{pool: pool, maxTracking: maxTracking, position: position, idle: idle, ticketTTL: ticketTTL, retention: retention, cursorKey: mac.Sum(nil), liveConfig: config.AppConfig{TrackingStaleAfter: 20 * time.Second, TrackingOfflineAfter: 5 * time.Minute, SpectatorOfflineAfter: 20 * time.Second}}, nil
 }
 
 type accountRoute struct {
@@ -98,11 +105,17 @@ func (s *AccountService) lockSession(ctx context.Context, tx pgx.Tx, session aut
 // User -> route -> membership locks coordinate with account recovery and lifecycle writes.
 func accountOperation[T any](ctx context.Context, s *AccountService, session auth.Session, code string, current, owner bool, run func(pgx.Tx, *Service, accountRoute, auth.User) (T, error)) (T, error) {
 	var zero T
+	if s.liveStopped.Load() {
+		return zero, ErrUnauthorized
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return zero, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err = s.checkLiveRuntime(ctx, tx); err != nil {
+		return zero, err
+	}
 	user, err := s.lockSession(ctx, tx, session)
 	if err != nil {
 		return zero, err
@@ -134,6 +147,9 @@ func accountOperation[T any](ctx context.Context, s *AccountService, session aut
 	}
 	if !valid {
 		return zero, auth.ErrSession
+	}
+	if err = s.checkLiveRuntime(ctx, tx); err != nil {
+		return zero, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return zero, err
@@ -282,31 +298,63 @@ func (s *AccountService) AccessRoute(ctx context.Context, session auth.Session, 
 
 // Snapshot requires a current membership, including for archived routes.
 func (s *AccountService) Snapshot(ctx context.Context, session auth.Session, code string) (Snapshot, error) {
-	return accountOperation(ctx, s, session, code, true, false, func(_ pgx.Tx, core *Service, _ accountRoute, _ auth.User) (Snapshot, error) {
-		return core.Snapshot(ctx, code, "account-authority")
+	return accountOperation(ctx, s, session, code, true, false, func(tx pgx.Tx, core *Service, a accountRoute, _ auth.User) (Snapshot, error) {
+		result, err := core.Snapshot(ctx, code, "account-authority")
+		if err != nil {
+			return result, err
+		}
+		var sharing bool
+		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM account_sharing_leases WHERE member_id=$1)`, a.Member.ID).Scan(&sharing)
+		result.Viewer.CanStopSharing = false // REST has no sender connection authority.
+		result.Viewer.CanStartSharing = result.Viewer.CanStartSharing && !sharing
+		return result, err
 	})
 }
 
 // UpdateRoute checks account ownership in the same transaction as the lifecycle change.
 func (s *AccountService) UpdateRoute(ctx context.Context, session auth.Session, code string, input UpdateRouteInput) (Route, error) {
-	return accountOperation(ctx, s, session, code, false, true, func(_ pgx.Tx, core *Service, _ accountRoute, _ auth.User) (Route, error) {
-		return core.UpdateRoute(ctx, code, "account-authority", input)
+	result, err := accountOperation(ctx, s, session, code, false, true, func(tx pgx.Tx, core *Service, a accountRoute, _ auth.User) (Route, error) {
+		result, err := core.UpdateRoute(ctx, code, "account-authority", input)
+		if err == nil && result.Status == RouteStatusClosed {
+			_, err = tx.Exec(ctx, `DELETE FROM account_sharing_leases WHERE route_id=$1`, a.Route.ID)
+			if err == nil {
+				_, err = tx.Exec(ctx, `DELETE FROM account_live_connections WHERE route_id=$1`, a.Route.ID)
+			}
+		}
+		return result, err
 	})
+	if err == nil && result.Status == RouteStatusClosed && s.liveAccessLost != nil {
+		s.liveAccessLost(result.ID, "", &result)
+	}
+	return result, err
 }
 
 // LeaveRoute preserves the historical membership episode and its path records.
 func (s *AccountService) LeaveRoute(ctx context.Context, session auth.Session, code string) (LeaveRouteResult, error) {
-	return accountOperation(ctx, s, session, code, true, false, func(_ pgx.Tx, core *Service, _ accountRoute, user auth.User) (LeaveRouteResult, error) {
+	result, err := accountOperation(ctx, s, session, code, true, false, func(tx pgx.Tx, core *Service, a accountRoute, user auth.User) (LeaveRouteResult, error) {
 		result, err := core.LeaveRoute(ctx, code, "account-authority")
 		result.Member = accountMember(result.Member, user)
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM account_sharing_leases WHERE member_id=$1`, a.Member.ID)
+			if err == nil {
+				_, err = tx.Exec(ctx, `DELETE FROM account_live_connections WHERE member_id=$1`, a.Member.ID)
+			}
+		}
 		return result, err
 	})
+	if err == nil && s.liveAccessLost != nil {
+		s.liveAccessLost(result.Member.RouteID, result.Member.ID, nil)
+	}
+	return result, err
 }
 
 // DeleteRoute removes only a route owned by the authenticated account.
 func (s *AccountService) DeleteRoute(ctx context.Context, session auth.Session, code string) error {
-	_, err := accountOperation(ctx, s, session, code, false, true, func(_ pgx.Tx, core *Service, _ accountRoute, _ auth.User) (struct{}, error) {
-		return struct{}{}, core.DeleteRoute(ctx, code, "account-authority")
+	id, err := accountOperation(ctx, s, session, code, false, true, func(_ pgx.Tx, core *Service, a accountRoute, _ auth.User) (string, error) {
+		return a.Route.ID, core.DeleteRoute(ctx, code, "account-authority")
 	})
+	if err == nil && s.liveAccessLost != nil {
+		s.liveAccessLost(id, "", nil)
+	}
 	return err
 }

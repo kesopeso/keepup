@@ -269,5 +269,5 @@ func (s *Server) accountSocket(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, 400, "invalid_input")
 		return
 	}
-	s.handleWebSocket(w, r)
+	s.handleAccountWebSocket(w, r)
 }

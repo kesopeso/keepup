@@ -48,6 +48,7 @@ type Server struct {
 	routes             RouteService
 	accountRoutes      *routes.AccountService
 	accountTransport   *accountHandler
+	accountSockets     sync.Map
 }
 
 // ServerOption selects a coordinated API authority mode before serving requests.
@@ -57,8 +58,10 @@ type ServerOption func(*Server)
 func WithAccountRoutes(service *routes.AccountService, accounts AccountService, cfg config.AuthConfig) ServerOption {
 	return func(s *Server) {
 		s.accountRoutes = service
-		s.routes = accountPresence{RouteService: s.routes}
 		s.accountTransport = &accountHandler{service: accounts, logger: s.logger, cfg: cfg, secure: s.appConfig.Env != "development"}
+		service.ConfigureLive(s.appConfig, func(routeID, kind string, member routes.Member) {
+			s.broadcastLiveEvent(routeID, live.Event{"type": kind, "member": member})
+		}, s.revokeAccountSockets, s.closeAccountSockets)
 	}
 }
 
@@ -344,18 +347,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var authorized routes.AuthorizedMember
-	var accountBinding routes.LiveAccount
 	var socketRoutes liveRouteCommands = s.routes
-	if s.accountRoutes != nil {
-		accountBinding, err = s.accountRoutes.ConsumeSocketTicket(r.Context(), authMessage.Ticket)
-		if err == nil {
-			authorized, err = s.accountRoutes.AuthorizeLive(r.Context(), accountBinding)
-		}
-		socketRoutes = &accountSocketCommands{service: s.accountRoutes, bound: accountBinding}
-	} else {
-		authorized, err = s.routes.AuthorizeMember(r.Context(), authMessage.MemberToken)
-	}
+	authorized, err := s.routes.AuthorizeMember(r.Context(), authMessage.MemberToken)
 	if err != nil {
 		s.logger.Info("websocket token rejected", "error", err)
 		_ = connection.Close(websocket.StatusPolicyViolation, "unauthorized")
@@ -564,30 +557,8 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	if authorized.Member.Status == routes.MemberStatusStale {
 		go s.markOfflineAfter(r.Context(), authorized.Route.ID, authorized.Member.ID, s.appConfig.TrackingOfflineAfter, staleOfflineCh)
 	}
-	liveAuthorized := func() bool {
-		if s.accountRoutes == nil {
-			return true
-		}
-		_, err := s.accountRoutes.AuthorizeLive(r.Context(), accountBinding)
-		if err != nil {
-			_ = connection.Close(websocket.StatusPolicyViolation, "access revoked")
-			return false
-		}
-		return true
-	}
-	var authorityC <-chan time.Time
-	if s.accountRoutes != nil {
-		ticker := time.NewTicker(s.appConfig.WebSocketPingInterval)
-		defer ticker.Stop()
-		authorityC = ticker.C
-	}
-
 	for {
 		select {
-		case <-authorityC:
-			if !liveAuthorized() {
-				return
-			}
 		case <-r.Context().Done():
 			return
 		case err := <-readErrCh:
@@ -597,18 +568,12 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			s.logger.Debug("websocket heartbeat failed", "error", err)
 			return
 		case event := <-outboundEventCh:
-			if !liveAuthorized() {
-				return
-			}
 			if err := writeWebSocketJSON(r.Context(), connection, event); err != nil {
 				s.logger.Debug("websocket direct event write failed", "error", err)
 				return
 			}
 		case event, ok := <-subscription.Events():
 			if !ok {
-				return
-			}
-			if !liveAuthorized() {
 				return
 			}
 			if err := writeWebSocketJSON(r.Context(), connection, event); err != nil {
@@ -876,6 +841,10 @@ func routeErrorStatusAndReason(err error) (int, string) {
 		return http.StatusForbidden, "sharing_not_allowed"
 	case errors.Is(err, routes.ErrTrackingLimitReached):
 		return http.StatusConflict, "tracking_limit_reached"
+	case errors.Is(err, routes.ErrSharingOnAnotherDevice):
+		return http.StatusConflict, "sharing_on_another_device"
+	case errors.Is(err, routes.ErrSharingExpired):
+		return http.StatusConflict, "sharing_expired"
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}
@@ -975,15 +944,16 @@ type webSocketAuthMessage struct {
 }
 
 type webSocketClientMessage struct {
-	Type             string     `json:"type"`
-	RequestID        string     `json:"requestId"`
-	Latitude         *float64   `json:"latitude"`
-	Longitude        *float64   `json:"longitude"`
-	AccuracyM        *float64   `json:"accuracyM"`
-	AltitudeM        *float64   `json:"altitudeM"`
-	SpeedMPS         *float64   `json:"speedMps"`
-	HeadingDeg       *float64   `json:"headingDeg"`
-	ClientRecordedAt *time.Time `json:"clientRecordedAt"`
+	Type              string     `json:"type"`
+	RequestID         string     `json:"requestId"`
+	SharingGeneration string     `json:"sharingGeneration"`
+	Latitude          *float64   `json:"latitude"`
+	Longitude         *float64   `json:"longitude"`
+	AccuracyM         *float64   `json:"accuracyM"`
+	AltitudeM         *float64   `json:"altitudeM"`
+	SpeedMPS          *float64   `json:"speedMps"`
+	HeadingDeg        *float64   `json:"headingDeg"`
+	ClientRecordedAt  *time.Time `json:"clientRecordedAt"`
 }
 
 func positionUpdateInput(message webSocketClientMessage, rawPayload json.RawMessage) (routes.PositionUpdateInput, error) {

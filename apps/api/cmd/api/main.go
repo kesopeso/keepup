@@ -45,7 +45,7 @@ func main() {
 			os.Exit(1)
 		}
 		var options []auth.ServiceOption
-		options = append(options, auth.WithCleanup(accountRoutes.CleanupTickets))
+		options = append(options, auth.WithCleanup(accountRoutes.CleanupTickets), auth.WithSessionRevoker(accountRoutes))
 		if len(cfg.Auth.Google.WebClientIDs)+len(cfg.Auth.Google.NativeClientIDs) > 0 {
 			presenters := append(append([]string(nil), cfg.Auth.Google.WebClientIDs...), cfg.Auth.Google.NativeClientIDs...)
 			options = append(options, auth.WithGoogle(cfg.Auth.Google, auth.NewGoogleVerifier(ctx, cfg.Auth.Google.RequestTimeout, presenters)))
@@ -78,6 +78,12 @@ func main() {
 		mux.Handle("/auth/", httpapi.NewAccountHandler(logger, cfg.Auth, cfg.App.Env, accountService))
 		mux.Handle("/", httpapi.NewHandler(logger, cfg.App, dbPool, routeService, httpapi.WithAccountRoutes(accountRoutes, accountService, cfg.Auth)))
 		handler = mux
+		stopLive, liveErr := accountRoutes.StartLive(ctx, logger, stop)
+		if liveErr != nil {
+			logger.Error("initialize account live runtime", "error", liveErr)
+			os.Exit(1)
+		}
+		defer stopLive()
 	}
 
 	if err := httpapi.Serve(ctx, logger, cfg.App, handler); err != nil && !errors.Is(err, context.Canceled) {

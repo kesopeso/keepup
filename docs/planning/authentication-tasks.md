@@ -13,15 +13,15 @@ Each task below is an independent change with its own validation. Web and Androi
 
 ## Resume point
 
-B1–B5 are complete as staged backend increments. Continue with B6 multiple viewers/exclusive sharing and immediate live revocation cleanup. Web and Android can proceed independently against B1 fixtures and integrate completed endpoints. `AUTH_ENABLED` remains false by default; enabling it now replaces route/socket authority as well as mounting account endpoints. Implementation checks apply migrations through 0006 only in disposable schemas; this session did not migrate/reset application tables or deploy. Existing clients still use legacy identity and need W1/W2 or A1/A2 before account-mode use.
+B1–B6 are complete as staged backend increments. Continue with W1 web authentication/account settings or the independent A1 Android task, followed by each client's My routes integration. `AUTH_ENABLED` remains false by default; enabling it replaces route/socket authority as well as mounting account endpoints. Implementation checks apply migrations through 0007 only in disposable schemas; this session did not migrate/reset application tables or deploy. Existing clients still use legacy identity and need W1/W2 or A1/A2 before account-mode use.
 
-B2 implements pending signup, normalized uniqueness and immutable identifiers, Argon2id, email/username login, hashed opaque sessions, idle extension, explicit atomic rotation, current/all-session revocation, configurable attempt limits, and protected browser/native transports. B3 adds purpose-bound token consumption/replacement, pending activation, reset/change revocation, encrypted transactional outbox, SMTP/fake providers, quotas, trusted-proxy support, and cleanup. B4 adds Google proof/onboarding/linking; B5 applies active-account authority to routes, dashboard lists and live bootstrap. Race-enabled PostgreSQL and local TLS SMTP tests cover these boundaries. Immediate live cleanup remains B6, link/form UI remains W1/A1, and actual SMTP credentials/proxy CIDRs/real delivery remain R1.
+B2 implements pending signup, normalized uniqueness and immutable identifiers, Argon2id, email/username login, hashed opaque sessions, idle extension, explicit atomic rotation, current/all-session revocation, configurable attempt limits, and protected browser/native transports. B3 adds purpose-bound token consumption/replacement, pending activation, reset/change revocation, encrypted transactional outbox, SMTP/fake providers, quotas, trusted-proxy support, and cleanup. B4 adds Google proof/onboarding/linking; B5 applies active-account authority to routes, dashboard lists and live bootstrap. B6 adds independent viewers, exclusive sharing generations and immediate live revocation cleanup. Race-enabled PostgreSQL and local TLS SMTP tests cover these boundaries. Link/form UI remains W1/A1, and actual SMTP credentials/proxy CIDRs/real delivery remain R1.
 
 ## AUTH-01: Backend
 
 ### B1: Define contracts and fixtures
 
-State: complete. Target endpoints, transports, policies, route summaries, live events and deterministic success/failure fixtures are in the shared contract. B6's viewer/lease/live-revocation protocol remains specified, not implemented.
+State: complete. Endpoints, transports, policies, route summaries, live events and deterministic success/failure fixtures are in the shared contract. B2–B6 implement the backend; client integration remains separate.
 
 - Depends on accepted PRD/ADR. Specify auth endpoints, cookie/native transports, Google proof exchange, pending state, redirects, validation, errors, session expiry/rotation, and single-use socket tickets.
 - Specify account membership, owner authority, sender/viewer presence, sharing generations, route-list schema, filter semantics, pagination, and safe former-member summaries.
@@ -38,7 +38,7 @@ State: complete for the staged account API. Source: [account service](../../apps
 
 ### B3: Verification, recovery, and delivery
 
-State: complete for backend account authority. Source: [recovery service](../../apps/api/internal/auth/recovery.go), [token transactions](../../apps/api/internal/auth/recovery_postgres.go), [queue worker](../../apps/api/internal/auth/outbox.go), [providers](../../apps/api/internal/maildelivery/mail.go), and [migration 0004](../../db/migrations/0004_auth_recovery_and_outbox.up.sql). [Configuration](../workflow/authentication-email.md) covers required secrets and settings. No real email was sent. Required live sharing/socket cleanup waits for account-bound routes in B5/B6; confirmation matching and email-link UI wait for W1/A1.
+State: complete for backend account authority. Source: [recovery service](../../apps/api/internal/auth/recovery.go), [token transactions](../../apps/api/internal/auth/recovery_postgres.go), [queue worker](../../apps/api/internal/auth/outbox.go), [providers](../../apps/api/internal/maildelivery/mail.go), and [migration 0004](../../db/migrations/0004_auth_recovery_and_outbox.up.sql). [Configuration](../workflow/authentication-email.md) covers required secrets and settings. No real email was sent. B5/B6 implement account-bound route/live cleanup; confirmation matching and email-link UI wait for W1/A1.
 
 - Depends on B2. Implement purpose-bound token hashes, atomic consumption/replacement, verification, resend, forgot/reset password, and authenticated password change.
 - Add configurable provider interface, SMTP, fake delivery, delivery queue/retry strategy, templates, secret configuration, and rate limits. Handle scanners without consuming tokens on GET.
@@ -54,7 +54,7 @@ State: complete for the backend ID-token flow. Source: [verifier](../../apps/api
 
 ### B5: Account route authorization and My routes API
 
-State: complete for the staged account-mode backend. Source: [account route service](../../apps/api/internal/routes/accounts.go), [My routes queries/cursors](../../apps/api/internal/routes/account_list.go), [ticket/live authority](../../apps/api/internal/routes/account_live.go), [HTTP routes](../../apps/api/internal/httpapi/account_routes.go), and [migration 0006](../../db/migrations/0006_account_routes.up.sql). Tests cover account isolation, pending/expired/revoked sessions, legacy-mode separation, concurrent/idempotent join, leave/rejoin path history, archived access, all filter combinations, signed cursor scope/tie-breaking, ticket replay and real HTTP/WebSocket transport. Rollback refuses silent demotion of account-owned routes. No application database migration/reset or client integration occurred. B6 retains multiple viewers, sender generations/leases, and synchronous revocation/socket cleanup.
+State: complete for the staged account-mode backend. Source: [account route service](../../apps/api/internal/routes/accounts.go), [My routes queries/cursors](../../apps/api/internal/routes/account_list.go), [ticket/live authority](../../apps/api/internal/routes/account_live.go), [HTTP routes](../../apps/api/internal/httpapi/account_routes.go), and [migration 0006](../../db/migrations/0006_account_routes.up.sql). Tests cover account isolation, pending/expired/revoked sessions, legacy-mode separation, concurrent/idempotent join, leave/rejoin path history, archived access, all filter combinations, signed cursor scope/tie-breaking, ticket replay and real HTTP/WebSocket transport. Rollback refuses silent demotion of account-owned routes. No application database migration/reset or client integration occurred. B6 adds multiple viewers, sender generations/leases, and synchronous revocation/socket cleanup.
 
 - Depends on B2 and B1's route contract. Replace independent member/owner token authority; scope route REST and live authorization to active account sessions and membership/ownership.
 - Persist membership episodes; restore current access across devices; use username for display; support leave/rejoin without erasing old history.
@@ -62,6 +62,8 @@ State: complete for the staged account-mode backend. Source: [account route serv
 - Done when API tests cover ownership isolation, pending accounts, stale legacy credentials, repeated join, former-member privacy, all filter combinations, pagination without duplicates, deleted routes, and archive access.
 
 ### B6: Multiple viewers and exclusive sharing
+
+State: complete for the staged account-mode backend. Source: [leases and tickets](../../apps/api/internal/routes/account_live.go), [presence/deadlines/recovery](../../apps/api/internal/routes/account_presence.go), [account sockets](../../apps/api/internal/httpapi/account_connections.go), [revocation hook](../../apps/api/internal/auth/revocation.go), and [migration 0007](../../db/migrations/0007_account_sharing.up.sql). Race-enabled API/database/HTTP/WebSocket tests, vet and lint pass. Tests cover simultaneous same-account starts and last-slot contention, different-route senders, viewer/sender independence, accepted-GPS-only renewal, stale recovery, reconnect/generation fencing, lifecycle/expiry release, startup recovery/singleton enforcement, immediate lock-loss fencing, and real WebSocket generation/privacy/capabilities. Logout, logout-all, reset and password change synchronously release sharing and close affected sockets; cleanup failure rolls back revocation. Delayed notifications cannot close fresh logins created after commit. The account live runtime requires one API process per database/schema while the hub is process-local. Application migrations, clients and deployment remain pending.
 
 - Depends on B5 and B2/B3 revocation hooks. Permit multiple account viewers; acquire a transactional sharing lease per account/route and validate sender generation for every position.
 - Separate sender timeout from viewer presence. Release on stop/offline/revocation/leave/close/delete; fence late packets, stale timers, and reconnects. Implement restart recovery.
@@ -113,5 +115,5 @@ State: complete for the staged account-mode backend. Source: [account route serv
 ## Release boundaries
 
 - Owner accepted credential/default proposals and authorized implementation on 2026-10-21. The contract fixes the engineering defaults for independent tasks.
-- B6, W1/W2, A1/A2 and R1/R2 remain pending. Do not expose the staged account API as a complete login system or treat pending signup as usable route authority.
+- W1/W2, A1/A2 and R1/R2 remain pending. Do not expose the staged account API as a complete login system or treat pending signup as usable route authority.
 - Production data reset and deployment still require explicit authorization for the concrete rollout.

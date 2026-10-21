@@ -12,7 +12,10 @@ import (
 )
 
 // PostgresRepository persists account/session authority. Migrations run separately.
-type PostgresRepository struct{ pool *pgxpool.Pool }
+type PostgresRepository struct {
+	pool    *pgxpool.Pool
+	revoker SessionRevoker
+}
 
 // NewPostgresRepository uses the application's existing database pool.
 func NewPostgresRepository(pool *pgxpool.Pool) *PostgresRepository {
@@ -141,9 +144,18 @@ func (r *PostgresRepository) logout(ctx context.Context, hash string, everywhere
 	if err != nil {
 		return fmt.Errorf("revoke sessions: %w", err)
 	}
+	change := Revocation{UserID: userID, SessionID: sessionID, Reason: "logout"}
+	if everywhere {
+		change.SessionID = ""
+		change.Reason = "logout_all"
+	}
+	if err = r.revokeLive(ctx, tx, &change); err != nil {
+		return err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit logout: %w", err)
 	}
+	r.revoked(change)
 	return nil
 }
 

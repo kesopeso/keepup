@@ -170,8 +170,17 @@ func (r *PostgresRepository) consumeToken(ctx context.Context, rawToken, purpose
 	if err = r.cancelPurposeMail(ctx, tx, userID, purpose); err != nil {
 		return err
 	}
+	change := Revocation{UserID: userID, Reason: "password_reset"}
+	if purpose == "reset" {
+		if err = r.revokeLive(ctx, tx, &change); err != nil {
+			return err
+		}
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit token consumption: %w", err)
+	}
+	if purpose == "reset" {
+		r.revoked(change)
 	}
 	return nil
 }
@@ -211,9 +220,14 @@ func (r *PostgresRepository) changePassword(ctx context.Context, sessionHash, ol
 	if err = r.invalidatePurpose(ctx, tx, session.User.ID, "reset"); err != nil {
 		return Session{}, err
 	}
+	change := Revocation{UserID: session.User.ID, ExceptSessionID: session.ID, Reason: "password_changed"}
+	if err = r.revokeLive(ctx, tx, &change); err != nil {
+		return Session{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Session{}, fmt.Errorf("commit password change: %w", err)
 	}
+	r.revoked(change)
 	session.User.Verified = true
 	return session, nil
 }

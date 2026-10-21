@@ -5,11 +5,11 @@ status: active
 
 # Authentication email and recovery configuration
 
-B3 adds verification, password recovery/change, SMTP delivery and the transactional mail queue; B4 reuses it for [Google email challenges](authentication-google.md). The [account contract](../system/authentication-contract.md) owns endpoint behavior; the [task handoff](../planning/authentication-tasks.md) owns release state. Authentication remains disabled by default. Account-bound routes/My routes are implemented in B5, while client link pages and immediate live revocation cleanup remain pending.
+B3 adds verification, password recovery/change, SMTP delivery and the transactional mail queue; B4 reuses it for [Google email challenges](authentication-google.md). The [account contract](../system/authentication-contract.md) owns endpoint behavior; the [task handoff](../planning/authentication-tasks.md) owns release state. Authentication remains disabled by default. Account-bound routes/My routes and immediate live revocation cleanup are implemented; client link pages remain pending.
 
 ## Enablement and secrets
 
-Apply migrations through 0006 manually to the intended development database before setting `AUTH_ENABLED=true`. This implementation session did not migrate/reset application tables. The API starts its mail/cleanup worker only when authentication is enabled; shutdown cancels and joins it before closing the database pool. Startup also registers route socket-ticket cleanup with this worker.
+Apply migrations through 0007 manually to the intended development database before setting `AUTH_ENABLED=true`. This implementation session did not migrate/reset application tables. The API starts its mail/cleanup worker only when authentication is enabled; shutdown cancels and joins it before closing the database pool. Startup also registers route socket-ticket cleanup with this worker. The separate live runtime owns sharing deadlines and startup recovery; see [development configuration](development.md#staged-account-api).
 
 Supply `AUTH_ALLOWED_ORIGINS`, `AUTH_PUBLIC_URL`, `AUTH_OUTBOX_KEY`, and a delivery provider alongside the [base account settings](development.md#staged-account-api). Origins are exact scheme/host/port values without paths, query strings or credentials. HTTPS is required outside `APP_ENV=development`. The public origin is trusted deployment configuration; links never use an inbound Host header.
 
@@ -66,7 +66,7 @@ The worker locks the account, or the initiating flow for a Google challenge, bef
 
 Delivery is at least once. SMTP can accept a message before a database commit or acknowledgment fails, causing a duplicate email after retry. Single-use tokens still prevent replay. An email can expire while in transit. Terminal success/failure/cancellation clears the ciphertext. Cleanup removes expired token/session records and old counters after retention, preserves users, and wipes expired pending payloads.
 
-A reset consumes its token and revokes all account sessions without verifying or signing in the account. Password change requires an active session/current password, rotates its credential while preserving session ID, revokes other sessions and invalidates outstanding reset links. B6 will connect these account revocations to live sharing/socket cleanup; existing anonymous route sockets are not account-bound yet.
+A reset consumes its token and revokes all account sessions without verifying or signing in the account. Password change requires an active session/current password, rotates its credential while preserving session ID, revokes other sessions and invalidates outstanding reset links. The installed revocation hook releases affected sharing and closes its segments in the same transaction, then sends socket advisories and disconnects affected connections before success. The retained session keeps its connections. Legacy anonymous sockets remain separate from account authority.
 
 ## Proxy source addresses
 

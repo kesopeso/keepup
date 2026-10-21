@@ -5,7 +5,7 @@ status: active
 
 # Persistence and history
 
-Account identity decisions are recorded in [ADR 0001](../adr/0001-account-authentication.md). Migrations 0003–0006 add staged account, recovery, Google and account-route authority below. Account and legacy route rows coexist until the explicit rollout; the feature flag chooses the API authority mode. Adding a migration does not apply it to an existing database.
+Account identity decisions are recorded in [ADR 0001](../adr/0001-account-authentication.md). Migrations 0003–0007 add staged account, recovery, Google, account-route authority and live sharing below. Account and legacy route rows coexist until the explicit rollout; the feature flag chooses the API authority mode. Adding a migration does not apply it to an existing database.
 
 ## Account foundation
 
@@ -26,6 +26,8 @@ Google mutations lock flow, subject key, email key, user and then token/outbox r
 [Migration 0006](../../db/migrations/0006_account_routes.up.sql) adds nullable `routes.owner_user_id` and `route_members.user_id`. Null identifies legacy-only authority; account routes reference a verified user at creation. A partial unique index enforces one current episode per account/route, and a check ties account Left state to `left_at`. Explicit rejoin creates a new member ID; old path segments/points still reference the old episode. The legacy `client_id` column holds the account UUID for staged storage compatibility, but account responses omit it and expose `userId`; display names come from immutable account usernames.
 
 Account operations lock user, session and route before membership/lifecycle changes and recheck expiry before commit. Existing nested repository operations use savepoints inside that transaction. Ownership remains attached to the account even after leaving a closed route. `auth_socket_tickets` stores credential hashes with session/route/membership foreign keys, expiry and consumption timestamp; deletion cascades from those records. Ticket issuance/consumption requires a current membership on an active route, and consumption checks expiry/replay atomically. The shared cleanup worker removes expired tickets after account retention. My routes is derived from ownership/current/former episodes, not an independently mutable list table. Migration rollback refuses to drop authority while account route data remains.
+
+[Migration 0007](../../db/migrations/0007_account_sharing.up.sql) adds independent `account_live_connections`, unique account/route `account_sharing_leases`, membership absence timestamps and session revocation reasons. Leases bind session, connection, membership episode and a random UUID generation; accepted GPS updates alone renew their position deadline. Route locks serialize capacity, lifecycle and deadline changes. A disconnected sender retains its stale lease until expiry, independent of viewers. Release closes its segment; surviving viewers keep spectating presence. Session revocation releases leases inside the auth transaction before local socket closure. The live deadline worker handles expiry separately from mail cleanup. Startup holds a dedicated database/schema advisory lock and clears abandoned account runtime state before serving; legacy state and historical points remain intact. Only one account live runtime is supported while room delivery is process-local. Rollback of 0007 requires a stopped API; live connections/generations must be reestablished afterward.
 
 ## Data Model
 

@@ -86,11 +86,11 @@ func accountHTTPTest(t *testing.T) accountHTTPFixture {
 	policy.SignupAttempts = 1000
 	policy.LoginAttempts = 1000
 	recovery.Policy.MailPerSource = 1000
-	accounts, err := auth.NewService(auth.NewPostgresRepository(pool), policy, recovery)
+	accountRoutes, err := routes.NewAccountService(pool, 10, config.DefaultPositionValidation(), policy.SessionIdle, 30*time.Second, recovery.Policy.Retention, recovery.EncryptionKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	accountRoutes, err := routes.NewAccountService(pool, 10, config.DefaultPositionValidation(), policy.SessionIdle, 30*time.Second, recovery.Policy.Retention, recovery.EncryptionKey)
+	accounts, err := auth.NewService(auth.NewPostgresRepository(pool), policy, recovery, auth.WithSessionRevoker(accountRoutes))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,10 +302,20 @@ func TestAccountSocketHTTPBootstrapAndRevocation(t *testing.T) {
 	if err == nil || reply == nil || reply.StatusCode != 403 {
 		t.Fatal("untrusted socket origin accepted", err)
 	}
+	closed := make(chan error, 1)
+	go func() {
+		for {
+			var event map[string]any
+			if err := wsjson.Read(ctx, connection, &event); err != nil {
+				closed <- err
+				return
+			}
+		}
+	}()
 	if err = f.accounts.Logout(ctx, owner.Token, false); err != nil {
 		t.Fatal(err)
 	}
-	if err = wsjson.Read(ctx, connection, &event); websocket.CloseStatus(err) != websocket.StatusPolicyViolation {
+	if err = <-closed; websocket.CloseStatus(err) != websocket.StatusPolicyViolation {
 		t.Fatal("revoked socket retained data access", err)
 	}
 }

@@ -467,11 +467,16 @@ func TestAccountLiveMembershipFenceAndPathHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	bound, err = s.OpenLive(ctx, bound)
+	if err != nil {
+		t.Fatal(err)
+	}
 	started, err := s.StartSharing(ctx, bound)
 	if err != nil || started.Segment.ID == "" {
 		t.Fatal("start path", started, err)
 	}
 	accuracy := 5.0
+	bound.SharingGeneration = started.SharingGeneration
 	now := time.Now()
 	recorded, err := s.RecordPosition(ctx, bound, PositionUpdateInput{Latitude: 46, Longitude: 14, AccuracyM: &accuracy, ClientRecordedAt: &now})
 	if err != nil || recorded.MemberID != joined.Member.ID {

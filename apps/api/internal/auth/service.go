@@ -187,7 +187,7 @@ func RequireActive(session Session) error {
 	return nil
 }
 
-// Logout revokes current or all account sessions. B6 adds account socket cleanup.
+// Logout revokes current or all account sessions and runs installed live cleanup.
 func (s *Service) Logout(ctx context.Context, token string, everywhere bool) error {
 	if len(token) != 43 {
 		return ErrSession

@@ -7,7 +7,7 @@ status: specified
 
 ## Purpose and review status
 
-Replace anonymous device identity with persistent accounts shared by web and Android. Product requirements and the remaining proposed defaults were accepted for implementation on 2026-10-21. [ADR 0001](../adr/0001-account-authentication.md) and the [shared contract](../system/authentication-contract.md) define the approach. B2–B5 supply disabled-by-default account/Google authentication, account route authorization, My routes and socket bootstrap APIs; the complete product is not yet implemented. The existing [membership rules](routes.md) describe legacy mode used by current clients while the flag is false. B6's full live sharing rules and client integration remain pending.
+Replace anonymous device identity with persistent accounts shared by web and Android. Product requirements and the remaining proposed defaults were accepted for implementation on 2026-10-21. [ADR 0001](../adr/0001-account-authentication.md) and the [shared contract](../system/authentication-contract.md) define the approach. B2–B6 supply disabled-by-default account/Google authentication, account route authorization, My routes and socket bootstrap APIs; the complete product is not yet implemented. The existing [membership rules](routes.md) describe legacy mode used by current clients while the flag is false. Multiple viewers, exclusive sharing and immediate live cleanup are implemented; client integration remains pending.
 
 ## Outcomes and scope
 
@@ -121,4 +121,4 @@ Depends on AUTH-01 through AUTH-03. Configure Google client IDs/redirects, SMTP,
 
 ## Review and evidence
 
-Product rules above reflect planning and the owner's authorization to begin implementation with the proposed defaults. B2–B5 have database, password/session, transport, verification/recovery, queue, SMTP, Google proof/linking/onboarding, account route authorization, membership/history, safe My routes and socket bootstrap tests. Multiple viewers, exclusive sender leases, immediate live cleanup, client forms/My routes/Google SDK/link UI and real Google/delivery checks remain pending. Lavish snapshots remain design references. Current source pointers and technical alternatives are in the ADR; delivery state belongs to the task handoff.
+Product rules above reflect planning and the owner's authorization to begin implementation with the proposed defaults. B2–B6 have database, password/session, transport, verification/recovery, queue, SMTP, Google proof/linking/onboarding, account route authorization, membership/history, safe My routes and socket bootstrap tests. B6 adds multiple-viewer, exclusive sender generation, timeout/reconnect, startup recovery and synchronous live-revocation checks. Client forms/My routes/Google SDK/link UI and real Google/delivery checks remain pending. Lavish snapshots remain design references. Current source pointers and technical alternatives are in the ADR; delivery state belongs to the task handoff.

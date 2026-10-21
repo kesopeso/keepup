@@ -19,9 +19,12 @@ type SocketTicket struct {
 
 // LiveAccount binds an established connection to its session and exact membership episode.
 type LiveAccount struct {
-	Session  auth.Session
-	Code     string
-	MemberID string
+	Session           auth.Session
+	Code              string
+	MemberID          string
+	ConnectionID      string
+	SharingGeneration string
+	PresenceRestored  bool
 }
 
 // IssueSocketTicket rechecks active session/current membership and refuses archives.
@@ -73,12 +76,17 @@ func (s *AccountService) ConsumeSocketTicket(ctx context.Context, raw string) (L
 
 // AuthorizeLive rechecks account/session/current membership before delivering live data.
 func (s *AccountService) AuthorizeLive(ctx context.Context, bound LiveAccount) (AuthorizedMember, error) {
-	return accountOperation(ctx, s, bound.Session, bound.Code, true, false, func(_ pgx.Tx, _ *Service, a accountRoute, _ auth.User) (AuthorizedMember, error) {
+	return accountOperation(ctx, s, bound.Session, bound.Code, true, false, func(tx pgx.Tx, _ *Service, a accountRoute, _ auth.User) (AuthorizedMember, error) {
 		if a.Route.Status != RouteStatusActive {
 			return AuthorizedMember{}, ErrRouteClosed
 		}
 		if a.Member.ID != bound.MemberID {
 			return AuthorizedMember{}, ErrUnauthorized
+		}
+		if bound.ConnectionID != "" {
+			if err := liveConnection(ctx, tx, bound); err != nil {
+				return AuthorizedMember{}, err
+			}
 		}
 		return a.AuthorizedMember, nil
 	})
@@ -100,37 +108,81 @@ func (s *AccountService) MarkOnline(ctx context.Context, bound LiveAccount) (Mem
 	return result.Member, result.Changed, err
 }
 
-// StartSharing uses the existing single-connection rules. B6 adds exclusive sender leases.
-func (s *AccountService) StartSharing(ctx context.Context, bound LiveAccount) (StartSharingResult, error) {
-	return accountOperation(ctx, s, bound.Session, bound.Code, true, false, func(_ pgx.Tx, core *Service, a accountRoute, user auth.User) (StartSharingResult, error) {
+// AccountSharingResult returns the generation only to the acquiring connection.
+type AccountSharingResult struct {
+	StartSharingResult
+	SharingGeneration string
+	Changed           bool
+}
+
+// StartSharing acquires one account/route lease. Retrying on its connection is idempotent.
+func (s *AccountService) StartSharing(ctx context.Context, bound LiveAccount) (AccountSharingResult, error) {
+	return accountOperation(ctx, s, bound.Session, bound.Code, true, false, func(tx pgx.Tx, core *Service, a accountRoute, user auth.User) (AccountSharingResult, error) {
 		if a.Member.ID != bound.MemberID {
-			return StartSharingResult{}, ErrUnauthorized
+			return AccountSharingResult{}, ErrUnauthorized
+		}
+		if a.Route.Status != RouteStatusActive {
+			return AccountSharingResult{}, ErrRouteClosed
+		}
+		if err := liveConnection(ctx, tx, bound); err != nil {
+			return AccountSharingResult{}, err
+		}
+		var connection, generation string
+		err := tx.QueryRow(ctx, `SELECT connection_id,generation FROM account_sharing_leases WHERE route_id=$1 AND user_id=$2`, a.Route.ID, user.ID).Scan(&connection, &generation)
+		if err == nil {
+			if connection != bound.ConnectionID {
+				return AccountSharingResult{}, ErrSharingOnAnotherDevice
+			}
+			bound.SharingGeneration = generation
+			if err = s.senderLease(ctx, tx, bound); err != nil {
+				return AccountSharingResult{}, err
+			}
+			return AccountSharingResult{StartSharingResult: StartSharingResult{Member: a.Member}, SharingGeneration: generation}, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return AccountSharingResult{}, err
 		}
 		result, err := core.StartSharing(ctx, bound.Code, "account-authority")
 		result.Member = accountMember(result.Member, user)
-		return result, err
+		if err != nil {
+			return AccountSharingResult{}, err
+		}
+		err = tx.QueryRow(ctx, `INSERT INTO account_sharing_leases(route_id,user_id,member_id,session_id,connection_id) VALUES($1,$2,$3,$4,$5) RETURNING generation`, a.Route.ID, user.ID, a.Member.ID, bound.Session.ID, bound.ConnectionID).Scan(&generation)
+		return AccountSharingResult{StartSharingResult: result, SharingGeneration: generation, Changed: true}, err
 	})
 }
 
-// StopSharing scopes the existing stop operation to the bound membership.
+// StopSharing accepts only the owning connection and current generation.
 func (s *AccountService) StopSharing(ctx context.Context, bound LiveAccount) (StopSharingResult, error) {
-	return accountOperation(ctx, s, bound.Session, bound.Code, true, false, func(_ pgx.Tx, core *Service, a accountRoute, user auth.User) (StopSharingResult, error) {
+	return accountOperation(ctx, s, bound.Session, bound.Code, true, false, func(tx pgx.Tx, core *Service, a accountRoute, user auth.User) (StopSharingResult, error) {
 		if a.Member.ID != bound.MemberID {
 			return StopSharingResult{}, ErrUnauthorized
 		}
+		if err := s.senderLease(ctx, tx, bound); err != nil {
+			return StopSharingResult{}, err
+		}
 		result, err := core.StopSharing(ctx, bound.Code, "account-authority")
 		result.Member = accountMember(result.Member, user)
+		if err == nil {
+			_, err = tx.Exec(ctx, `DELETE FROM account_sharing_leases WHERE member_id=$1`, bound.MemberID)
+		}
 		return result, err
 	})
 }
 
 // RecordPosition preserves GPS validation and scopes writes to the bound episode/session.
 func (s *AccountService) RecordPosition(ctx context.Context, bound LiveAccount, input PositionUpdateInput) (PositionUpdateResult, error) {
-	return accountOperation(ctx, s, bound.Session, bound.Code, true, false, func(_ pgx.Tx, core *Service, a accountRoute, user auth.User) (PositionUpdateResult, error) {
+	return accountOperation(ctx, s, bound.Session, bound.Code, true, false, func(tx pgx.Tx, core *Service, a accountRoute, user auth.User) (PositionUpdateResult, error) {
 		if a.Member.ID != bound.MemberID {
 			return PositionUpdateResult{}, ErrUnauthorized
 		}
+		if err := s.senderLease(ctx, tx, bound); err != nil {
+			return PositionUpdateResult{}, err
+		}
 		result, err := core.RecordPosition(ctx, "account-authority", input)
+		if err == nil {
+			_, err = tx.Exec(ctx, `UPDATE account_sharing_leases SET last_position_at=clock_timestamp(),stale_at=NULL WHERE member_id=$1`, bound.MemberID)
+		}
 		if result.RecoveredMember != nil {
 			m := accountMember(*result.RecoveredMember, user)
 			result.RecoveredMember = &m
