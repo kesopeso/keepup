@@ -39,7 +39,13 @@ func main() {
 	routeService := routes.NewService(routes.NewPostgresRepository(dbPool), cfg.Routes.DefaultMaxTrackingMembers, cfg.Routes.PositionValidation)
 	handler := httpapi.NewHandler(logger, cfg.App, dbPool, routeService)
 	if cfg.Auth.Enabled {
+		accountRoutes, routeErr := routes.NewAccountService(dbPool, cfg.Routes.DefaultMaxTrackingMembers, cfg.Routes.PositionValidation, cfg.Auth.Policy.SessionIdle, cfg.Auth.SocketTicketTTL, cfg.Auth.Recovery.Policy.Retention, cfg.Auth.Recovery.EncryptionKey)
+		if routeErr != nil {
+			logger.Error("initialize account route service")
+			os.Exit(1)
+		}
 		var options []auth.ServiceOption
+		options = append(options, auth.WithCleanup(accountRoutes.CleanupTickets))
 		if len(cfg.Auth.Google.WebClientIDs)+len(cfg.Auth.Google.NativeClientIDs) > 0 {
 			presenters := append(append([]string(nil), cfg.Auth.Google.WebClientIDs...), cfg.Auth.Google.NativeClientIDs...)
 			options = append(options, auth.WithGoogle(cfg.Auth.Google, auth.NewGoogleVerifier(ctx, cfg.Auth.Google.RequestTimeout, presenters)))
@@ -70,7 +76,7 @@ func main() {
 		defer func() { cancelMail(); <-mailDone }()
 		mux := http.NewServeMux()
 		mux.Handle("/auth/", httpapi.NewAccountHandler(logger, cfg.Auth, cfg.App.Env, accountService))
-		mux.Handle("/", handler)
+		mux.Handle("/", httpapi.NewHandler(logger, cfg.App, dbPool, routeService, httpapi.WithAccountRoutes(accountRoutes, accountService, cfg.Auth)))
 		handler = mux
 	}
 

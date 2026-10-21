@@ -5,7 +5,7 @@ status: active
 
 # API and live protocol
 
-The [account API contract](authentication-contract.md) documents the staged password/session API and target route/live replacement. The route and socket behavior below remains current until B5/B6 integrate accounts; enabling the account API alone does not require login on existing routes.
+The [account API contract](authentication-contract.md) owns the implemented account-mode route REST, My routes and socket-ticket bootstrap, plus B6's planned sharing protocol. `AUTH_ENABLED=true` now requires verified account sessions for routes and replaces the entire route/socket HTTP surface. The behavior below describes legacy mode used by existing clients while the flag is false. Legacy mode cannot access/join account-owned routes; account mode hides legacy-only routes. Multiple account viewers, exclusive sender leases and synchronous live revocation cleanup remain B6 work.
 
 ## Service Responsibilities
 

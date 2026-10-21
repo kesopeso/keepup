@@ -5,7 +5,7 @@ status: active
 
 # Persistence and history
 
-Account identity decisions are recorded in [ADR 0001](../adr/0001-account-authentication.md). Migrations 0003–0005 add staged account, recovery and Google tables below; route membership remains device-oriented until B5/B6. Adding a migration does not apply it to an existing database.
+Account identity decisions are recorded in [ADR 0001](../adr/0001-account-authentication.md). Migrations 0003–0006 add staged account, recovery, Google and account-route authority below. Account and legacy route rows coexist until the explicit rollout; the feature flag chooses the API authority mode. Adding a migration does not apply it to an existing database.
 
 ## Account foundation
 
@@ -17,17 +17,22 @@ Attempt counters contain hashed scope keys, window start and attempt count. Clea
 
 [Migration 0004](../../db/migrations/0004_auth_recovery_and_outbox.up.sql) adds purpose-bound `auth_tokens` with hash, expiry, consumption and invalidation timestamps. A partial unique index permits one unconsumed/uninvalidated token per account/purpose. Issuing a replacement invalidates the old token; consumption locks/rechecks the account and token atomically. Reset revokes all sessions without verifying the user. Change rotates the current session, revokes others and invalidates reset links.
 
-`auth_mail_outbox` references each token once, with AES-GCM encrypted payload, delivery state, failure count and retry time. The key is deployment configuration outside PostgreSQL. Terminal rows clear payloads. Worker claims lock the user or Google flow before the outbox row, coordinating with token replacement/consumption. Provider delivery is at least once; single-use tokens remain authoritative even if a message is duplicated. Account membership links and sharing leases remain unimplemented. The [account contract](authentication-contract.md) separates current endpoints from future tasks.
+`auth_mail_outbox` references each token once, with AES-GCM encrypted payload, delivery state, failure count and retry time. The key is deployment configuration outside PostgreSQL. Terminal rows clear payloads. Worker claims lock the user or Google flow before the outbox row, coordinating with token replacement/consumption. Provider delivery is at least once; single-use tokens remain authoritative even if a message is duplicated. Sharing leases remain unimplemented. The [account contract](authentication-contract.md) separates current endpoints from future tasks.
 
 [Migration 0005](../../db/migrations/0005_google_authentication.up.sql) adds `external_identities`, unique by provider/subject and provider/user, plus `auth_google_flows` with hashed credential/nonce, transport, audience snapshot, verified provider claims, state and absolute expiry. ID tokens and onboarding passwords are not stored. Google email challenge tokens use `auth_tokens.google_flow_id` instead of a user; a check enforces the owner/purpose combination and a partial unique index enforces one current challenge per flow. Flow deletion cascades through challenge/outbox rows. Recipient mail quotas include all purposes under a recipient advisory lock, even before account creation.
 
 Google mutations lock flow, subject key, email key, user and then token/outbox records. Password signup shares the email key lock so concurrent account creation cannot bypass linking checks. Active account credentials stay fixed; claiming pending registrations replaces the password, revokes old sessions and invalidates recovery/verification links. Existing pending usernames remain immutable. Google flow/challenge consumption is single-use, and its deadline is checked again after lock waits before session issuance.
+
+[Migration 0006](../../db/migrations/0006_account_routes.up.sql) adds nullable `routes.owner_user_id` and `route_members.user_id`. Null identifies legacy-only authority; account routes reference a verified user at creation. A partial unique index enforces one current episode per account/route, and a check ties account Left state to `left_at`. Explicit rejoin creates a new member ID; old path segments/points still reference the old episode. The legacy `client_id` column holds the account UUID for staged storage compatibility, but account responses omit it and expose `userId`; display names come from immutable account usernames.
+
+Account operations lock user, session and route before membership/lifecycle changes and recheck expiry before commit. Existing nested repository operations use savepoints inside that transaction. Ownership remains attached to the account even after leaving a closed route. `auth_socket_tickets` stores credential hashes with session/route/membership foreign keys, expiry and consumption timestamp; deletion cascades from those records. Ticket issuance/consumption requires a current membership on an active route, and consumption checks expiry/replay atomically. The shared cleanup worker removes expired tickets after account retention. My routes is derived from ownership/current/former episodes, not an independently mutable list table. Migration rollback refuses to drop authority while account route data remains.
 
 ## Data Model
 
 ### routes
 
 - `id`
+- `owner_user_id`, nullable only for legacy routes
 - `code`
 - `name`
 - `description`
@@ -42,6 +47,7 @@ Google mutations lock flow, subject key, email key, user and then token/outbox r
 
 - `id`
 - `route_id`
+- `user_id`, nullable only for legacy memberships
 - `client_id`
 - `display_name`
 - `transport_mode`

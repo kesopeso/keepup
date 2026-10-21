@@ -61,7 +61,8 @@ type Route struct {
 type Member struct {
 	ID            string     `json:"id"`
 	RouteID       string     `json:"routeId"`
-	ClientID      string     `json:"clientId"`
+	ClientID      string     `json:"clientId,omitempty"`
+	UserID        string     `json:"userId,omitempty"`
 	DisplayName   string     `json:"displayName"`
 	TransportMode string     `json:"transportMode"`
 	IsOwner       bool       `json:"isOwner"`
@@ -92,8 +93,8 @@ type CreateRouteInput struct {
 type CreateRouteResult struct {
 	Route       Route  `json:"route"`
 	Owner       Member `json:"owner"`
-	MemberToken string `json:"memberToken"`
-	OwnerToken  string `json:"ownerToken"`
+	MemberToken string `json:"memberToken,omitempty"`
+	OwnerToken  string `json:"ownerToken,omitempty"`
 }
 
 // UpdateRouteInput contains mutable route fields.
@@ -123,9 +124,10 @@ type JoinRouteInput struct {
 
 // JoinRouteResult contains the join route response payload.
 type JoinRouteResult struct {
+	Restored    bool   `json:"-"`
 	Route       Route  `json:"route"`
 	Member      Member `json:"member"`
-	MemberToken string `json:"memberToken"`
+	MemberToken string `json:"memberToken,omitempty"`
 }
 
 // LeaveRouteResult contains the member state after leaving a route.
@@ -175,6 +177,7 @@ type Snapshot struct {
 // SnapshotMember contains a member and their persisted path history.
 type SnapshotMember struct {
 	ID            string        `json:"id"`
+	UserID        string        `json:"userId,omitempty"`
 	DisplayName   string        `json:"displayName"`
 	TransportMode string        `json:"transportMode"`
 	Role          string        `json:"role"`

@@ -43,3 +43,22 @@ func TestAuthConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestSocketTicketConfiguration(t *testing.T) {
+	t.Setenv("AUTH_ENABLED", "false")
+	for _, tc := range []struct {
+		value string
+		valid bool
+	}{{"", true}, {"10s", true}, {"0s", false}, {"-1s", false}, {"invalid", false}} {
+		t.Run(tc.value, func(t *testing.T) {
+			t.Setenv("AUTH_SOCKET_TICKET_TTL", tc.value)
+			cfg, err := loadAuth("development")
+			if (err == nil) != tc.valid {
+				t.Fatal(err)
+			}
+			if tc.valid && cfg.SocketTicketTTL <= 0 {
+				t.Fatal("invalid ticket lifetime")
+			}
+		})
+	}
+}

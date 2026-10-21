@@ -27,6 +27,18 @@ type Service struct {
 	dummyHash string
 	recovery  *recoveryRuntime
 	google    *googleRuntime
+	cleanup   []func(context.Context) error
+}
+
+// WithCleanup registers optional account-bound credential cleanup before serving.
+func WithCleanup(clean func(context.Context) error) ServiceOption {
+	return func(s *Service) error {
+		if clean == nil {
+			return errors.New("cleanup callback is required")
+		}
+		s.cleanup = append(s.cleanup, clean)
+		return nil
+	}
 }
 
 // ServiceOption configures an optional identity provider before serving requests.

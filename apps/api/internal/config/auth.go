@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"keepup/apps/api/internal/auth"
 	"keepup/apps/api/internal/maildelivery"
@@ -14,14 +15,15 @@ import (
 
 // AuthConfig gates the staged account API; route integration is delivered separately.
 type AuthConfig struct {
-	Enabled        bool
-	Origins        []string
-	Policy         auth.Policy
-	Recovery       auth.RecoveryConfig
-	MailProvider   string
-	SMTP           maildelivery.SMTPConfig
-	TrustedProxies []netip.Prefix
-	Google         auth.GoogleConfig
+	Enabled         bool
+	Origins         []string
+	Policy          auth.Policy
+	Recovery        auth.RecoveryConfig
+	MailProvider    string
+	SMTP            maildelivery.SMTPConfig
+	TrustedProxies  []netip.Prefix
+	Google          auth.GoogleConfig
+	SocketTicketTTL time.Duration
 }
 
 func loadAuth(env string) (AuthConfig, error) {
@@ -75,6 +77,12 @@ func loadAuth(env string) (AuthConfig, error) {
 	}
 	if err := loadGoogle(&cfg); err != nil {
 		return cfg, err
+	}
+	if cfg.SocketTicketTTL, err = durationOrDefault("AUTH_SOCKET_TICKET_TTL", 30*time.Second); err != nil {
+		return cfg, err
+	}
+	if cfg.SocketTicketTTL <= 0 {
+		return cfg, fmt.Errorf("AUTH_SOCKET_TICKET_TTL must be positive")
 	}
 	return cfg, nil
 }

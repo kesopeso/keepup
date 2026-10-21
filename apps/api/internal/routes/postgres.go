@@ -15,7 +15,21 @@ import (
 
 // PostgresRepository stores routes in PostgreSQL.
 type PostgresRepository struct {
-	db *pgxpool.Pool
+	db routeDatabase
+}
+
+// A transaction-backed repository uses savepoints for existing lifecycle operations.
+type routeDatabase interface {
+	BeginTx(context.Context, pgx.TxOptions) (pgx.Tx, error)
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+type routeTransaction struct{ pgx.Tx }
+
+func (t routeTransaction) BeginTx(ctx context.Context, _ pgx.TxOptions) (pgx.Tx, error) {
+	return t.Begin(ctx)
 }
 
 // NewPostgresRepository builds a PostgreSQL-backed route repository.
@@ -173,7 +187,7 @@ func (r *PostgresRepository) GetRouteByCode(ctx context.Context, code string) (R
 	err := r.db.QueryRow(ctx, `
 		SELECT id, code, name, COALESCE(description, ''), COALESCE(password_hash, ''), password_hash IS NOT NULL, sharing_policy, status, max_tracking_members, created_at, closed_at
 		FROM routes
-		WHERE code = $1
+		WHERE code = $1 AND to_jsonb(routes)->>'owner_user_id' IS NULL
 	`, code).Scan(
 		&route.ID,
 		&route.Code,
@@ -226,7 +240,7 @@ func (r *PostgresRepository) GetAuthorizedMemberByTokenHash(ctx context.Context,
 		FROM member_tokens mt
 		INNER JOIN route_members m ON m.id = mt.member_id
 		INNER JOIN routes r ON r.id = m.route_id
-		WHERE mt.token_hash = $1 AND mt.revoked_at IS NULL
+		WHERE mt.token_hash = $1 AND mt.revoked_at IS NULL AND to_jsonb(r)->>'owner_user_id' IS NULL
 	`, tokenHash).Scan(
 		&result.Route.ID,
 		&result.Route.Code,
@@ -288,7 +302,7 @@ func (r *PostgresRepository) GetAuthorizedOwnerByTokenHash(ctx context.Context, 
 		FROM owner_tokens ot
 		INNER JOIN route_members m ON m.id = ot.member_id
 		INNER JOIN routes r ON r.id = ot.route_id
-		WHERE ot.token_hash = $1 AND ot.revoked_at IS NULL
+		WHERE ot.token_hash = $1 AND ot.revoked_at IS NULL AND to_jsonb(r)->>'owner_user_id' IS NULL
 	`, tokenHash).Scan(
 		&result.Route.ID,
 		&result.Route.Code,

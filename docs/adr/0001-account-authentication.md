@@ -5,7 +5,7 @@ status: accepted
 
 # ADR 0001: Account authentication and route identity
 
-Date: 2026-10-20. Accepted for implementation on 2026-10-21. Password/session, verification/recovery and Google foundations are implemented behind a disabled feature flag; route/live authority and clients remain scheduled in the task checklist.
+Date: 2026-10-20. Accepted for implementation on 2026-10-21. Password/session, verification/recovery, Google and account-route authority/My routes/socket bootstrap are implemented behind a disabled feature flag. Multiple viewers, exclusive sender leases, immediate live cleanup and clients remain scheduled in the task checklist.
 
 ## Context
 
@@ -29,7 +29,7 @@ Store salted, adaptive password hashes using Argon2id, with deployment-tested co
 
 Propose opaque random session credentials, stored hashed server-side, so revocation is authoritative. Web uses Secure, HttpOnly, SameSite cookies in production with CSRF protection for mutations and strict origin checks. Android uses platform-backed secure credential storage and authenticated API requests. Do not move account credentials into browser localStorage. Define rotation, expiry, and replay behavior in AUTH-01's contract; activity extends idle expiry, not revoked sessions. See [OWASP session guidance](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html).
 
-Replace standalone member/owner token authority with account session plus server-side route membership/ownership checks. Legacy tokens cannot remain an authorization bypass after rollout. For WebSocket bootstrap, propose a short-lived, single-use route-scoped ticket issued by an authenticated endpoint, sent in the first frame rather than the URL. Bind it to session and route. Check revocation throughout the connection lifetime, close revoked sockets, and release affected sharing in the same service operation. Exact ticket lifetime is configurable and fixed during backend contract work.
+Replace standalone member/owner token authority with account session plus server-side route membership/ownership checks. B5 implements this replacement when enabled, and legacy mode cannot join/access account-owned routes. Legacy tokens cannot remain an authorization bypass after rollout. B5's WebSocket bootstrap uses a short-lived, single-use ticket issued by an authenticated endpoint, sent in the first frame rather than the URL. Bind it to session, route and membership episode. Current code checks authority before commands, outbound data and on a timer; B6 must close revoked sockets and release affected sharing synchronously in the revocation service operation. Ticket lifetime is configurable, initially 30 seconds.
 
 ### Google identity and linking
 
@@ -59,7 +59,7 @@ Authentication limits, verification/reset TTLs, resend cooldowns, and SMTP setti
 
 Store intended destinations separately from credentials, validate against local routes, and recheck authorization after activation/login. Never redirect to arbitrary user-supplied external URLs. Web and Android use the same account contract with platform-specific session transport and navigation handling.
 
-Use the PRD's fresh-start release task. No historical account conversion is needed; database deletion and rollout are explicit deployment operations. Independent client tasks share contract fixtures and require coordinated production cutover.
+Use the PRD's fresh-start release task. No historical account conversion is needed; database deletion and rollout are explicit deployment operations. Migration 0006 adds account links without converting or deleting old routes, and refuses a down migration that would silently expose account-owned data as legacy. Independent client tasks share contract fixtures and require coordinated production cutover.
 
 ## Alternatives considered
 
@@ -78,4 +78,4 @@ Affected implementation routes: [route service](../../apps/api/internal/routes/s
 
 ## Validation and acceptance
 
-Use the PRD acceptance criteria and delivery tasks. Test concurrent linking/registration, normalized uniqueness, token replay, CSRF/origin enforcement, live revocation, sender/viewer disconnect independence, simultaneous lease acquisition, and late position rejection. B2/B3 validate password accounts, normalized uniqueness, expiry, rotation, revocation, browser/native transports, purpose-bound token consumption/replacement, signup/queue atomicity, recovery quotas, encryption, worker coordination, retries and local TLS SMTP behavior. B4 adds real-signature verification against local provider keys, nonce/transport binding, account linking, pending claim protection, challenge exchange, concurrency and rollback checks. Account-bound routes and live leases remain unimplemented; acceptance of this architecture does not mark them delivered. Real Google/client integration and provider delivery remain R1.
+Use the PRD acceptance criteria and delivery tasks. Test concurrent linking/registration, normalized uniqueness, token replay, CSRF/origin enforcement, live revocation, sender/viewer disconnect independence, simultaneous lease acquisition, and late position rejection. B2/B3 validate password accounts, normalized uniqueness, expiry, rotation, revocation, browser/native transports, purpose-bound token consumption/replacement, signup/queue atomicity, recovery quotas, encryption, worker coordination, retries and local TLS SMTP behavior. B4 adds real-signature verification against local provider keys, nonce/transport binding, account linking, pending claim protection, challenge exchange, concurrency and rollback checks. B5 adds account route isolation, concurrent/idempotent joins, historical episodes/paths, safe filtered lists/cursors, archive access and single-use socket bootstrap with session/membership rechecks. Multiple viewers, exclusive sharing leases and synchronous live revocation cleanup remain unimplemented. Real Google/client integration and provider delivery remain R1.

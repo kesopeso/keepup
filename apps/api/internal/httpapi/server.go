@@ -46,6 +46,20 @@ type Server struct {
 	liveHub            *live.Hub
 	logger             *slog.Logger
 	routes             RouteService
+	accountRoutes      *routes.AccountService
+	accountTransport   *accountHandler
+}
+
+// ServerOption selects a coordinated API authority mode before serving requests.
+type ServerOption func(*Server)
+
+// WithAccountRoutes replaces the entire legacy route and socket HTTP surface.
+func WithAccountRoutes(service *routes.AccountService, accounts AccountService, cfg config.AuthConfig) ServerOption {
+	return func(s *Server) {
+		s.accountRoutes = service
+		s.routes = accountPresence{RouteService: s.routes}
+		s.accountTransport = &accountHandler{service: accounts, logger: s.logger, cfg: cfg, secure: s.appConfig.Env != "development"}
+	}
 }
 
 // RouteService contains the first route lifecycle operations served over HTTP.
@@ -67,7 +81,7 @@ type RouteService interface {
 }
 
 // NewHandler builds the KeepUp API HTTP handler tree.
-func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, routeService RouteService) http.Handler {
+func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, routeService RouteService, options ...ServerOption) http.Handler {
 	server := &Server{
 		appConfig: cfg,
 		db:        db,
@@ -83,6 +97,12 @@ func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, rou
 	}
 	if server.appConfig.WebSocketPingTimeout <= 0 {
 		server.appConfig.WebSocketPingTimeout = defaultWebSocketPingTimeout
+	}
+	for _, option := range options {
+		option(server)
+	}
+	if server.accountRoutes != nil {
+		return server.accountHTTPHandler()
 	}
 
 	mux := http.NewServeMux()
@@ -317,14 +337,25 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	authMessage, err := readWebSocketAuth(r.Context(), connection, s.appConfig.WebSocketAuthTimeout)
+	authMessage, err := readWebSocketAuth(r.Context(), connection, s.appConfig.WebSocketAuthTimeout, s.accountRoutes != nil)
 	if err != nil {
 		s.logger.Info("websocket authentication failed", "error", err)
 		_ = connection.Close(websocket.StatusPolicyViolation, "authentication required")
 		return
 	}
 
-	authorized, err := s.routes.AuthorizeMember(r.Context(), authMessage.MemberToken)
+	var authorized routes.AuthorizedMember
+	var accountBinding routes.LiveAccount
+	var socketRoutes liveRouteCommands = s.routes
+	if s.accountRoutes != nil {
+		accountBinding, err = s.accountRoutes.ConsumeSocketTicket(r.Context(), authMessage.Ticket)
+		if err == nil {
+			authorized, err = s.accountRoutes.AuthorizeLive(r.Context(), accountBinding)
+		}
+		socketRoutes = &accountSocketCommands{service: s.accountRoutes, bound: accountBinding}
+	} else {
+		authorized, err = s.routes.AuthorizeMember(r.Context(), authMessage.MemberToken)
+	}
 	if err != nil {
 		s.logger.Info("websocket token rejected", "error", err)
 		_ = connection.Close(websocket.StatusPolicyViolation, "unauthorized")
@@ -375,7 +406,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	disconnectedStatus := authorized.Member.Status
-	if member, changed, err := s.routes.MarkMemberOnline(r.Context(), authorized.Route.ID, authorized.Member.ID); err != nil {
+	if member, changed, err := socketRoutes.MarkMemberOnline(r.Context(), authorized.Route.ID, authorized.Member.ID); err != nil {
 		s.logger.Error("mark websocket member online failed", "error", err)
 	} else if changed {
 		disconnectedStatus = member.Status
@@ -419,7 +450,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			switch message.Type {
 			case "start_sharing":
 				wasTracking := disconnectedStatus == routes.MemberStatusTracking
-				result, err := s.routes.StartSharing(r.Context(), authorized.Route.Code, authMessage.MemberToken)
+				result, err := socketRoutes.StartSharing(r.Context(), authorized.Route.Code, authMessage.MemberToken)
 				if err != nil {
 					if !enqueueLiveEvent(r.Context(), outboundEventCh, commandRejectedEvent(message, "start_sharing", err)) {
 						return
@@ -447,7 +478,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				})
 			case "stop_sharing":
 				wasSpectating := disconnectedStatus == routes.MemberStatusSpectating
-				result, err := s.routes.StopSharing(r.Context(), authorized.Route.Code, authMessage.MemberToken)
+				result, err := socketRoutes.StopSharing(r.Context(), authorized.Route.Code, authMessage.MemberToken)
 				if err != nil {
 					if !enqueueLiveEvent(r.Context(), outboundEventCh, commandRejectedEvent(message, "stop_sharing", err)) {
 						return
@@ -480,7 +511,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 
-				result, err := s.routes.RecordPosition(r.Context(), authMessage.MemberToken, input)
+				result, err := socketRoutes.RecordPosition(r.Context(), authMessage.MemberToken, input)
 				if err != nil {
 					s.logPositionRejection(err)
 					if !enqueueLiveEvent(r.Context(), outboundEventCh, live.Event{
@@ -533,9 +564,30 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	if authorized.Member.Status == routes.MemberStatusStale {
 		go s.markOfflineAfter(r.Context(), authorized.Route.ID, authorized.Member.ID, s.appConfig.TrackingOfflineAfter, staleOfflineCh)
 	}
+	liveAuthorized := func() bool {
+		if s.accountRoutes == nil {
+			return true
+		}
+		_, err := s.accountRoutes.AuthorizeLive(r.Context(), accountBinding)
+		if err != nil {
+			_ = connection.Close(websocket.StatusPolicyViolation, "access revoked")
+			return false
+		}
+		return true
+	}
+	var authorityC <-chan time.Time
+	if s.accountRoutes != nil {
+		ticker := time.NewTicker(s.appConfig.WebSocketPingInterval)
+		defer ticker.Stop()
+		authorityC = ticker.C
+	}
 
 	for {
 		select {
+		case <-authorityC:
+			if !liveAuthorized() {
+				return
+			}
 		case <-r.Context().Done():
 			return
 		case err := <-readErrCh:
@@ -545,12 +597,18 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			s.logger.Debug("websocket heartbeat failed", "error", err)
 			return
 		case event := <-outboundEventCh:
+			if !liveAuthorized() {
+				return
+			}
 			if err := writeWebSocketJSON(r.Context(), connection, event); err != nil {
 				s.logger.Debug("websocket direct event write failed", "error", err)
 				return
 			}
 		case event, ok := <-subscription.Events():
 			if !ok {
+				return
+			}
+			if !liveAuthorized() {
 				return
 			}
 			if err := writeWebSocketJSON(r.Context(), connection, event); err != nil {
@@ -913,6 +971,7 @@ func bearerToken(header string) string {
 type webSocketAuthMessage struct {
 	Type        string `json:"type"`
 	MemberToken string `json:"memberToken"`
+	Ticket      string `json:"ticket,omitempty"`
 }
 
 type webSocketClientMessage struct {
@@ -953,11 +1012,33 @@ func enqueueLiveEvent(ctx context.Context, events chan<- live.Event, event live.
 	}
 }
 
-func readWebSocketAuth(ctx context.Context, connection *websocket.Conn, timeout time.Duration) (webSocketAuthMessage, error) {
+func readWebSocketAuth(ctx context.Context, connection *websocket.Conn, timeout time.Duration, accountMode ...bool) (webSocketAuthMessage, error) {
 	authCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	var message webSocketAuthMessage
+	if len(accountMode) > 0 && accountMode[0] {
+		_, raw, err := connection.Read(authCtx)
+		if err != nil {
+			return message, err
+		}
+		if len(raw) > 4096 {
+			return message, routes.ErrUnauthorized
+		}
+		var accountMessage struct {
+			Type   string `json:"type"`
+			Ticket string `json:"ticket"`
+		}
+		decoder := json.NewDecoder(strings.NewReader(string(raw)))
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&accountMessage) != nil || accountMessage.Type != "authenticate" || accountMessage.Ticket == "" {
+			return message, routes.ErrUnauthorized
+		}
+		if err = decoder.Decode(new(any)); !errors.Is(err, io.EOF) {
+			return message, routes.ErrUnauthorized
+		}
+		return webSocketAuthMessage{Type: accountMessage.Type, Ticket: accountMessage.Ticket}, nil
+	}
 	if err := wsjson.Read(authCtx, connection, &message); err != nil {
 		return webSocketAuthMessage{}, fmt.Errorf("read auth message: %w", err)
 	}

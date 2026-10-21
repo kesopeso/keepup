@@ -129,6 +129,11 @@ func (s *Service) Cleanup(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("clean expired mail payloads: %w", err)
 	}
+	for _, clean := range s.cleanup {
+		if err = clean(ctx); err != nil {
+			return fmt.Errorf("clean account-bound credentials: %w", err)
+		}
+	}
 	return nil
 }
 

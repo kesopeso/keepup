@@ -634,6 +634,7 @@ func (s *Service) Snapshot(ctx context.Context, code, memberToken string) (Snaps
 
 		snapshotMembers = append(snapshotMembers, SnapshotMember{
 			ID:            member.ID,
+			UserID:        member.UserID,
 			DisplayName:   member.DisplayName,
 			TransportMode: member.TransportMode,
 			Role:          role,
