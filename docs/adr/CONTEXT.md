@@ -5,7 +5,11 @@ status: active
 
 # Architecture decision records
 
-This pre-existing shelf has no decision records yet; its .gitkeep is retained.
+Record consequential architectural choices and their review state.
+
+| Decision | State |
+|---|---|
+| [0001: Account authentication and route identity](0001-account-authentication.md) | Draft; not implemented |
 
 ## Inputs
 

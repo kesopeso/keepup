@@ -5,6 +5,8 @@ status: active
 
 # Persistence and history
 
+Proposed account identity and schema changes are recorded in [ADR 0001](../adr/0001-account-authentication.md). They are not implemented; the model below describes the existing system.
+
 ## Data Model
 
 ### routes
