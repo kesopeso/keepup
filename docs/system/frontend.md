@@ -36,6 +36,20 @@ For web development from another device, follow [web access from another device]
 - Local browser identity and per-route tokens from local storage
 - Map adapter separated from tile provider config
 
+### Account authentication
+
+W1 supplies public `/auth/login`, `/auth/signup`, `/auth/verify`, `/auth/forgot-password`, `/auth/reset-password`, `/auth/google`, and `/auth/google/verify` screens plus protected `/account` settings. Short `/auth`, `/auth/forgot`, and `/auth/reset` aliases share the same screens. The [screen](../../apps/web/app/auth/auth-screen.tsx) follows the approved [authentication design](../product/authentication-ui.html), with password visibility, autofill, confirmation validation, immutable identifiers, inline errors, resend cooldowns, and pending-account activation. Account navigation and route integration remain W2.
+
+The [account API client](../../apps/web/lib/auth-api.ts) uses same-origin cookies, no-store requests, JSON and the CSRF header. JavaScript never stores session credentials. Requests serialize cookie rotation with account reads, using Web Locks across tabs when available and a local queue otherwise. The [session store](../../apps/web/lib/account-session.ts) rechecks authority on focus, online, visibility and cross-tab notifications, and every five seconds while visible. Notifications contain no account data or credentials. Stale lookups cannot restore a locally logged-out account. `/account` requires a verified session; pending sessions go to verification.
+
+The [destination helper](../../apps/web/lib/auth-destination.ts) accepts only `/my-routes`, `/account`, `/routes/new`, or a six-character route-code path. A `next` parameter and a credential-free local record retain the destination across authentication and restarts, with a 24-hour record lifetime. Invitation access is checked again before returning; unavailable routes offer My routes. W2 must implement `/my-routes` and account route access before enabling account mode for the web client. Existing route screens still use legacy identity.
+
+Email links capture fragment tokens into component memory and immediately remove the fragment. Explicit POST confirmation consumes verification links; GET never activates an account. Reloading a token page requires reopening the email link. No analytics or Google SDK loads on link pages, and account pages use a no-referrer policy. Verification elsewhere activates the original pending session without signing in the link-opening browser. Reset success returns to login and clears the local session.
+
+Google uses the official Identity Services popup button with a server nonce, then the backend proof endpoint. The SDK loads only after choosing Google. Cancellation ignores late callbacks. Cookie-bound context polling restores onboarding or email-challenge progress; confirmation/exchange and password setup use B4. Runtime public configuration comes from `/auth/config`, reading the web server's `AUTH_GOOGLE_WEB_CLIENT_ID`; see [Google configuration](../workflow/authentication-google.md). Real provider acceptance remains a release check.
+
+Validation and limits are recorded in [W1 browser evidence](../planning/validation-history.md#web-authentication-w1-on-2026-10-21).
+
 ### Current Frontend Foundation
 
 - The [root layout](../../apps/web/app/layout.tsx) supplies Open Graph and large-image Twitter metadata for the landing page and route links. The public preview uses the KeepUp title and description without route or member data. The [preview image](../../apps/web/app/opengraph-image.tsx) renders a 1200 by 630 PNG with the brand mark and description through Next.js `ImageResponse`. Its lowercase wordmark uses bundled Ubuntu Bold, with white `keep` and green `up`, matching the supplied web wordmark reference. The font and its Ubuntu Font Licence live in `apps/web/assets/fonts/`. Absolute preview URLs use the production origin `https://keepup.kesopeso.eu`; update the layout and image text if that domain changes.

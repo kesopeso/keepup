@@ -1,0 +1,32 @@
+.shell { min-height: 100dvh; display: grid; place-items: center; padding: 40px 20px; background: radial-gradient(ellipse at top, #17302355, transparent 65%), #0c1014; }
+.card { width: 100%; max-width: 510px; padding: 32px; border: 1px solid #34404a; border-radius: 24px; background: #151b20; color: #f8fafc; overflow-wrap: anywhere; }
+.card > :global(.brand) { margin-bottom: 28px; }
+.card h1 { margin: 0 0 16px; font-size: clamp(1.7rem, 5vw, 2rem); letter-spacing: -.03em; line-height: 1.15; }
+.card p { color: #b5c2cb; line-height: 1.55; }
+.card a { color: #69e595; }
+.card fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.card button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 48px; margin-top: 14px; padding: 12px 16px; border-radius: 12px; border: 1px solid #46545f; background: #20262d; color: #f8fafc; font-size: 1rem; }
+.card .primary { background: #22c55e; border-color: #22c55e; color: #082010; }
+.card button:disabled { cursor: wait; opacity: .6; }
+.card .google { background: #131314; border-color: #8e918f; font-family: Arial, sans-serif; font-weight: 500; }
+.field { margin-top: 16px; }
+.field label { display: block; margin-bottom: 6px; font-size: .9rem; }
+.field input { width: 100%; min-width: 0; min-height: 48px; padding: 12px 13px; border: 1px solid #46545f; border-radius: 12px; background: #0c1014; color: #f8fafc; font: inherit; }
+.field input[aria-invalid=true] { border-color: #ffb4ab; }
+.field input[readonly] { color: #b5c2cb; }
+.password { display: flex; border-radius: 12px; background: #0c1014; }
+.password input { border-radius: 12px 0 0 12px; }
+.password button { flex: 0 0 auto; width: auto; margin: 0; padding: 8px 12px; border-radius: 0 12px 12px 0; font-size: .85rem; }
+.card .small { font-size: .82rem; margin: 8px 0 0; }
+.card .error { color: #ffb4ab; }
+.card .hint, .card .warning { padding: 12px 14px; border: 1px solid #30553b; border-radius: 12px; background: #173023; color: #c9f5d8; font-size: .9rem; }
+.card .warning { background: #31291c; border-color: #76603a; color: #ffe0a8; }
+.divider { display: flex; align-items: center; gap: 14px; margin: 22px 0 6px; color: #b5c2cb; font-size: .85rem; }
+.divider::before, .divider::after { content: ""; height: 1px; flex: 1; background: #34404a; }
+.links { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; text-align: center; }
+.links a { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 32px; }
+.icon { width: 20px; height: 20px; flex: 0 0 auto; }
+.googleSlot { margin-top: 14px; }
+.card dd { margin: 4px 0 16px; }
+.card dt { font-size: .85rem; color: #b5c2cb; }
+@media (max-width: 540px) { .shell { padding: 20px 12px; place-items: start center; } .card { padding: 24px 20px; border-radius: 20px; } }

@@ -13,9 +13,9 @@ Each task below is an independent change with its own validation. Web and Androi
 
 ## Resume point
 
-B1–B6 are complete as staged backend increments. Continue with W1 web authentication/account settings or the independent A1 Android task, followed by each client's My routes integration. `AUTH_ENABLED` remains false by default; enabling it replaces route/socket authority as well as mounting account endpoints. Implementation checks apply migrations through 0007 only in disposable schemas; this session did not migrate/reset application tables or deploy. Existing clients still use legacy identity and need W1/W2 or A1/A2 before account-mode use.
+B1–B6 and W1 implementation are complete. Continue with W2 web My routes/account route integration or the independent A1 Android task. Browser-restart restoration is verified; real Google and email delivery remain R1. `AUTH_ENABLED` remains false by default; enabling it replaces route/socket authority as well as mounting account endpoints. Implementation checks apply migrations through 0007 only in disposable schemas; this session did not migrate/reset application tables or deploy. Existing route clients still use legacy identity and need W2 or A1/A2 before account-mode use.
 
-B2 implements pending signup, normalized uniqueness and immutable identifiers, Argon2id, email/username login, hashed opaque sessions, idle extension, explicit atomic rotation, current/all-session revocation, configurable attempt limits, and protected browser/native transports. B3 adds purpose-bound token consumption/replacement, pending activation, reset/change revocation, encrypted transactional outbox, SMTP/fake providers, quotas, trusted-proxy support, and cleanup. B4 adds Google proof/onboarding/linking; B5 applies active-account authority to routes, dashboard lists and live bootstrap. B6 adds independent viewers, exclusive sharing generations and immediate live revocation cleanup. Race-enabled PostgreSQL and local TLS SMTP tests cover these boundaries. Link/form UI remains W1/A1, and actual SMTP credentials/proxy CIDRs/real delivery remain R1.
+B2 implements pending signup, normalized uniqueness and immutable identifiers, Argon2id, email/username login, hashed opaque sessions, idle extension, explicit atomic rotation, current/all-session revocation, configurable attempt limits, and protected browser/native transports. B3 adds purpose-bound token consumption/replacement, pending activation, reset/change revocation, encrypted transactional outbox, SMTP/fake providers, quotas, trusted-proxy support, and cleanup. B4 adds Google proof/onboarding/linking; B5 applies active-account authority to routes, dashboard lists and live bootstrap. B6 adds independent viewers, exclusive sharing generations and immediate live revocation cleanup. Race-enabled PostgreSQL and local TLS SMTP tests cover these boundaries. Web link/form UI is implemented; native UI remains A1, and actual SMTP credentials/proxy CIDRs/real delivery remain R1.
 
 ## AUTH-01: Backend
 
@@ -38,7 +38,7 @@ State: complete for the staged account API. Source: [account service](../../apps
 
 ### B3: Verification, recovery, and delivery
 
-State: complete for backend account authority. Source: [recovery service](../../apps/api/internal/auth/recovery.go), [token transactions](../../apps/api/internal/auth/recovery_postgres.go), [queue worker](../../apps/api/internal/auth/outbox.go), [providers](../../apps/api/internal/maildelivery/mail.go), and [migration 0004](../../db/migrations/0004_auth_recovery_and_outbox.up.sql). [Configuration](../workflow/authentication-email.md) covers required secrets and settings. No real email was sent. B5/B6 implement account-bound route/live cleanup; confirmation matching and email-link UI wait for W1/A1.
+State: complete for backend account authority. Source: [recovery service](../../apps/api/internal/auth/recovery.go), [token transactions](../../apps/api/internal/auth/recovery_postgres.go), [queue worker](../../apps/api/internal/auth/outbox.go), [providers](../../apps/api/internal/maildelivery/mail.go), and [migration 0004](../../db/migrations/0004_auth_recovery_and_outbox.up.sql). [Configuration](../workflow/authentication-email.md) covers required secrets and settings. No real email was sent. B5/B6 implement account-bound route/live cleanup; web confirmation matching and email-link UI are implemented; native UI remains A1.
 
 - Depends on B2. Implement purpose-bound token hashes, atomic consumption/replacement, verification, resend, forgot/reset password, and authenticated password change.
 - Add configurable provider interface, SMTP, fake delivery, delivery queue/retry strategy, templates, secret configuration, and rate limits. Handle scanners without consuming tokens on GET.
@@ -46,7 +46,7 @@ State: complete for backend account authority. Source: [recovery service](../../
 
 ### B4: Google accounts
 
-State: complete for the backend ID-token flow. Source: [verifier](../../apps/api/internal/auth/google_verifier.go), [flow/account transactions](../../apps/api/internal/auth/google_postgres.go), [challenge queueing](../../apps/api/internal/auth/google_email.go), [HTTP endpoints](../../apps/api/internal/httpapi/google.go), and [migration 0005](../../db/migrations/0005_google_authentication.up.sql). [Google configuration](../workflow/authentication-google.md) covers audiences, nonce transport, optional enablement and client responsibilities. Tests use real signatures with a local key endpoint plus mocked identity-provider claims against isolated PostgreSQL schemas. Client SDK/buttons/link pages, OAuth code callbacks and real Google acceptance are not included; W1/A1/R1 remain pending.
+State: complete for the backend ID-token flow. Source: [verifier](../../apps/api/internal/auth/google_verifier.go), [flow/account transactions](../../apps/api/internal/auth/google_postgres.go), [challenge queueing](../../apps/api/internal/auth/google_email.go), [HTTP endpoints](../../apps/api/internal/httpapi/google.go), and [migration 0005](../../db/migrations/0005_google_authentication.up.sql). [Google configuration](../workflow/authentication-google.md) covers audiences, nonce transport, optional enablement and client responsibilities. Tests use real signatures with a local key endpoint plus mocked identity-provider claims against isolated PostgreSQL schemas. Web SDK/buttons/link pages are implemented in W1; native integration remains A1 and real Google acceptance remains R1. OAuth code callbacks are not implemented.
 
 - Depends on B2/B3. Validate Google proofs for approved web/native clients, map provider subjects, add username/password onboarding, and link existing accounts without replacing their password.
 - Cover authoritative email, third-party email challenge, cancelled/expired onboarding, provider collision, and pending-account claim protection.
@@ -72,6 +72,8 @@ State: complete for the staged account-mode backend. Source: [leases and tickets
 ## AUTH-02: Web
 
 ### W1: Authentication and account settings
+
+State: complete for W1. Source and behavior are in [web account boundaries](../system/frontend.md#account-authentication). Docker web tests and production build pass. Browser checks integrate password/session, verification/recovery and prepared post-proof Google contexts with the real backend in a disposable schema. SDK cancellation uses a local stub. [Dated evidence](validation-history.md#web-authentication-w1-on-2026-10-21) distinguishes real API checks, fixtures and remaining limits. Pending and verified sessions, retained destinations, and rejection of revoked saved cookies are verified across Chromium process restarts using owner-authorized disposable browser state. Real Google/email acceptance remains R1. W2 owns account route authority, navigation and `/my-routes`.
 
 - Depends on B1 fixtures, accepted auth UI. Implement email/Google signup, confirmation fields, login, verification/resend, recovery/reset, password change, and logout actions with accessible validation and autofill.
 - Preserve approved destinations across redirects, verification, restarts, and expired sessions; protect against external redirects. Handle pending accounts and fixed identifiers.
@@ -115,5 +117,5 @@ State: complete for the staged account-mode backend. Source: [leases and tickets
 ## Release boundaries
 
 - Owner accepted credential/default proposals and authorized implementation on 2026-10-21. The contract fixes the engineering defaults for independent tasks.
-- W1/W2, A1/A2 and R1/R2 remain pending. Do not expose the staged account API as a complete login system or treat pending signup as usable route authority.
+- W2, A1/A2 and R1/R2 remain pending. Do not expose the staged account API as a complete login system or treat pending signup as usable route authority.
 - Production data reset and deployment still require explicit authorization for the concrete rollout.

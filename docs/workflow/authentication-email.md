@@ -5,7 +5,7 @@ status: active
 
 # Authentication email and recovery configuration
 
-B3 adds verification, password recovery/change, SMTP delivery and the transactional mail queue; B4 reuses it for [Google email challenges](authentication-google.md). The [account contract](../system/authentication-contract.md) owns endpoint behavior; the [task handoff](../planning/authentication-tasks.md) owns release state. Authentication remains disabled by default. Account-bound routes/My routes and immediate live revocation cleanup are implemented; client link pages remain pending.
+B3 adds verification, password recovery/change, SMTP delivery and the transactional mail queue; B4 reuses it for [Google email challenges](authentication-google.md). The [account contract](../system/authentication-contract.md) owns endpoint behavior; the [task handoff](../planning/authentication-tasks.md) owns release state. Authentication remains disabled by default. Account-bound routes/My routes and immediate live revocation cleanup are implemented. W1 supplies web link pages; native link handling remains A1.
 
 ## Enablement and secrets
 

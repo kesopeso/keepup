@@ -5,7 +5,7 @@ status: planned
 
 # Account API contract v1
 
-This contract covers the implemented backend for the [authentication tasks](../planning/authentication-tasks.md). B2–B6 implement password/session, verification/recovery, Google, account route access, My routes, multiple viewers, exclusive sender leases and synchronous live revocation cleanup behind `AUTH_ENABLED=false` by default. Anonymous routes remain available only in legacy mode; account mode replaces the full route/socket surface. Client integration and release checks remain pending; do not treat API enablement as the production rollout.
+This contract covers the implemented backend for the [authentication tasks](../planning/authentication-tasks.md). B2–B6 implement password/session, verification/recovery, Google, account route access, My routes, multiple viewers, exclusive sender leases and synchronous live revocation cleanup behind `AUTH_ENABLED=false` by default. Anonymous routes remain available only in legacy mode; account mode replaces the full route/socket surface. Web authentication/account settings are implemented in W1; web route integration, native clients and release checks remain pending; do not treat API enablement as the production rollout.
 
 The owner accepted the remaining product defaults on 2026-10-21. The [PRD](../product/authentication-prd.md) owns their meaning; [ADR 0001](../adr/0001-account-authentication.md) owns the architecture. [Deterministic examples](authentication-fixtures.json) identify the contract as `keepup.accounts.v1`. HTTP paths remain unversioned. This is a coordinated breaking client/API release, not compatibility with legacy member/owner tokens.
 
@@ -50,7 +50,7 @@ Initial fixed-window limits are configurable: login 20 attempts per 15 minutes p
 
 ## Verification and password maintenance
 
-B3 implements these endpoints. Token consumption requires explicit POST; a scanner GET has no effect. Email links carry tokens in URL fragments so server/proxy requests do not receive token query strings. W1/A1 must implement the link pages/app handling, hold tokens in memory, exclude analytics, and remove the fragment after completion. Client confirmation matching remains W1/A1; the API rejects extra confirmation fields.
+B3 implements these endpoints. Token consumption requires explicit POST; a scanner GET has no effect. Email links carry tokens in URL fragments so server/proxy requests do not receive token query strings. Clients must hold tokens in memory, exclude analytics, and remove the fragment. W1 implements web link pages and removes fragments immediately after capture; A1 must implement native handling. Web confirmation matching is implemented; native confirmation matching remains A1. The API rejects extra confirmation fields.
 
 | Method and path | Request / authority | Success |
 |---|---|---|
