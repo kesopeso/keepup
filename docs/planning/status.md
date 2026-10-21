@@ -9,7 +9,7 @@ Current progress and material validation limits. Read only for task selection, d
 
 ## Immediate next step
 
-Account authentication B1–B6 and W1/W2 web authentication, My routes and account route integration are implemented. The [task handoff](authentication-tasks.md) continues with A1 Android authentication and A2 route integration, which are pending in this branch. Authentication remains disabled by default. W2 has real backend browser checks in a disposable schema, 28 passing web regression tests, a production build, responsive review and zero dashboard accessibility violations. W1 browser-restart restoration remains verified. Real Google/email and cross-client/device release checks remain R1. See [web account boundaries](../system/frontend.md#my-routes-and-account-route-authority) and [dated evidence](validation-history.md#web-my-routes-w2-on-2026-10-22).
+Account authentication B1–B6, W1/W2 web authentication, My routes and account route integration, and A1 Android authentication/account settings are implemented. The [task handoff](authentication-tasks.md) continues with A2 native My routes and account route integration. Authentication remains disabled by default. W2 has real backend browser checks in a disposable schema, 28 passing web regression tests, a production build, responsive review and zero dashboard accessibility violations. W1 browser-restart restoration remains verified. A1 validation and remaining native acceptance limits are recorded below. Real Google/email and cross-client/device release checks remain R1. See [web account boundaries](../system/frontend.md#my-routes-and-account-route-authority) and [dated evidence](validation-history.md#web-my-routes-w2-on-2026-10-22).
 
 Account mode requires verified sessions and implements multiple viewers, exclusive sharing generations, synchronous revocation cleanup and startup recovery. Its process-local live hub requires one API runtime per database/schema. Backend tests use isolated schemas through migration 0007, locally signed Google proofs and local TLS SMTP. No application tables were migrated/reset and nothing was deployed. The existing Android task below remains pending.
 
@@ -23,6 +23,8 @@ The owner reported successful outdoor testing of foreground and screen-off track
 
 Route creation and the drawer layout have Docker TypeScript/regression checks and emulator review recorded on 2026-10-08. The owner confirmed emulator pinch zoom; physical-phone review of creation and the later drawer/gesture changes remains unverified. Dated evidence is separate for [creation](validation-history.md#android-route-creation-validation-on-2026-10-08) and [drawer layout](validation-history.md#android-route-map-layout-implemented-on-2026-10-08).
 
+A1 has Docker TypeScript/regression checks, a compiled Android APK, real B2–B4 native requests, and emulator account/link/restart/cancellation checks. Native account mode is opt-in and currently ends at settings; route integration remains A2. Real Google/email, verified domain association and physical-device password-manager/autofill checks remain release gates. See [native account boundaries](../system/mobile.md#account-authentication) and [dated evidence](validation-history.md#android-authentication-a1-on-2026-10-22).
+
 ## Android implementation checkpoints
 
 | Task | State | Remaining limit / next acceptance |
@@ -32,6 +34,7 @@ Route creation and the drawer layout have Docker TypeScript/regression checks an
 | Screen-off tracking | Complete; owner-reported outdoor validation | Detailed battery, manufacturer restrictions, and screen-lock duration not supplied |
 | Android route creation | Complete; emulator validated | Physical-phone form review remains unverified |
 | Native map and Peek/Full drawer | Complete; emulator reviewed | Physical-phone gesture review remains unverified |
+| Account authentication/settings | Implemented; emulator and B2–B4 checked | Real Google/email, domain association and physical-device autofill remain R1; native routes remain A2 |
 | Android owner controls | Next | Owner-only edit, close, delete, confirmation, archive transition, tracking cleanup, and deleted-access cleanup |
 
 ## UI redesign

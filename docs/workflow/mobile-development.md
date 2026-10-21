@@ -173,6 +173,27 @@ Run mobile checks through Docker:
 
 The tests use the container's Node 24 built-in runner and TypeScript support, with no additional test dependency. They cover request failure, response validation, timeout through body consumption, cancellation, configuration, and retry recovery. Screen behavior is owned by [mobile boundaries](../system/mobile.md#shared-backend-integration).
 
+### Account authentication review
+
+A1 is an opt-in account shell. Keep `EXPO_PUBLIC_AUTH_ENABLED=false` for the existing legacy backend. Against a separately configured account-enabled backend, copy the [example](../../apps/mobile/.env.example) to `apps/mobile/.env.local` and set:
+
+- `EXPO_PUBLIC_AUTH_ENABLED=true`.
+- `EXPO_PUBLIC_API_URL` to that backend's REST base. Release account sessions require HTTPS.
+- `EXPO_PUBLIC_AUTH_LINK_ORIGIN` to the approved HTTPS origin without a path or port.
+- `EXPO_PUBLIC_GOOGLE_SERVER_CLIENT_ID` to the public web/server OAuth client ID used as the native ID-token audience. Include the same ID in the API's `AUTH_GOOGLE_NATIVE_CLIENT_IDS`.
+
+Register Android package `eu.kesopeso.keepup` and each debug/release Google signing fingerprint. Use a Google-capable emulator for the system account picker. The [native module](../../apps/mobile/modules/keepup-google/android/build.gradle) pins Android Credential Manager and Google ID dependencies. It uses [Google's button flow](https://developer.android.com/identity/sign-in/credential-manager-siwg-implementation), including the server nonce. No client secret or OAuth code callback belongs in the app.
+
+Host `/.well-known/assetlinks.json` on the approved origin with this package and the release signing SHA-256 certificate fingerprints, as described in [Android App Links](https://developer.android.com/training/app-links/verify-android-applinks). Test verified browser-to-app dispatch with the intended signing certificate. Explicit ADB component launches only test application handling; they do not prove domain association. The link paths are `/auth/verify`, `/auth/reset-password`, `/auth/google/verify` and approved route destinations. Tokens belong in fragments, never query parameters.
+
+Regenerate and rebuild for A1's native module or link-origin changes. Run prebuild and Gradle sequentially because prebuild replaces generated autolinking inputs. Restart Metro when public environment settings change. A separate `keepup` development scheme prevents verified-link filters from absorbing Expo's development-client scheme.
+
+Review signup, exact confirmation mismatch, keyboard next/done behavior, password masking and password-manager autofill. Check pending signup after force-stop/reopen, verification on another device, invalid/expired/replacement links, reset warning directly below the title, password change, current/all-device logout and server-side expiry/revocation. Confirm no request consumes a link before the explicit button. Reopen an interrupted Google flow to check its expiry, immutable pending username and fresh password setup; cancel the native picker and verify no late callback signs in. Test every field with larger system text and a real autofill provider on a physical phone.
+
+The A1 account shell opens settings after activation. Native My routes and route entry remain A2; retained destinations stay in separate secure navigation records until that integration. Do not test the old route shell against account mode. Real Google/email delivery, production domain verification, physical-device autofill and device-specific lifecycle acceptance remain R1.
+
+For concurrent worktrees, set a distinct `COMPOSE_PROJECT_NAME` before helper commands. Isolate backend ports/schemas, and give only one checkout ownership of Metro port 8081 and the emulator at a time. [Graphify's helper](../../bin/graphify.sh) mounts linked-worktree Git metadata read-only so its normal root/apps indexing works.
+
 ### Route creation review
 
 Use Create a new route on the join screen. From an open route, use Join another route first; existing memberships remain saved. Enter route/display names and choose transport. Expand Route settings to add a description/password or limit sharing to the owner. Create route should open the native map screen as You and Owner, spectating; creation must not request location permission or start tracking.

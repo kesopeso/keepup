@@ -28,7 +28,7 @@ export function ActionButton({ label, onPress, disabled = false, secondary = fal
   );
 }
 
-export function Field({ label, ...props }: TextInputProps & { label: string }) {
+export function Field({ label, ...props }: TextInputProps & { label: string; ref?: Ref<TextInput> }) {
   return <View style={styles.field}>
     <Text style={styles.label}>{label}</Text>
     <TextInput accessibilityLabel={label} placeholderTextColor="#8c9ca7" autoCorrect={false}

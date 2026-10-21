@@ -1,3 +1,5 @@
 # Anchor node IDs at the repository root, but index only application sources.
 /*
 !/apps/
+# Local native-module build products are generated, not application sources.
+apps/mobile/modules/keepup-google/android/build/

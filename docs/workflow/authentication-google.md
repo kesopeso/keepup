@@ -5,7 +5,7 @@ status: active
 
 # Google authentication configuration
 
-B4 implements Google ID-token verification, account linking and username/password onboarding in the API. W1 implements the web button, SDK integration, onboarding and email-link pages; native integration remains A1 and real Google acceptance remains R1. The [account contract](../system/authentication-contract.md#google-proof-and-onboarding) owns the request/response flow.
+B4 implements Google ID-token verification, account linking and username/password onboarding in the API. W1 implements the web button, SDK integration, onboarding and email-link pages; A1 implements the Android Credential Manager flow, onboarding and app links. Real Google acceptance remains R1. The [account contract](../system/authentication-contract.md#google-proof-and-onboarding) owns the request/response flow.
 
 ## Enablement
 
@@ -31,7 +31,7 @@ Start a flow and pass its returned nonce to the Google SDK. Submit the resulting
 
 The flow supports ID-token proofs, not an OAuth authorization-code callback. If a later client adds a redirect/code flow, its state and PKCE validation must be implemented before use. Clients discard the transient flow on cancellation and start again when needed; abandoned flows expire and cleanup removes them after retention. On a successful session exchange, the browser flow cookie is cleared and native clients must discard their flow credential. Keep onboarding passwords out of persistent storage.
 
-Third-party Google emails receive a fresh KeepUp challenge even if Google marks the email verified. The link uses `/auth/google/verify#token=...`. W1 renders explicit confirmation, removes the fragment after capture and avoids analytics on that page. A1 must provide the same protections. POST confirmation changes only the original flow to `ready`, with no session for the device opening the link. The initiating client polls context and explicitly exchanges it to continue. A Gmail address or verified hosted-domain account can establish initial ownership without this challenge. Once linked, the provider subject identifies the account even if its Google email changes. Stored KeepUp email and username remain immutable.
+Third-party Google emails receive a fresh KeepUp challenge even if Google marks the email verified. The link uses `/auth/google/verify#token=...`. W1 renders explicit confirmation, removes the fragment after capture and avoids analytics on that page. A1 keeps link tokens in memory and clears in-process Activity Intent data; the same explicit confirmation rule applies. POST confirmation changes only the original flow to `ready`, with no session for the device opening the link. The initiating client polls context and explicitly exchanges it to continue. A Gmail address or verified hosted-domain account can establish initial ownership without this challenge. Once linked, the provider subject identifies the account even if its Google email changes. Stored KeepUp email and username remain immutable.
 
 ## Persistence and limits
 
@@ -40,3 +40,5 @@ Flows store hashes of their credential and nonce, allowed audiences, transport, 
 Google start/proof/complete/exchange share the configured login-attempt limit per source address, under a separate Google counter scope. Email confirmation uses the existing confirmation limits. All verification, reset and Google challenge messages share the recipient mail quota, including flows without an account. Google resend cooldown also spans separate flows for the same email, preventing new contexts from bypassing the cooldown. Challenge expiry is bounded by both the flow deadline and verification TTL. Resend replaces only the initiating flow's challenge. The existing encrypted outbox, TLS provider and retry policy deliver these messages; the worker locks the flow instead of a user for Google challenges. Cleanup removes expired flows and their challenge/outbox records after retention.
 
 Sources: [configuration](../../apps/api/internal/config/google.go), [verifier](../../apps/api/internal/auth/google_verifier.go), [flow transactions](../../apps/api/internal/auth/google_postgres.go), [email challenges](../../apps/api/internal/auth/google_email.go), [HTTP transport](../../apps/api/internal/httpapi/google.go). Google's [backend verification guidance](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token) defines issuer, audience, subject and authoritative-email checks; the [go-oidc API](https://pkg.go.dev/github.com/coreos/go-oidc/v3/oidc) owns cryptographic verification and key caching.
+
+Native client configuration and rebuilding are owned by the [Android account workflow](mobile-development.md#account-authentication-review).
