@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"keepup/apps/api/internal/auth"
 	"keepup/apps/api/internal/config"
 	"keepup/apps/api/internal/database"
 	"keepup/apps/api/internal/httpapi"
+	"keepup/apps/api/internal/maildelivery"
 	"keepup/apps/api/internal/routes"
 )
 
@@ -35,6 +38,36 @@ func main() {
 
 	routeService := routes.NewService(routes.NewPostgresRepository(dbPool), cfg.Routes.DefaultMaxTrackingMembers, cfg.Routes.PositionValidation)
 	handler := httpapi.NewHandler(logger, cfg.App, dbPool, routeService)
+	if cfg.Auth.Enabled {
+		accountService, initErr := auth.NewService(auth.NewPostgresRepository(dbPool), cfg.Auth.Policy, cfg.Auth.Recovery)
+		if initErr != nil {
+			logger.Error("initialize account service")
+			os.Exit(1)
+		}
+		var sender maildelivery.Sender
+		switch cfg.Auth.MailProvider {
+		case "smtp":
+			smtpSender, smtpErr := maildelivery.NewSMTP(cfg.Auth.SMTP)
+			if smtpErr != nil {
+				logger.Error("initialize SMTP provider")
+				os.Exit(1)
+			}
+			sender = smtpSender
+		case "fake":
+			sender = &maildelivery.Fake{}
+		default:
+			logger.Error("unsupported account mail provider")
+			os.Exit(1)
+		}
+		mailCtx, cancelMail := context.WithCancel(ctx)
+		mailDone := make(chan struct{})
+		go func() { defer close(mailDone); accountService.RunMail(mailCtx, sender, logger) }()
+		defer func() { cancelMail(); <-mailDone }()
+		mux := http.NewServeMux()
+		mux.Handle("/auth/", httpapi.NewAccountHandler(logger, cfg.Auth, cfg.App.Env, accountService))
+		mux.Handle("/", handler)
+		handler = mux
+	}
 
 	if err := httpapi.Serve(ctx, logger, cfg.App, handler); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("serve api", "error", err)

@@ -1,17 +1,17 @@
 ---
 type: record
-status: draft
+status: accepted
 ---
 
 # ADR 0001: Account authentication and route identity
 
-Date: 2026-10-20. Decision state: proposed, awaiting review. Not implemented.
+Date: 2026-10-20. Accepted for implementation on 2026-10-21. Password/session and verification/recovery foundations are implemented behind a disabled feature flag; other parts remain scheduled in the task checklist.
 
 ## Context
 
 KeepUp currently stores browser identity and route credentials in [identity-storage.ts](../../apps/web/lib/identity-storage.ts); native identity/access is described in [mobile boundaries](../system/mobile.md). Route memberships and credentials are device-oriented in the [data model](../system/data.md). The [live hub](../../apps/api/internal/live/hub.go) and [live protocol](../system/api-and-live.md) currently support member-connection restrictions that must change to permit several account viewers and one sharing device per route.
 
-The [authentication PRD](../product/authentication-prd.md) owns account rules, activation, identity immutability, recovery, device behavior, and acceptance criteria. This record owns the proposed technical approach.
+The [authentication PRD](../product/authentication-prd.md) owns account rules, activation, identity immutability, recovery, device behavior, and acceptance criteria. This record owns the technical approach. The [v1 contract](../system/authentication-contract.md) fixes transports, endpoints, defaults, and examples for implementation.
 
 ## Decision
 
@@ -51,9 +51,9 @@ A transaction must serialize lease acquisition with member state, route capacity
 
 Generate high-entropy, purpose-bound, expiring, single-use tokens; store hashes and consume atomically. Replacement invalidates old links. Do not consume verification/reset tokens merely from a GET request by an email scanner; use a confirmation action. Redact tokens from logs and avoid referrer leakage. Verification changes account state without issuing a session to the device opening the link. Signup holds only a restricted pending session until activation.
 
-A mail interface accepts a verification/reset message with recipient and template inputs. Provide SMTP and a fake implementation for tests; third-party providers plug into the same boundary. Validate selection/configuration at startup, require appropriate TLS, and keep secrets outside source control. Propose transactional message delivery via an outbox with retry/backoff and expiry checks. Do not send superseded verification/reset messages on a delayed retry. Delivery failure must leave the account pending and permit a controlled resend.
+A mail interface accepts a rendered verification/reset message with recipient and stable ID. SMTP and fake test implementations share it; third-party providers plug into the same boundary. Validate selection/configuration at startup, require appropriate TLS, and keep secrets outside source control. Transactional outbox delivery uses retry/backoff and expiry checks. Queue links are encrypted with AES-256-GCM under a separate deployment key and bound to their token row IDs; purpose records store hashes. Terminal states erase ciphertext. Bounded delivery holds the account lock to serialize with token replacement/consumption. SMTP remains at least once after an acceptance/commit failure, so duplicate email is possible while tokens remain single-use. Do not retry superseded verification/reset messages. Delivery failure leaves the account pending and permits a controlled resend.
 
-Authentication limits, verification/reset TTLs, resend cooldowns, and SMTP settings belong to deployment configuration. Exact rate-limit defaults, SMTP authentication choice, delivery retry policy, and session-rotation intervals will be specified and tested in AUTH-01 rather than silently treated as agreed product rules.
+Authentication limits, verification/reset TTLs, resend cooldowns, and SMTP settings belong to deployment configuration. The [v1 contract](../system/authentication-contract.md) fixes engineering defaults, session rotation and retry behavior; [email configuration](../workflow/authentication-email.md) defines provider settings. B2/B3 test these boundaries. Real provider authentication and delivery remain R1 checks.
 
 ### Navigation and release
 
@@ -78,4 +78,4 @@ Affected implementation routes: [route service](../../apps/api/internal/routes/s
 
 ## Validation and acceptance
 
-Use the PRD acceptance criteria and four delivery tasks. Test concurrent linking/registration, normalized uniqueness, token replay, CSRF/origin enforcement, live revocation, sender/viewer disconnect independence, simultaneous lease acquisition, and late position rejection. Review this ADR's session, Google-linking, outbox, and lease proposals before implementation. Current verification covers document/source navigation only, not runtime authentication behavior.
+Use the PRD acceptance criteria and delivery tasks. Test concurrent linking/registration, normalized uniqueness, token replay, CSRF/origin enforcement, live revocation, sender/viewer disconnect independence, simultaneous lease acquisition, and late position rejection. B2/B3 validate password accounts, normalized uniqueness, expiry, rotation, revocation, browser/native transports, purpose-bound token consumption/replacement, signup/queue atomicity, recovery quotas, encryption, worker coordination, retries and local TLS SMTP behavior. Google-linking, account-bound routes and live leases remain unimplemented; acceptance of this architecture does not mark them delivered. Real provider delivery remains R1.

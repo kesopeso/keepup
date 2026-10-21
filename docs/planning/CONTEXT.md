@@ -15,8 +15,8 @@ Choose by question; these are conditional inputs:
 |---|---|
 | What is implemented, what is next, what remains unverified | [Current status](status.md) |
 | Implementation order | Relevant phase of [roadmap](roadmap.md) |
-| Account authentication scope and separate backend/web/Android tasks | [Authentication PRD](../product/authentication-prd.md), draft |
-| Authentication implementation checklist and session handoff | [Authentication tasks](authentication-tasks.md), draft |
+| Account authentication scope and separate backend/web/Android tasks | [Authentication PRD](../product/authentication-prd.md) |
+| Authentication implementation checklist and session handoff | [Authentication tasks](authentication-tasks.md) |
 | Deferred scope | [Backlog](backlog.md) |
 | Dated test results or earlier validation limits | Relevant section of [validation history](validation-history.md), only on demand |
 | Previous documentation migrations | [Migration record](icm-migration.md), only on demand |

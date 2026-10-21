@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -79,10 +80,10 @@ func TestStaleReconnectTimerEndsWhenSharingChanges(t *testing.T) {
 
 func TestOldDisconnectionCannotExpireDuringALaterOutage(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		calls := 0
+		var calls atomic.Int32
 		server := &Server{liveHub: live.NewHub(), logger: slog.New(slog.NewTextHandler(io.Discard, nil)), routes: stubRouteService{
 			markOfflineFn: func(context.Context, string, string) (routes.Member, bool, error) {
-				calls++
+				calls.Add(1)
 				return routes.Member{}, false, nil
 			},
 		}}
@@ -94,13 +95,13 @@ func TestOldDisconnectionCannotExpireDuringALaterOutage(t *testing.T) {
 		synctest.Wait()
 		<-time.After(90 * time.Second)
 		synctest.Wait()
-		if calls != 0 {
+		if calls.Load() != 0 {
 			t.Fatal("old disconnect timer expired during replacement outage")
 		}
 		<-time.After(10 * time.Second)
 		synctest.Wait()
-		if calls != 1 {
-			t.Fatalf("offline calls=%d, want 1 after the new grace period", calls)
+		if got := calls.Load(); got != 1 {
+			t.Fatalf("offline calls=%d, want 1 after the new grace period", got)
 		}
 		entries := 0
 		server.disconnectedTimers.Range(func(_, _ any) bool { entries++; return true })

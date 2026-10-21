@@ -27,6 +27,7 @@ type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
 	Routes   RouteConfig
+	Auth     AuthConfig
 }
 
 // AppConfig contains HTTP server settings.
@@ -84,6 +85,11 @@ func Load() (Config, error) {
 	if cfg.Database.URL == "" {
 		return Config{}, fmt.Errorf("load config: DATABASE_URL is required")
 	}
+	authConfig, authErr := loadAuth(cfg.App.Env)
+	if authErr != nil {
+		return Config{}, fmt.Errorf("load config: %w", authErr)
+	}
+	cfg.Auth = authConfig
 
 	startupTimeout, err := durationOrDefault("DATABASE_STARTUP_TIMEOUT", defaultDatabaseStartupWindow)
 	if err != nil {

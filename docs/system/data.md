@@ -5,7 +5,19 @@ status: active
 
 # Persistence and history
 
-Proposed account identity and schema changes are recorded in [ADR 0001](../adr/0001-account-authentication.md). They are not implemented; the model below describes the existing system.
+Account identity decisions are recorded in [ADR 0001](../adr/0001-account-authentication.md). Migrations 0003/0004 add staged account and recovery tables below; route membership remains device-oriented until B5/B6. Adding a migration does not apply it to an existing database.
+
+## Account foundation
+
+[Migration 0003](../../db/migrations/0003_accounts_and_sessions.up.sql) adds `users`, `auth_sessions`, and `auth_attempts`. Users have a UUID primary key, preserved email/username strings, normalized unique lookup keys, Argon2id password hashes, optional verification timestamp, and creation timestamp. Checks tie lookup keys to lowercase identifiers; a trigger rejects identifier changes.
+
+Sessions reference user IDs and store SHA-256 credential digests, creation/use/idle-expiry timestamps, and revocation. Atomic rotation replaces the digest while retaining session identity. Signup creates user/session/token/outbox together; login, rotation, revocation and password maintenance share a user-row lock to serialize credential replacement and revocation.
+
+Attempt counters contain hashed scope keys, window start and attempt count. Cleanup retains expired session/token/counter records for the configured period, which must cover all rate windows, then deletes them without deleting users.
+
+[Migration 0004](../../db/migrations/0004_auth_recovery_and_outbox.up.sql) adds purpose-bound `auth_tokens` with hash, expiry, consumption and invalidation timestamps. A partial unique index permits one unconsumed/uninvalidated token per account/purpose. Issuing a replacement invalidates the old token; consumption locks/rechecks the account and token atomically. Reset revokes all sessions without verifying the user. Change rotates the current session, revokes others and invalidates reset links.
+
+`auth_mail_outbox` references each token once, with AES-GCM encrypted payload, delivery state, failure count and retry time. The key is deployment configuration outside PostgreSQL. Terminal rows clear payloads. Worker claims lock the user before the outbox row, coordinating with token replacement/consumption. Provider delivery is at least once; single-use tokens remain authoritative even if a message is duplicated. Provider identities, account membership links and sharing leases remain unimplemented. The [account contract](authentication-contract.md) separates current endpoints from future tasks.
 
 ## Data Model
 

@@ -9,7 +9,7 @@ Current progress and material validation limits. Read only for task selection, d
 
 ## Immediate next step
 
-Account authentication planning has completed the authentication and My routes visual reviews. The [PRD](../product/authentication-prd.md) records the decisions and portable UI snapshots; [12 implementation tasks and resume point](authentication-tasks.md) define the work. [ADR 0001](../adr/0001-account-authentication.md) and explicitly proposed details still await acceptance. Resume with task B1 to finalize the shared contract; no authentication implementation has started. The existing Android task below remains pending.
+Account authentication B1/B2/B3 are implemented as backend increments, with accepted defaults and completed visual reviews. The [task handoff](authentication-tasks.md) resumes at B4, Google onboarding/linking. The [shared contract](../system/authentication-contract.md) and fixtures support independent web/Android work. Password/session, verification/recovery and SMTP/outbox endpoints remain disabled by default; migrations 0003/0004 were tested only in isolated schemas. Race-enabled API/database tests, local TLS SMTP tests, vet and lint pass. Real email delivery remains unverified. Current route authorization and client UI remain anonymous pending B5/B6 and client tasks. No application database migration/reset or deployment has run. The existing Android task below remains pending.
 
 Implement Android owner controls to edit, close, and delete routes using the shared product rules and API. Android route creation is complete. See the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 

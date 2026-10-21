@@ -1,23 +1,27 @@
 ---
 type: plan
-status: draft
+status: active
 ---
 
 # Authentication implementation tasks
 
 ## Handoff
 
-No implementation has started. Product rules belong to the [PRD](../product/authentication-prd.md); architecture belongs to [ADR 0001](../adr/0001-account-authentication.md). Authentication and My routes visual reviews are complete. The PRD links portable design snapshots and records feedback. Do not infer architecture acceptance from UI review. Resolve explicitly proposed details before the affected implementation task. Execute application tools in Docker and refresh Graphify after application edits as required by [documentation discipline](../workflow/documentation.md).
+Implementation is authorized with the accepted defaults. Product rules belong to the [PRD](../product/authentication-prd.md); architecture belongs to [ADR 0001](../adr/0001-account-authentication.md). Authentication and My routes visual reviews are complete. The PRD links portable design snapshots and records feedback. The [v1 contract and fixtures](../system/authentication-contract.md) support independent client work. Execute application tools in Docker and refresh Graphify after application edits as required by [documentation discipline](../workflow/documentation.md).
 
 Each task below is an independent change with its own validation. Web and Android depend on the shared contract, not on one another. The parent delivery groups remain AUTH-01 through AUTH-04 in the PRD.
 
 ## Resume point
 
-Start at B1, not application implementation. Review the remaining proposed items below with the owner, finalize the shared contract and defaults, then implement B2 onward. All 12 tasks are pending. Web and Android can proceed independently against B1 fixtures, then integrate the implemented backend. No deployment, database reset, or commit has been performed by this planning task.
+B1/B2/B3 are complete as staged backend increments. Continue with B4 Google, then B5/B6 route/live authority. Web and Android can proceed independently against B1 fixtures and integrate completed endpoints. The account API is disabled by default; migrations 0003/0004 have only been exercised in disposable test schemas, not applied to application tables. No deployment, database reset, or commit has been performed for these increments. Current routes and clients still use legacy identity until their integration tasks.
+
+B2 implements pending signup, normalized uniqueness and immutable identifiers, Argon2id, email/username login, hashed opaque sessions, idle extension, explicit atomic rotation, current/all-session revocation, configurable attempt limits, and protected browser/native transports. B3 adds purpose-bound token consumption/replacement, pending activation, reset/change revocation, encrypted transactional outbox, SMTP/fake providers, quotas, trusted-proxy support, and cleanup. Race-enabled PostgreSQL and local TLS SMTP tests cover these boundaries. The active-account gate is ready for B5; existing route handlers do not use it yet. Live cleanup remains B6, link/form UI remains W1/A1, and actual SMTP credentials/proxy CIDRs/real delivery remain R1.
 
 ## AUTH-01: Backend
 
 ### B1: Define contracts and fixtures
+
+State: complete. Target endpoints, transports, policies, route summaries, live events and deterministic success/failure fixtures are in the shared contract. Endpoints outside B2/B3 remain specified, not implemented.
 
 - Depends on accepted PRD/ADR. Specify auth endpoints, cookie/native transports, Google proof exchange, pending state, redirects, validation, errors, session expiry/rotation, and single-use socket tickets.
 - Specify account membership, owner authority, sender/viewer presence, sharing generations, route-list schema, filter semantics, pagination, and safe former-member summaries.
@@ -26,11 +30,15 @@ Start at B1, not application implementation. Review the remaining proposed items
 
 ### B2: Account persistence and password login
 
+State: complete for the staged account API. Source: [account service](../../apps/api/internal/auth/service.go), [HTTP transport](../../apps/api/internal/httpapi/auth.go), and [migration 0003](../../db/migrations/0003_accounts_and_sessions.up.sql). Route enforcement and socket revocation are B5/B6 dependencies, not implemented by this increment.
+
 - Depends on B1. Add user IDs, case-insensitive unique email/username lookup keys, immutable display identifiers, password hashes, account state, session hashes and indexes.
 - Implement signup, email-or-username login, pending restrictions, current-account lookup, session expiry/rotation, logout, and logout everywhere. Include origin/CSRF enforcement for browser mutations and native credential transport.
 - Done when database-backed tests prove case collisions, concurrent signup, password boundaries, idle expiry, revocation, and inability to mutate identifiers. Secrets must not reach logs.
 
 ### B3: Verification, recovery, and delivery
+
+State: complete for backend account authority. Source: [recovery service](../../apps/api/internal/auth/recovery.go), [token transactions](../../apps/api/internal/auth/recovery_postgres.go), [queue worker](../../apps/api/internal/auth/outbox.go), [providers](../../apps/api/internal/maildelivery/mail.go), and [migration 0004](../../db/migrations/0004_auth_recovery_and_outbox.up.sql). [Configuration](../workflow/authentication-email.md) covers required secrets and settings. No real email was sent. Required live sharing/socket cleanup waits for account-bound routes in B5/B6; confirmation matching and email-link UI wait for W1/A1.
 
 - Depends on B2. Implement purpose-bound token hashes, atomic consumption/replacement, verification, resend, forgot/reset password, and authenticated password change.
 - Add configurable provider interface, SMTP, fake delivery, delivery queue/retry strategy, templates, secret configuration, and rate limits. Handle scanners without consuming tokens on GET.
@@ -98,8 +106,8 @@ Start at B1, not application implementation. Review the remaining proposed items
 - Update owning product/system references, status and roadmap to implemented behavior, and record evidence. Follow up account deletion separately; identifier editing and iOS remain out of scope.
 - Done when rollout is verified, required checks pass, application graph is fresh, and the next-session handoff accurately states completed and pending tasks.
 
-## Remaining review decisions
+## Release boundaries
 
-- Confirm exact username/password alphabet and maximum password length, Google third-party email ownership challenge, session/queue/lease design, and rejoin episode model from the PRD/ADR.
-- Visual review of My routes is complete. Confirm proposed ordering, pagination, view-state persistence, and former-member access behavior before finalizing B1.
-- After review, mark accepted requirements separately from implementation status; preserve any unresolved item as an explicit blocker to its task.
+- Owner accepted credential/default proposals and authorized implementation on 2026-10-21. The contract fixes the engineering defaults for independent tasks.
+- B4/B5/B6, W1/W2, A1/A2 and R1/R2 remain pending. Do not expose the staged account API as a complete login system or treat pending signup as usable route authority.
+- Production data reset and deployment still require explicit authorization for the concrete rollout.

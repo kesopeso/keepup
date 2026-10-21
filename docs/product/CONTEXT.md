@@ -17,7 +17,7 @@ Choose only the reference that answers the request:
 | Sharing, presence, GPS quality, recovery | [Tracking](tracking.md) |
 | Layout, map interaction, sharing links, timestamps | [Experience](experience.md) |
 | Term meaning or ambiguity | [Glossary](glossary.md) |
-| Proposed account authentication and delivery tasks | [Authentication PRD](authentication-prd.md), draft |
+| Account authentication requirements and delivery tasks | [Authentication PRD](authentication-prd.md) |
 
 ## Process
 

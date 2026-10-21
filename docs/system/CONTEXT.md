@@ -18,6 +18,7 @@ Choose only the route needed for the request:
 | Android screens, saved access, live viewing, native sharing | [Mobile](mobile.md), relevant section |
 | Go runtime, health, service ownership | [Backend](backend.md) |
 | REST, snapshots, WebSocket events, presence timers | [API and live protocol](api-and-live.md) |
+| Account authentication implementation and target client contract | [Account contract](authentication-contract.md) |
 | Tables, constraints, accepted point history | [Persistence](data.md) |
 | Reason for a recorded architectural decision | [ADRs](../adr/CONTEXT.md), only when needed |
 

@@ -5,6 +5,8 @@ status: active
 
 # API and live protocol
 
+The [account API contract](authentication-contract.md) documents the staged password/session API and target route/live replacement. The route and socket behavior below remains current until B5/B6 integrate accounts; enabling the account API alone does not require login on existing routes.
+
 ## Service Responsibilities
 
 ### REST

@@ -1,0 +1,100 @@
+---
+type: reference
+status: planned
+---
+
+# Account API contract v1
+
+This is the target contract for the [authentication tasks](../planning/authentication-tasks.md), not a claim that every endpoint exists. B2/B3 implement password/session and verification/recovery endpoints behind `AUTH_ENABLED=false` by default. B4 adds Google, B5 account route access, and B6 live sharing. The anonymous route API remains current until those integrations land. Do not enable this increment as a production authentication rollout.
+
+The owner accepted the remaining product defaults on 2026-10-21. The [PRD](../product/authentication-prd.md) owns their meaning; [ADR 0001](../adr/0001-account-authentication.md) owns the architecture. [Deterministic examples](authentication-fixtures.json) identify the contract as `keepup.accounts.v1`. HTTP paths remain unversioned. This is a coordinated breaking client/API release, not compatibility with legacy member/owner tokens.
+
+## Encoding and transports
+
+Paths here are backend paths. Browser clients prepend `/api` through the existing proxy. JSON uses camelCase, UUID strings, UTC RFC3339 timestamps, and explicit booleans. Empty lists are `[]`; absent optional credentials are omitted, never `null`. Bodies are bounded to 4096 bytes for implemented password endpoints; Google proof endpoints will allow 16384 bytes. Unknown request fields and trailing JSON values fail with `400 invalid_input`. Confirmation fields stay in the client and are not transmitted. Never log request bodies, credentials, or query tokens.
+
+All browser mutations, including login/signup, require an exact configured `Origin`, `Content-Type: application/json`, and `X-KeepUp-Request: 1`. No wildcard/credentialed cross-origin access or preflight grant is provided for `/auth`. Use `credentials: same-origin`. Responses use `Cache-Control: no-store`. This custom-header and origin policy is the CSRF defense, including login CSRF; SameSite is additional protection. See [OWASP CSRF guidance](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html).
+
+Web session credentials exist only in an HttpOnly, Secure, SameSite=Lax, Path=/, host-only `__Host-keepup_session` cookie in production. Development uses `keepup_session` without Secure. Signup/login/rotation return `{user, expiresAt}` with no raw credential; authenticated browser responses renew cookie expiry alongside server idle expiry. Browser JS never stores the credential. `GET /auth/me` may omit Origin for same-origin reads and renews expiry.
+
+Native clients send `X-KeepUp-Client: native`, no Origin, Cookie, or browser fetch metadata, and authenticate with `Authorization: Bearer <sessionToken>`. Signup/login/rotation additionally return `sessionToken`; store it using platform secure storage. Mixed cookie/bearer or browser/native transports are rejected with `403 invalid_transport`. An untrusted Origin is rejected before service calls. Native requests do not use cookies.
+
+`user` is `{id, email, username, verified}`. Both identifiers preserve their stored display casing. Internal session IDs, normalized lookup keys, hashes, and provider subjects are never response fields. Session idle expiry is server-authoritative, default 30 days. Requests that successfully authenticate and authorized live activity extend it. Expired/revoked credentials never revive. Explicit rotation atomically replaces the secret while retaining session ID, with no overlap/grace. Clients serialize rotation with other requests. No periodic background rotation is required in v1; password change rotates the current credential. A fresh password login creates a new independent session.
+
+## Validation
+
+Username is ASCII `[A-Za-z0-9_-]{3,24}` and is not trimmed. Email is a trimmed bare ASCII address, at most 254 bytes, parsed server-side; display names and non-ASCII mailboxes are unsupported in v1. Normalize email and username by lowercase for lookup, without stripping email dots or plus suffixes. Database unique constraints arbitrate concurrent registrations. Email and username have no mutation endpoint and a database trigger prevents changes.
+
+Passwords have 8–128 Unicode code points, at least one ASCII digit and one Unicode punctuation or symbol. Whitespace alone is not a special character. Never trim, normalize, or truncate passwords. Login compares the original password exactly and does not impose signup composition rules on credential lookup. Argon2id PHC strings include salt/version/work parameters. Initial costs are 64 MiB, three iterations, one lane, a 16-byte random salt and 32-byte output, with two concurrent password operations per process. Tune costs with deployment measurements before release; the parser bounds stored costs before allocation. See [OWASP password storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
+
+Sessions and purpose tokens use 32 random bytes encoded as unpadded base64url. Credential records persist SHA-256 digests only. Queued email links are encrypted with AES-256-GCM and erased on terminal delivery/cancellation; the encryption key stays outside PostgreSQL. Use separate purpose records for verification, reset, Google flow, and socket tickets, rather than accepting one token type as another.
+
+## Password/session endpoints
+
+These endpoints are implemented when enabled. Signup atomically queues verification mail with the account/session; B3 supplies activation below.
+
+| Method and path | Request | Success | Errors beyond common failures |
+|---|---|---|---|
+| POST `/auth/signup` | `{email, username, password}` | 201 session response, `verified:false` | 400 `invalid_input`; 409 `email_taken` or `username_taken` |
+| POST `/auth/login` | `{identifier, password}` | 200 session response, active or pending | 401 `invalid_credentials`, identical for absent user/wrong password |
+| GET `/auth/me` | session credential | 200 `{user, expiresAt}` | 401 `session_expired` |
+| POST `/auth/session/rotate` | session credential, empty JSON object | 200 session response, old credential invalid | 401 `session_expired` |
+| POST `/auth/logout` | session credential, empty JSON object | 204, clear browser cookie | 401 `session_expired` |
+| POST `/auth/logout-all` | session credential, empty JSON object | 204, revoke all account sessions, clear cookie | 401 `session_expired` |
+
+Pending sessions may call account, verification, recovery, and logout endpoints. The shared active-account guard rejects pending route requests with `403 email_verification_required`; B5 must apply it to all route entry points. B6 must synchronously stop sharing and disconnect revoked sessions before logout/reset returns success. Current B2 sessions are not yet attached to legacy route sockets, so no legacy socket revocation is claimed.
+
+All error bodies have `{error:"stable_code"}`. Common failures: `400 invalid_input`, `401 session_expired`, `403 origin_rejected`, `403 csrf_rejected`, `403 invalid_transport`, `415 json_required`, `429 rate_limited` with integer-seconds `Retry-After`, and `500 internal_error`. Never expose driver errors. Login/account lookup must avoid disclosing account existence. Registration explicitly reports field uniqueness conflicts.
+
+Initial fixed-window limits are configurable: login 20 attempts per 15 minutes per normalized identifier and source address, signup 5 per 15 minutes per source. Counters live in PostgreSQL so process restarts/replicas cannot bypass them. Forwarded addresses are ignored unless the socket peer is in configured trusted proxy CIDRs; traversal stops at the first untrusted hop. No counters contain raw email/IP values. Cleanup retains expired tokens/sessions/counters for seven days by default, covering all configured rate windows. See [delivery and proxy configuration](../workflow/authentication-email.md).
+
+## Verification and password maintenance
+
+B3 implements these endpoints. Token consumption requires explicit POST; a scanner GET has no effect. Email links carry tokens in URL fragments so server/proxy requests do not receive token query strings. W1/A1 must implement the link pages/app handling, hold tokens in memory, exclude analytics, and remove the fragment after completion. Client confirmation matching remains W1/A1; the API rejects extra confirmation fields.
+
+| Method and path | Request / authority | Success |
+|---|---|---|
+| POST `/auth/verification/resend` | pending session, `{}` | 202 `{status:"accepted"}` after transactional queueing |
+| POST `/auth/verification/confirm` | `{token}`, no session required | 200 `{status:"verified"}`, no session/cookie issued |
+| POST `/auth/password/forgot` | `{identifier}` | 202 `{status:"accepted"}` regardless of account existence |
+| POST `/auth/password/reset` | `{token,password}` | 204 after consuming token and revoking all sessions; no login or activation |
+| POST `/auth/password/change` | active session, `{currentPassword,password}` | 200 rotated session response; other sessions revoked |
+
+Verification TTL 24h, reset TTL 1h, resend cooldown 60s, max five messages per account per hour and 20 per source per hour. Token confirmation attempts are capped at 20 per source per 15 minutes. Invalid, consumed and superseded links return `400 invalid_token`; expired links return `400 token_expired`. Responses never identify another account or consume a link on failed password validation. Replacement and consumption are atomic. Password change errors use `401 invalid_credentials` without dropping a valid current session.
+
+Password change also invalidates outstanding reset links. Account-specific recovery cooldowns/quotas are hidden behind the accepted response. Known/unknown/suppressed recovery requests have a configurable 200ms minimum response duration, which reduces routine timing differences without promising constant-time operation under load.
+
+The mail provider interface accepts an ID, recipient and rendered message. SMTP and fake delivery implement it. An encrypted outbox row is written in the same transaction as the new token. The worker retries after 1m, 5m, 15m, 1h, 4h, stopping after five retries, expiry, or supersession. Account locks serialize token replacement/consumption with bounded delivery; SKIP LOCKED coordinates workers. SMTP delivery is at least once, so an acknowledgment/commit failure can duplicate an email. Tokens remain single-use. Terminal rows erase ciphertext. All TTLs, cooldowns, windows, attempt limits, and retry schedule are [deployment settings](../workflow/authentication-email.md). Provider failure does not activate accounts. Manual resend can replace a failed message after cooldown. Gmail configuration and real delivery remain R1.
+
+## Google proof and onboarding
+
+B4 implements server-issued nonce flows, default TTL 10m. Web uses a separate HttpOnly host-prefixed flow cookie; native uses an opaque flow credential in secure transient storage. These contexts cannot access routes. Do not persist onboarding passwords in the flow.
+
+1. POST `/auth/google/start`, `{}` returns `{nonce,expiresAt}`; native also receives `flowToken`. Bind allowed client audience and nonce in server state. Native subsequent flow calls use `Authorization: Bearer <flowToken>`; web uses its flow cookie.
+2. POST `/auth/google/proof`, `{idToken}`, validates signature/issuer/audience/expiry/nonce and consumes the proof step once. Existing linked subjects or an active same-email account with authoritative ownership return `{status:"authenticated",...sessionResponse}`. Unknown identities return `{status:"onboarding",email,expiresAt}`. Third-party Google emails return `{status:"email_verification_required",expiresAt}` after queueing a KeepUp challenge.
+3. POST `/auth/google/complete`, `{username,password}`, atomically creates account/password/provider binding for an onboarding context, returning the session response. Existing active accounts never have their password overwritten. Pending password registrations claimed by authoritative Google require this password setup and revoke all previous pending sessions.
+4. POST `/auth/google/email/confirm`, `{token}`, confirms third-party email ownership without signing in that browser. The initiating context polls GET `/auth/google/context`, then POST `/auth/google/exchange`, `{}`, to obtain an existing-account session or proceed to onboarding. Flow completion is single-use and remains bound to the initiating context. Resend POST `/auth/google/email/resend`, `{}`, uses B3 limits.
+
+Flow GET returns `{status:"awaiting_proof"|"onboarding"|"email_verification_required"|"ready",email?,expiresAt}`. Never return credentials on GET. Bad proof uses `401 invalid_google_credential`; consumed/expired context `400 invalid_flow` / `400 flow_expired`; provider conflict `409 identity_conflict`; username conflict retains onboarding. Password/signup collisions and email challenges must be serialized with external-identity uniqueness. Provider subject remains identity after linking even if Google email changes. OAuth redirect variants additionally use state and PKCE; clients must not replace validated ID-token proofs with arbitrary profile JSON.
+
+## Account route API
+
+B5 preserves route paths while changing authority. All `/routes` endpoints require active account sessions, including `/routes/{code}/access` and archives. Create/join bodies drop `clientId` and `displayName`; reject those legacy fields. Responses drop `memberToken`/`ownerToken`. Ownership, current membership and username come from account authority. Snapshot members add `userId`; their `id` remains the membership episode ID used by historical paths. No email appears in route payloads. A restored current membership is idempotent; explicit leave/rejoin creates a new episode while retaining history. Owners cannot leave an active route.
+
+GET `/me/routes?view=active&owned=true&joined=true&left=false&limit=20&cursor=...` returns `{items,counts:{active,archived},nextCursor}`. Defaults match the URL shown. `view` is `active` or `archived`, booleans must be literal `true`/`false`, limit 1–100. Malformed filters/cursor use `400 invalid_input`. All filters false yields empty items and zero counts. Counts use selected categories before pagination. Categories are mutually exclusive: owner first, current non-owner next, former without current membership last.
+
+Each item is `{id,code,name,status,relationship,hasPassword,createdAt,closedAt,action}`; relationship `owner|joined|left`, action `open|view_archive|rejoin`. `closedAt` is null while active. Share URLs are constructed from the configured public route base and code, without credentials. Former-member rows contain no description, membership list, points, passwords, or privileged details. Deleted routes are omitted.
+
+Sort active by `(createdAt,id)` descending and archives by `(closedAt,id)` descending. Use opaque keyset cursors bound to account, view and filters; never allow a cursor to grant access. Concurrent list changes may alter totals; deduplicate by route ID when appending. Filter changes restart pagination. A fresh visit uses Active/default filters; back navigation restores view/filter/loaded position within the same signed-in session; logout/account switch clears it.
+
+Left active routes require a new join/password check. Left closed routes also require joining for archive access, creating an archive-only membership episode with no sharing rights. Restoring a current membership bypasses repeated route-password entry. Recheck access on every open; a cached dashboard never grants membership. Browser/native protected destinations are local allowlisted paths or typed route intents, never arbitrary URLs. Preserve them separately from secrets through onboarding and verify access before navigating; fallback `/my-routes` when absent/unavailable.
+
+## Live account protocol
+
+B5/B6 issue POST `/routes/{code}/socket-ticket`, `{}`, returning `{ticket,expiresAt}` after active-session/membership checks. Default TTL 30s. Ticket digests bind session, route and membership episode, consume atomically on the first WebSocket frame `{type:"authenticate",ticket}`. No URL credential, legacy member token, or archive socket. Existing first-frame timeout and ping/pong settings remain.
+
+`connection_established` adds `connectionId` and `viewer` capabilities. Allow multiple viewers per membership. `start_sharing` retains `{type,requestId}` and atomically acquires the account/route lease; `command_ack` for start adds `sharingGeneration`. Every `position_update` and `stop_sharing` carries that generation. The server also binds session/connection ID, so knowing a generation cannot grant sender authority. The member/route events retain their existing shapes except account-backed identity fields and the start generation only in the submitting connection's acknowledgment.
+
+A second sender receives `{type:"command_rejected",requestId,command:"start_sharing",reason:"sharing_on_another_device"}`. The existing sender continues. Viewers have `canStopSharing:false` for another device. Old-generation packets receive `position_rejected` / `command_rejected` with `sharing_expired`, without changing state. Account revocation sends `{type:"session_revoked",reason:"logout"|"logout_all"|"password_reset"|"password_changed"}`, then closes with code 1008. Events are advisory; committed database revocation is authoritative and checked before further commands/points.
+
+Sender disconnect marks only that sender stale. Existing 20s position-stale, 5m stale-to-offline and 20s spectator grace defaults remain configurable. Viewer activity cannot refresh a sender lease. Stop/offline/revocation/leave/close/delete releases the lease and closes its segment. Generation and timer checks reject late messages/timers. Different routes permit separate senders from the same account. Startup recovery closes abandoned leases/segments before serving new acquisitions; PostgreSQL serializes capacity, lifecycle and lease changes. Reconnect never automatically takes another sender's lease or restarts location capture.

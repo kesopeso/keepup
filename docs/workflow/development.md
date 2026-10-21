@@ -67,6 +67,23 @@ On a new Linux `x86_64` computer, use a fresh clone and follow [first-time setup
 - Database migrations are manual via `golang-migrate`; the API must never apply migrations at startup.
 - Migration status: `./bin/migrate.sh version`.
 
+## Staged account API
+
+Password/session and verification/recovery APIs are implemented behind a disabled-by-default flag. This intermediate backend increment includes mail delivery but has no Google, account-bound route access, or client screens. See the [contract](../system/authentication-contract.md) and [task handoff](../planning/authentication-tasks.md). Do not use enablement as the production authentication rollout.
+
+Apply migrations 0003/0004 manually to the intended development database before enabling the API. They add account/session/counter and recovery/outbox tables without resetting route data. The implementation session tested them only in disposable schemas. The API never applies migrations on startup. Enablement also requires the secrets, public link origin and provider settings in [authentication email configuration](authentication-email.md).
+
+| Environment variable | Default | Validation / use |
+|---|---|---|
+| `AUTH_ENABLED` | `false` | Mount `/auth/` endpoints when true |
+| `AUTH_ALLOWED_ORIGINS` | empty | Required when enabled; comma-separated exact origins, e.g. `http://localhost:3000` in development; HTTPS outside development |
+| `AUTH_SESSION_IDLE` | `720h` | Positive Go duration; idle session lifetime |
+| `AUTH_ATTEMPT_WINDOW` | `15m` | Positive Go duration for shared fixed-window limits |
+| `AUTH_LOGIN_ATTEMPTS` | `20` | 1–10000 attempts per identifier and peer address per window |
+| `AUTH_SIGNUP_ATTEMPTS` | `5` | 1–10000 attempts per peer address per window |
+
+Run account checks using the existing race-enabled API command and `TEST_DATABASE_URL` below. Account tests create/drop only isolated schemas and run migrations 0003/0004 there. Local SMTP tests use disposable TLS servers; they do not send external email. Browser requests require the configured Origin and `X-KeepUp-Request: 1`; native requests use `X-KeepUp-Client: native` with no browser cookies/Origin. Forwarded source addresses require explicitly configured trusted proxy CIDRs. Cleanup and mail delivery run with the enabled API worker. Actual deployment CIDRs, credentials and real email smoke checks remain R1.
+
 ## GPS validation
 
 The API loads these optional settings at startup:
