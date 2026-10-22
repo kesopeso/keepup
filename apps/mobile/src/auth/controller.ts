@@ -69,6 +69,16 @@ export function createAccountController(api: AuthTransport, repository: AccountR
     } else if (flow) await googleResult(await googleRequest<GoogleContext>('/auth/google/context'));
   }
   return {
+    routeRequest: <T>(path: string, body?: object, signal?: AbortSignal, method?: string) => serial(async (): Promise<T> => {
+      if (!session?.user.verified || pendingSave) throw new AccountError('session_expired', 401);
+      if (signal?.aborted) throw new AccountError('request_cancelled');
+      try { return await api<T>(path, body, session.sessionToken, signal, method); }
+      catch (error) {
+        if (error instanceof AccountError && error.code === 'session_expired') await clearSession();
+        throw error;
+      }
+    }),
+    revoke: () => serial(clearSession),
     snapshot: () => state,
     subscribe(fn: () => void) { subscribers.add(fn); return () => { subscribers.delete(fn); }; },
     initialize: () => serial(async () => {

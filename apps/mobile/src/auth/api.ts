@@ -2,26 +2,34 @@ export class AccountError extends Error {
   code: string; status: number; retryAfter: number;
   constructor(code: string, status = 0, retryAfter = 0) { super(code); this.code = code; this.status = status; this.retryAfter = retryAfter; }
 }
-export type AuthTransport = <T>(path: string, body?: object, token?: string, signal?: AbortSignal) => Promise<T>;
+export type AuthTransport = <T>(path: string, body?: object, token?: string, signal?: AbortSignal, method?: string) => Promise<T>;
 
 // Native requests never include cookie authority, Origin or browser CSRF headers.
 export function createAuthTransport(baseUrl: string, fetcher: typeof fetch = fetch): AuthTransport {
-  return async <T>(path: string, body?: object, token?: string, signal?: AbortSignal): Promise<T> => {
+  return async <T>(path: string, body?: object, token?: string, signal?: AbortSignal, method?: string): Promise<T> => {
     const controller = new AbortController();
     const abort = () => controller.abort();
     if (signal?.aborted) abort();
     signal?.addEventListener('abort', abort, { once: true });
     const timeout = setTimeout(abort, 15000);
+    let rejectCancelled: () => void = () => {};
+    const cancelled = new Promise<never>((_resolve, reject) => {
+      rejectCancelled = () => reject(new AccountError('request_cancelled'));
+    });
+    controller.signal.addEventListener('abort', rejectCancelled, { once: true });
+    if (controller.signal.aborted) rejectCancelled();
     try {
-      const response = await fetcher(`${baseUrl}${path}`, {
-        method: body === undefined ? 'GET' : 'POST', credentials: 'omit', cache: 'no-store',
+      // Some native fetch/body implementations do not settle after abort. Never let one
+      // cancelled screen hold the credential queue and block subsequent navigation.
+      const response = await Promise.race([fetcher(`${baseUrl}${path}`, {
+        method: method ?? (body === undefined ? 'GET' : 'POST'), credentials: 'omit', cache: 'no-store',
         headers: { 'X-KeepUp-Client': 'native', 'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: controller.signal,
-      });
+      }), cancelled]);
       if (response.status === 204) return undefined as T;
       let result: unknown;
-      try { result = await response.json(); } catch { throw new AccountError(controller.signal.aborted ? 'request_cancelled' : 'invalid_response', response.status); }
+      try { result = await Promise.race([response.json(), cancelled]); } catch { throw new AccountError(controller.signal.aborted ? 'request_cancelled' : 'invalid_response', response.status); }
       if (!response.ok) {
         const code = (result as { error?: unknown })?.error;
         const retry = Number(response.headers.get('Retry-After'));
@@ -35,6 +43,7 @@ export function createAuthTransport(baseUrl: string, fetcher: typeof fetch = fet
     } finally {
       clearTimeout(timeout);
       signal?.removeEventListener('abort', abort);
+      controller.signal.removeEventListener('abort', rejectCancelled);
     }
   };
 }

@@ -22,6 +22,8 @@ const rejectionMessages: Record<string, string> = {
   impossible_jump: 'This location jumps too far from the last fix. Waiting for a more reliable location.',
   tracking_limit_reached: 'All tracking slots are occupied. Try again when another member stops sharing.',
   sharing_not_allowed: 'This route only allows its owner to share location.',
+  sharing_on_another_device: 'You are sharing this route on another device. Stop there before starting here.',
+  sharing_expired: 'Sharing access expired. Tap Start to share again.',
   route_closed: 'This route is closed. Location sharing has stopped.',
   invalid_input: 'Your phone supplied an invalid location. Stop and restart sharing.',
 };
@@ -44,6 +46,7 @@ export function positionPayload(sample: LocationSample): Record<string, unknown>
 
 export function createForegroundSharing(options: {
   keepWatchOnDisconnect?: boolean;
+  explicitReconnect?: boolean;
   wake?: () => void;
   requestPermission?: () => Promise<void>;
   prepare: (signal: AbortSignal) => Promise<LocationSample>;
@@ -77,7 +80,7 @@ export function createForegroundSharing(options: {
   let state: SharingState = { action: null, sharing: false, recovery: false, error: null, settings: false };
   function publish(change: Partial<SharingState> = {}) {
     state = { ...state, ...change, sharing: intent, recovery: !intent && snapshot?.route.status === 'active' &&
-      ['tracking', 'stale'].includes(snapshot.viewer.status) };
+      ['tracking', 'stale'].includes(snapshot.viewer.status) && (!options.explicitReconnect || snapshot.viewer.canStopSharing) };
     if (active) options.onState(state);
   }
   function stopWatch() { version++; preparing?.abort(); preparing = null; watch?.remove(); watch = null; watching = false; lastTimestamp = 0; }
@@ -159,7 +162,7 @@ export function createForegroundSharing(options: {
     start, stop,
     update(result: RouteSnapshot) {
       snapshot = result;
-      if (result.route.status !== 'active' || !['tracking', 'stale'].includes(result.viewer.status) && !state.action) {
+      if (result.route.status !== 'active' || (!['tracking', 'stale'].includes(result.viewer.status) || (options.explicitReconnect && !result.viewer.canStopSharing)) && !state.action) {
         const stoppedSharing = intent;
         intent = false; first = null; if (watching) stopWatch();
         publish(stoppedSharing ? { error: null } : {});
@@ -174,7 +177,7 @@ export function createForegroundSharing(options: {
         return;
       }
       if (status === 'live') resume?.();
-      if (status === 'paused' || status === 'invalid' || status === 'archive') {
+      if (status === 'paused' || status === 'invalid' || status === 'archive' || (options.explicitReconnect && status !== 'live')) {
         cancelResume?.();
         intent = false; first = null; stopWatch(); publish({ action: null });
       } else if (status !== 'live' && watching && !options.keepWatchOnDisconnect) stopWatch();
@@ -182,6 +185,9 @@ export function createForegroundSharing(options: {
     },
     event(event: Record<string, unknown>) {
       if (!active || !intent) return;
+      if (event.type === 'position_rejected' && event.error === 'sharing_expired') {
+        intent = false; stopWatch(); publish({ action: null, error: sharingError('sharing_expired') }); return;
+      }
       if (event.type === 'position_rejected') publish({ error: sharingError(event.error ?? 'Location rejected. Waiting for the next GPS fix.') });
       else if (event.type === 'position_updated' && parsePosition(event)?.memberId === snapshot?.viewer.memberId) publish({ error: null });
     },

@@ -8,6 +8,8 @@ import { authOrigin, parseAuthLink, passwordError, usernameError } from './contr
 import type { LinkIntent } from './contracts';
 import type { AccountController } from './controller';
 import { nativeAccountController, pickGoogleProof, observeAccountLinks } from './native';
+import { AccountRoutes } from './AccountRoutes';
+import { freshList } from './route-api';
 
 type Page = 'login' | 'signup' | 'forgot' | 'reset' | 'verify' | 'google-verify' | 'change' | 'account';
 export function AccountApp() {
@@ -39,6 +41,12 @@ export function AccountScreens({ controller }: { controller: AccountController }
   const alive = useRef(true);
   const appState = useRef(AppState.currentState);
   const refreshBusy = useRef(false);
+  const listCache = useRef(freshList());
+  const cacheUser = useRef<string | null>(null);
+  const [settings, setSettings] = useState(false);
+  const identity = state.user?.id ?? null;
+  if (cacheUser.current !== identity) { cacheUser.current = identity; listCache.current = freshList(); }
+  useEffect(() => { setSettings(false); }, [identity]);
   const cooldown = Math.max(0, Math.ceil((blockedUntil - now) / 1000));
   const locked = busy || cooldown > 0;
   const google = state.google;
@@ -69,7 +77,7 @@ export function AccountScreens({ controller }: { controller: AccountController }
       setError(null); setNotice(null); setLinkRevision((v) => v + 1);
       if (intent.screen === 'destination') {
         void controller.setDestination(intent.destination).catch((reason) => setError(errorMessage(reason)));
-        setLink(null);
+        setLink(null); setSettings(false); setPage('login');
       } else {
         setLink(intent); setPage(intent.screen);
       }
@@ -114,6 +122,9 @@ export function AccountScreens({ controller }: { controller: AccountController }
     <ErrorMessage message={error} /><ActionButton label="Retry saving access" disabled={busy} onPress={() => void run(() => controller.retrySave())} /></Screen>;
 
   const linkScreen = link && ['verify', 'reset', 'google-verify'].includes(page);
+  if (state.user?.verified && !linkScreen && !settings && page !== 'change') {
+    return <AccountRoutes key={state.user.id} controller={controller} cache={listCache} accountNotice={notice} onAccount={() => { setSettings(true); navigate('account'); }} />;
+  }
   let shown: Page | 'pending' | 'google-onboarding' | 'google-pending' = page;
   if (!linkScreen) {
     if (google?.status === 'onboarding') shown = 'google-onboarding';
@@ -178,6 +189,7 @@ export function AccountScreens({ controller }: { controller: AccountController }
       <ActionButton label="Cancel Google sign-in" secondary disabled={busy} onPress={() => void run(() => controller.cancelGoogle())} />
     </>}
     {shown === 'account' && <>
+      <ActionButton label="My routes" secondary disabled={busy} onPress={() => void run(async () => { await controller.setDestination('/my-routes'); setSettings(false); })} />
       <View style={styles.card}><Text style={styles.label}>Username</Text><Text style={styles.text}>{state.user?.username}</Text><Text style={styles.label}>Email</Text><Text style={styles.text}>{state.user?.email}</Text><Text style={styles.text}>Your username and email cannot be changed.</Text></View>
       <ActionButton label="Change password" disabled={busy} onPress={() => navigate('change')} />
       <ActionButton label="Sign out" secondary disabled={busy} onPress={() => void run(() => controller.logout())} />

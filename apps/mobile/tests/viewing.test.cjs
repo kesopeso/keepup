@@ -180,3 +180,41 @@ test('native wake replaces a half-open sharing socket that never reports network
   now = 45000; h.session.wake(); assert.equal(h.sockets[0].closed, true);
   now += 1001; h.session.wake(); await established(h); assert.equal(h.statuses.at(-1), 'live');
 });
+
+test('account sockets fetch tickets before opening and send no legacy credential', async t => {
+  let issue; const h = harness(t, async () => base(), { account: { ticket: () => new Promise(resolve => { issue = resolve; }), revoked() {} } });
+  await flush(); assert.equal(h.sockets.length, 0);
+  issue('single-use-ticket'); await established(h);
+  assert.deepEqual(h.sockets[0].sent[0], { type: 'authenticate', ticket: 'single-use-ticket' });
+  assert.equal(h.session.sendPosition({}), false);
+});
+test('account commands attach only their acknowledged generation and reconnect discards it', async t => {
+  const h = harness(t, async () => base(), { account: { ticket: async () => 'ticket', revoked() {} } }); await established(h);
+  const start = h.session.command('start_sharing');
+  h.sockets[0].message({ type: 'command_ack', command: 'start_sharing', requestId: h.sockets[0].sent.at(-1).requestId, sharingGeneration: 'generation-one' }); await start;
+  // A REST response still showing the old viewer state cannot cancel an acknowledged Start.
+  await h.session.refresh(); assert.equal(h.snapshots.at(-1).viewer.status, 'tracking'); assert.equal(h.snapshots.at(-1).viewer.canStopSharing, true);
+  assert.equal(h.session.sendPosition({ latitude: 46, sharingGeneration: 'obsolete' }), true);
+  assert.equal(h.sockets[0].sent.at(-1).sharingGeneration, 'generation-one');
+  const stop = h.session.command('stop_sharing'); assert.equal(h.sockets[0].sent.at(-1).sharingGeneration, 'generation-one');
+  h.sockets[0].message({ type: 'command_ack', requestId: h.sockets[0].sent.at(-1).requestId }); await stop;
+  assert.equal(h.session.sendPosition({}), false);
+  const restart = h.session.command('start_sharing');
+  h.sockets[0].message({ type: 'command_ack', requestId: h.sockets[0].sent.at(-1).requestId, sharingGeneration: 'generation-two' }); await restart;
+  h.sockets[0].emit('close', { code: 1006 });
+  h.timers.find(timer => !timer.cancelled && timer.delay === 1000).callback(); await established(h);
+  assert.equal(h.session.sendPosition({}), false);
+});
+test('connection capabilities survive REST refresh and remote revocation stops immediately', async t => {
+  let revoked = false;
+  const h = harness(t, async () => base(), { account: { ticket: async () => 'ticket', revoked() { revoked = true; } } }); await established(h);
+  h.sockets[0].message({ type: 'viewer_updated', viewer: { memberId: 'viewer', canStopSharing: true } });
+  await h.session.refresh(); assert.equal(h.snapshots.at(-1).viewer.canStopSharing, true);
+  h.sockets[0].message({ type: 'session_revoked', reason: 'password_reset' });
+  assert.equal(revoked, true); assert.equal(h.statuses.at(-1), 'invalid'); assert.equal(h.sockets[0].closed, true);
+  assert.equal(h.session.sendPosition({}), false);
+});
+test('pending ticket is cancelled on pause and its late response cannot open a socket', async t => {
+  let issue; const h = harness(t, async () => base(), { account: { ticket: () => new Promise(resolve => { issue = resolve; }), revoked() {} } });
+  await flush(); h.session.setForeground(false); issue('obsolete'); await flush(); assert.equal(h.sockets.length, 0);
+});

@@ -5,7 +5,7 @@ status: specified
 
 # Routes and membership
 
-The sections below describe legacy behavior still used by existing clients with `AUTH_ENABLED=false`. Account-mode identity and route rules belong to the [authentication PRD](authentication-prd.md); B5 implements its backend route authorization, membership history and My routes API in the [account contract](../system/authentication-contract.md#account-route-api). Account mode requires verified accounts and derives display names/ownership from them; it does not issue per-route credentials. Legacy mode cannot join/access account-owned routes. Client integration and B6's multiple-viewer/exclusive-sharing behavior remain pending.
+The sections below describe legacy behavior with `AUTH_ENABLED=false`. Account-mode identity and route rules belong to the [authentication PRD](authentication-prd.md); B5 implements backend route authorization, membership history and My routes in the [account contract](../system/authentication-contract.md#account-route-api). Account mode requires verified accounts and derives display names/ownership from them; it does not issue per-route credentials. Legacy mode cannot join/access account-owned routes. B6 implements multiple viewers and exclusive sharing; W2/A2 integrate web and Android. Release acceptance and rollout remain pending.
 
 ## Product Summary
 

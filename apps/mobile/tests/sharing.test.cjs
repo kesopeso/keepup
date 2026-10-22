@@ -131,3 +131,21 @@ test('screen-off delivery never replays a fix measured before reconnection', asy
   h.watches[0].sample(offlineFix); assert.equal(h.positions.length, count);
   h.watches[0].sample(fix(Date.now() + 1)); assert.equal(h.positions.length, count + 1);
 });
+
+test('account screen-off capture stops on disconnect and never resumes after reconnect', async t => {
+  const h = harness(t, { keepWatchOnDisconnect: false, explicitReconnect: true }); await start(h);
+  assert.equal(h.watches.length, 1); const count = h.positions.length;
+  h.capture.connection('reconnecting'); assert.equal(h.watches[0].removed, true); assert.equal(h.states.at(-1).sharing, false);
+  h.capture.update({ ...snapshot('tracking'), viewer: { ...snapshot('tracking').viewer, canStopSharing: false, canStartSharing: false } });
+  h.capture.connection('live'); await flush(); h.watches[0].sample(fix(Date.now() + 1000));
+  assert.equal(h.watches.length, 1); assert.equal(h.positions.length, count); assert.equal(h.states.at(-1).recovery, false);
+});
+test('loss of sender capability and obsolete generation rejection remove the native watcher', async t => {
+  const h = harness(t, { explicitReconnect: true }); await start(h);
+  h.capture.event({ type: 'position_rejected', error: 'sharing_expired' });
+  assert.equal(h.watches[0].removed, true); assert.equal(h.states.at(-1).sharing, false);
+  assert.match(h.states.at(-1).error, /expired/);
+  const other = harness(t, { explicitReconnect: true }); await start(other);
+  other.capture.update({ ...snapshot('tracking'), viewer: { ...snapshot('tracking').viewer, canStopSharing: false } });
+  assert.equal(other.watches[0].removed, true); assert.equal(other.states.at(-1).sharing, false);
+});

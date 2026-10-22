@@ -4,11 +4,12 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar as Nat
 import { BrandHeader, BrandText as Text } from './Brand';
 import type { TextInputProps } from 'react-native';
 
-export function Screen({ children, scrollRef }: { children: ReactNode; scrollRef?: Ref<ScrollView> }) {
+export function Screen({ children, scrollRef, onScroll, onContentSizeChange }: { children: ReactNode; scrollRef?: Ref<ScrollView>; onScroll?: (y: number) => void; onContentSizeChange?: () => void }) {
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar style="light" />
-      <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}
+        scrollEventThrottle={16} onScroll={(event) => onScroll?.(event.nativeEvent.contentOffset.y)} onContentSizeChange={onContentSizeChange}>
         <BrandHeader />
         {children}
       </ScrollView>

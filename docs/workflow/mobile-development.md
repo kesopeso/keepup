@@ -175,7 +175,7 @@ The tests use the container's Node 24 built-in runner and TypeScript support, wi
 
 ### Account authentication review
 
-A1 is an opt-in account shell. Keep `EXPO_PUBLIC_AUTH_ENABLED=false` for the existing legacy backend. Against a separately configured account-enabled backend, copy the [example](../../apps/mobile/.env.example) to `apps/mobile/.env.local` and set:
+A1/A2 account mode is opt-in. Keep `EXPO_PUBLIC_AUTH_ENABLED=false` for the existing legacy backend. Against a separately configured account-enabled backend, copy the [example](../../apps/mobile/.env.example) to `apps/mobile/.env.local` and set:
 
 - `EXPO_PUBLIC_AUTH_ENABLED=true`.
 - `EXPO_PUBLIC_API_URL` to that backend's REST base. Release account sessions require HTTPS.
@@ -190,7 +190,11 @@ Regenerate and rebuild for A1's native module or link-origin changes. Run prebui
 
 Review signup, exact confirmation mismatch, keyboard next/done behavior, password masking and password-manager autofill. Check pending signup after force-stop/reopen, verification on another device, invalid/expired/replacement links, reset warning directly below the title, password change, current/all-device logout and server-side expiry/revocation. Confirm no request consumes a link before the explicit button. Reopen an interrupted Google flow to check its expiry, immutable pending username and fresh password setup; cancel the native picker and verify no late callback signs in. Test every field with larger system text and a real autofill provider on a physical phone.
 
-The A1 account shell opens settings after activation. Native My routes and route entry remain A2; retained destinations stay in separate secure navigation records until that integration. Do not test the old route shell against account mode. Real Google/email delivery, production domain verification, physical-device autofill and device-specific lifecycle acceptance remain R1.
+A2 opens My routes or the retained permitted destination after activation. Review Active/Archived, every category combination, full counts, Load more, Back restoration, per-route Share and cancellation, and offline retained summaries. Check current membership restoration without another password, protected former-member archive rejoin, owner edit/close/delete and member leave. Sign out/switch accounts and verify no prior list/history survives. Never test the legacy route shell against account mode.
+
+Use independent native/web sessions to verify simultaneous viewers, one sender per account/route, separate senders on different routes, obsolete-generation rejection and no automatic GPS start. Start explicitly, lock the emulator, deliver fresh locations, then return before Stop. Remote logout/reset must stop capture and remove protected history. Interrupt the network and return to a viewer; Start must be explicit after reconnect. Android's WebSocket adapter suppresses React Native's automatic Origin header so the upgrade uses native transport. No token belongs in the URL.
+
+Metro's injected public environment can reflect the ignored local environment file despite shell overrides. Check the resolved runtime API base when running isolated acceptance, preserve any existing local settings and restore them afterward. No new native dependency was added by A2, so an A1 development APK can load the new JavaScript through Metro. Real Google/email delivery, production domain verification, physical-device autofill and device-specific account-mode lifecycle acceptance remain R1.
 
 For concurrent worktrees, set a distinct `COMPOSE_PROJECT_NAME` before helper commands. Isolate backend ports/schemas, and give only one checkout ownership of Metro port 8081 and the emulator at a time. [Graphify's helper](../../bin/graphify.sh) mounts linked-worktree Git metadata read-only so its normal root/apps indexing works.
 

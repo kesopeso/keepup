@@ -54,6 +54,8 @@ export function createViewingSession(options: {
   onStatus: (status: ViewingStatus) => void;
   onError: (message: string | null, invalid: boolean) => void;
   isInvalid: (error: unknown) => boolean;
+  describeError?: (error: unknown) => string;
+  account?: { ticket: (signal: AbortSignal) => Promise<string>; revoked: () => void };
   onLiveEvent?: (event: Record<string, unknown>) => void;
   now?: () => number;
   createSocket?: (url: string) => ViewingSocket;
@@ -80,8 +82,11 @@ export function createViewingSession(options: {
   let dirty = false;
   let buffered: PositionEvent[] = [];
   let duplicate = false;
+  let connecting: AbortController | null = null;
+  let sharingGeneration: string | null = null;
+  let viewer: RouteSnapshot['viewer'] | null = null;
   let commandSequence = 0;
-  const commands = new Map<string, { resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  const commands = new Map<string, { type: string; resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   function rejectCommands() {
     for (const command of commands.values()) { cancel(command.timer); command.reject(new Error('Live connection interrupted. Reconnect and try again.')); }
     commands.clear();
@@ -89,6 +94,7 @@ export function createViewingSession(options: {
   let watchdog: ReturnType<typeof setTimeout> | null = null;
 
   function closeSocket() {
+    connecting?.abort(); connecting = null; sharingGeneration = null; viewer = null;
     established = false;
     rejectCommands();
     if (watchdog) { cancel(watchdog); watchdog = null; }
@@ -101,10 +107,25 @@ export function createViewingSession(options: {
     retryAt = now() + delay;
     timer = schedule(() => { timer = null; void refresh(); }, delay);
   }
-  function connect() {
-    if (!active || !running() || socket || snapshot?.route.status !== 'active') return;
+  async function connect() {
+    if (!active || !running() || socket || connecting || snapshot?.route.status !== 'active') return;
     options.onStatus('connecting');
     duplicate = false;
+    const attempt = new AbortController(); connecting = attempt;
+    let ticket: string | undefined;
+    if (options.account) {
+      try { ticket = await options.account.ticket(attempt.signal); }
+      catch (error) {
+        if (attempt.signal.aborted || !active) return;
+        connecting = null;
+        if (options.isInvalid(error)) {
+          active = false; options.onStatus('invalid'); options.onError('Account route access is no longer valid.', true);
+        } else retryLater();
+        return;
+      }
+    }
+    if (attempt.signal.aborted || !active || !running()) return;
+    connecting = null;
     let next: ViewingSocket;
     try { next = (options.createSocket ?? ((url) => new WebSocket(url)))(options.url); }
     catch { retryLater(); return; }
@@ -114,7 +135,7 @@ export function createViewingSession(options: {
     watchdog = schedule(() => { if (current() && !established) { closeSocket(); retryLater(); } }, 10000);
     next.addEventListener('open', () => {
       if (!current()) return;
-      try { next.send(JSON.stringify({ type: 'authenticate', memberToken: options.member.memberToken })); }
+      try { next.send(JSON.stringify(options.account ? { type: 'authenticate', ticket } : { type: 'authenticate', memberToken: options.member.memberToken })); }
       catch { closeSocket(); retryLater(); }
     });
     next.addEventListener('message', (message) => {
@@ -123,11 +144,36 @@ export function createViewingSession(options: {
       try { event = JSON.parse(message.data); } catch { return; }
       if (!record(event)) return;
       lastMessageAt = now();
+      if (options.account && event.type === 'session_revoked') {
+        options.onStatus('invalid'); options.onError('Your account session ended. Sign in again.', true);
+        active = false; closeSocket(); request?.abort(); options.account.revoked(); return;
+      }
+      if (options.account && (event.type === 'viewer_updated' || event.type === 'connection_established') && record(event.viewer)) {
+        viewer = event.viewer as RouteSnapshot['viewer'];
+        if (snapshot) { snapshot = { ...snapshot, viewer }; options.onSnapshot(snapshot); }
+      }
       if ((event.type === 'command_ack' || event.type === 'command_rejected') && typeof event.requestId === 'string') {
         const pending = commands.get(event.requestId);
         if (pending) {
           commands.delete(event.requestId); cancel(pending.timer);
-          if (event.type === 'command_ack') pending.resolve();
+          if (event.type === 'command_ack') {
+            if (options.account && pending.type === 'start_sharing') {
+              if (typeof event.sharingGeneration !== 'string' || !event.sharingGeneration) { pending.reject(new Error('Missing sharing authority. Start again.')); return; }
+              sharingGeneration = event.sharingGeneration;
+              if (snapshot) {
+                viewer = { ...snapshot.viewer, status: 'tracking', canStartSharing: false, canStopSharing: true };
+                snapshot = { ...snapshot, viewer }; options.onSnapshot(snapshot);
+              }
+            }
+            if (pending.type === 'stop_sharing') {
+              sharingGeneration = null;
+              if (options.account && snapshot) {
+                viewer = { ...snapshot.viewer, status: 'spectating', canStartSharing: true, canStopSharing: false };
+                snapshot = { ...snapshot, viewer }; options.onSnapshot(snapshot);
+              }
+            }
+            pending.resolve();
+          }
           else pending.reject(new Error(typeof event.reason === 'string' ? event.reason : 'command_rejected'));
           void refresh();
         }
@@ -159,7 +205,7 @@ export function createViewingSession(options: {
     next.addEventListener('close', (event) => {
       if (!current()) return;
       if (watchdog) { cancel(watchdog); watchdog = null; }
-      socket = null; established = false; rejectCommands();
+      socket = null; established = false; sharingGeneration = null; viewer = null; rejectCommands();
       if (event.code === 1008 && !duplicate) void refresh();
       else retryLater();
     });
@@ -175,15 +221,16 @@ export function createViewingSession(options: {
       let result = await options.load(controller.signal);
       if (!active || controller.signal.aborted || request !== controller) return;
       for (const event of buffered) result = applyPosition(result, event);
+      if (options.account && viewer && established) result = { ...result, viewer };
       snapshot = result;
       options.onSnapshot(result); options.onError(null, false);
       if (result.route.status === 'closed') { closeSocket(); options.onStatus('archive'); }
       else if (established) options.onStatus('live');
-      else connect();
+      else void connect();
     } catch (error) {
       if (!active || controller.signal.aborted || request !== controller) return;
       const invalid = options.isInvalid(error);
-      options.onError(error instanceof Error ? error.message : 'Could not update the route.', invalid);
+      options.onError(options.describeError?.(error) ?? (error instanceof Error ? error.message : 'Could not update the route.'), invalid);
       options.onStatus(invalid ? 'invalid' : 'unavailable');
       closeSocket();
       if (invalid) { active = false; }
@@ -221,7 +268,8 @@ export function createViewingSession(options: {
     },
     sendPosition(payload: Record<string, unknown>): boolean {
       if (!active || !running() || !established || !socket || snapshot?.route.status !== 'active') return false;
-      try { socket.send(JSON.stringify({ ...payload, type: 'position_update' })); return true; }
+      if (options.account && !sharingGeneration) return false;
+      try { socket.send(JSON.stringify({ ...payload, type: 'position_update', ...(options.account ? { sharingGeneration } : {}) })); return true; }
       catch { closeSocket(); retryLater(); return false; }
     },
     command(type: 'start_sharing' | 'stop_sharing'): Promise<void> {
@@ -235,8 +283,11 @@ export function createViewingSession(options: {
           reject(new Error('Sharing confirmation timed out. Check the route status and try again.'));
           void refresh();
         }, 10000);
-        commands.set(requestId, { resolve, reject, timer: commandTimer });
-        try { socket!.send(JSON.stringify({ type, requestId })); }
+        commands.set(requestId, { type, resolve, reject, timer: commandTimer });
+        if (options.account && type === 'stop_sharing' && !sharingGeneration) {
+          commands.delete(requestId); cancel(commandTimer); resolve(); return;
+        }
+        try { socket!.send(JSON.stringify({ type, requestId, ...(options.account && type === 'stop_sharing' ? { sharingGeneration } : {}) })); }
         catch { closeSocket(); retryLater(); }
       });
     },

@@ -34,7 +34,7 @@ function validRoute(value: unknown): boolean {
     ['active', 'closed'].includes(String(value.status)) &&
     ['everyone_can_share', 'joiners_can_view_only'].includes(String(value.sharingPolicy));
 }
-function validSnapshot(value: unknown): boolean {
+export function validSnapshot(value: unknown): boolean {
   return record(value) && validRoute(value.route) && record(value.viewer) &&
     typeof value.viewer.memberId === 'string' && Array.isArray(value.members) &&
     value.members.every((member: unknown) => record(member) && typeof member.id === 'string' &&

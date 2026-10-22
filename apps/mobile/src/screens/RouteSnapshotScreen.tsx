@@ -1,13 +1,14 @@
 import { BrandHeader, BrandText as Text } from '../components/Brand';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, BackHandler, Linking, Platform, Pressable, StatusBar as NativeStatusBar, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, BackHandler, Linking, Platform, Pressable, Share, StatusBar as NativeStatusBar, StyleSheet, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { RouteDrawer } from '../components/RouteDrawer';
 import { RouteMap } from '../components/RouteMap';
 import type { RouteMapRef } from '../components/RouteMap';
 import { snapshotGeometry } from '../map/snapshot-geometry';
-import { ActionButton, ErrorMessage, styles } from '../components/ui';
+import { ActionButton, ErrorMessage, Field, styles } from '../components/ui';
 import { createViewingSession, viewingSocketUrl } from '../live/viewing-session';
+import { nativeAccountSocket } from '../live/native-account-socket';
 import type { ViewingStatus } from '../live/viewing-session';
 import { createForegroundSharing } from '../location/foreground-sharing';
 import type { SharingState } from '../location/foreground-sharing';
@@ -20,13 +21,17 @@ import { loadMemberSnapshot } from '../domain/join-session';
 import { transportLabels } from '../domain/routes';
 import type { MemberStatus, Membership, RouteSnapshot } from '../domain/routes';
 import type { SessionRepository } from '../storage/session-repository';
+import type { AccountRoutesApi } from '../auth/route-api';
+import { invalidAccountRoute, routeError } from '../auth/route-api';
+import { routeShareUrl, shareRouteLink } from '../domain/route-share';
 
 const statusLabels: Record<MemberStatus, string> = {
   tracking: 'Sharing location', spectating: 'Spectating', stale: 'Location delayed', offline: 'Offline', left: 'Left',
 };
 
-export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: {
-  api: RoutesApi; repository: SessionRepository; member: Membership;
+export function RouteSnapshotScreen({ api, repository, member, onChooseRoute, account }: {
+  api?: RoutesApi; repository?: SessionRepository; member: Membership;
+  account?: { api: AccountRoutesApi; revoked: () => void };
   onChooseRoute: (code?: string, error?: string) => void;
 }) {
   const [snapshot, setSnapshot] = useState<RouteSnapshot | null>(null);
@@ -42,15 +47,25 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
   const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(0);
   const [headerHeight, setHeaderHeight] = useState(140);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [peekHeight, setPeekHeight] = useState(196);
   const bottomInset = Platform.OS === 'android' ? 24 : 34;
   const drawerHeight = Math.max(1, height - headerHeight - 12);
 
   useEffect(() => {
-    if (!expanded) return;
-    const back = BackHandler.addEventListener('hardwareBackPress', () => { setExpanded(false); return true; });
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (expanded) { setExpanded(false); return true; }
+      if (!account) return false;
+      if (sharingState.action || actionBusy) return true;
+      void (async () => { if (sharingState.sharing || sharingState.recovery) { if (!await sharing.current?.stop()) return; } onChooseRoute(); })();
+      return true;
+    });
     return () => back.remove();
-  }, [expanded]);
+  }, [expanded, account, sharingState.action, sharingState.sharing, sharingState.recovery, actionBusy, onChooseRoute]);
 
   useEffect(() => {
     if (sharingState.error || sharingState.settings) setExpanded(true);
@@ -60,7 +75,7 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
   useEffect(() => {
     const android = Platform.OS === 'android';
     let viewing: ReturnType<typeof createViewingSession> | undefined;
-    const capture = createForegroundSharing({ keepWatchOnDisconnect: android,
+    const capture = createForegroundSharing({ keepWatchOnDisconnect: android && !account, explicitReconnect: !!account,
       requestPermission: requestLocationPermission, prepare: prepareLocation, watch: android ? watchScreenOffLocation : watchLocation,
       wake: () => viewing?.wake(),
       command: (type) => viewing!.command(type), send: (payload) => viewing!.sendPosition(payload),
@@ -68,7 +83,9 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
     sharing.current = capture;
     viewing = createViewingSession({
       url: viewingSocketUrl(getApiBaseUrl()), member,
-      load: (signal) => loadMemberSnapshot(api, repository, member, signal),
+      load: (signal) => account ? account.api.snapshot(member.code, signal) : loadMemberSnapshot(api!, repository!, member, signal),
+      ...(account ? { account: { ticket: (signal: AbortSignal) => account.api.ticket(member.code, signal), revoked: account.revoked },
+        createSocket: nativeAccountSocket } : {}),
       onSnapshot: (result) => { capture.update(result); setSnapshot(result); setUpdatedAt(new Date()); setLoading(false); },
       onStatus: (status) => { capture.connection(status); setLiveStatus(status); },
       onLiveEvent: capture.event,
@@ -76,7 +93,8 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
         setError(message); setInvalid(rejected); setLoading(false);
         if (rejected) setSnapshot(null);
       },
-      isInvalid: invalidMembership,
+      isInvalid: account ? invalidAccountRoute : invalidMembership,
+      describeError: account ? routeError : undefined,
     });
     session.current = viewing;
     viewing.setForeground(AppState.currentState === 'active');
@@ -85,7 +103,14 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
       if (state === 'active' && android) void checkScreenOffLocation();
     });
     return () => { subscription.remove(); capture.dispose(); sharing.current = null; viewing!.stop(); session.current = null; };
-  }, [api, repository, member]);
+  }, [api, repository, member, account]);
+
+  function confirmAction(label: string, work: () => Promise<unknown>) {
+    Alert.alert(label, 'Confirm this route action.', [{ text: 'Cancel', style: 'cancel' }, { text: label, style: 'destructive', onPress: () => {
+      setActionBusy(true);
+      void work().then(() => onChooseRoute()).catch((reason) => setError(routeError(reason))).finally(() => setActionBusy(false));
+    } }]);
+  }
 
   function refresh() {
     if (loading) return;
@@ -106,7 +131,7 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
     {(snapshot.viewer.canStopSharing || sharingState.sharing || sharingState.recovery) && <ActionButton
       label={sharingState.action === 'stop' ? 'Stopping…' : sharingState.recovery ? 'Continue as spectator' : 'Stop sharing location'}
       disabled={!!sharingState.action || (liveStatus !== 'live' && !sharingState.sharing)} onPress={() => { void sharing.current?.stop(); }} />}
-    {!snapshot.viewer.canStartSharing && !snapshot.viewer.canStopSharing && <Text style={styles.text}>Location sharing is not available for your membership.</Text>}
+    {!snapshot.viewer.canStartSharing && !snapshot.viewer.canStopSharing && <Text style={styles.text}>{account && ['tracking', 'stale'].includes(snapshot.viewer.status) ? 'You are sharing this route on another device. Stop there before starting here.' : 'Location sharing is not available for your membership.'}</Text>}
   </>;
 
   return <View style={[styles.screen, { overflow: 'hidden' }]} onLayout={({ nativeEvent: { layout } }) => setHeight(layout.height)}>
@@ -137,6 +162,11 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
         </>}
       </>}>
       <ErrorMessage message={error} />
+      <ActionButton label="Share route" secondary onPress={() => {
+        const url = routeShareUrl(member.code, getApiBaseUrl(), process.env.EXPO_PUBLIC_AUTH_LINK_ORIGIN);
+        void shareRouteLink(url, Share.share).then(setShareNotice);
+      }} />
+      {shareNotice && <Text selectable style={styles.text}>{shareNotice}</Text>}
       {snapshot && <>
         {snapshot.route.status === 'active' && (sharingState.error || sharingState.settings) && <View style={styles.card}>
           <Text style={styles.label}>Location sharing</Text>
@@ -174,7 +204,25 @@ export function RouteSnapshotScreen({ api, repository, member, onChooseRoute }: 
       </>}
       {snapshot && (invalid ? <ActionButton label="Join again" onPress={() => onChooseRoute(member.code, error ?? undefined)} /> :
         <ActionButton label={loading ? 'Loading…' : error ? 'Retry' : 'Refresh'} disabled={loading} onPress={refresh} />)}
-      <ActionButton label="Join another route" secondary disabled={!!sharingState.action || (sharingState.sharing && liveStatus !== 'live')}
+      {snapshot && account && <>
+        {snapshot.viewer.canEditRoute && <ActionButton label="Edit route" secondary disabled={actionBusy} onPress={() => {
+          setEditName(snapshot.route.name); setEditDescription(snapshot.route.description); setEditing(true);
+        }} />}
+        {editing && snapshot.viewer.canEditRoute && <View style={styles.card}>
+          <Field label="Route name" value={editName} onChangeText={setEditName} editable={!actionBusy} />
+          <Field label="Description" value={editDescription} onChangeText={setEditDescription} editable={!actionBusy} multiline />
+          <ActionButton label="Save route" disabled={actionBusy || !editName.trim()} onPress={() => {
+            setActionBusy(true); void account.api.update(member.code, editName, editDescription).then(() => {
+              setEditing(false); void session.current?.refresh();
+            }).catch((reason) => setError(routeError(reason))).finally(() => setActionBusy(false));
+          }} />
+          <ActionButton label="Cancel editing" secondary disabled={actionBusy} onPress={() => setEditing(false)} />
+        </View>}
+        {snapshot.viewer.canLeaveRoute && <ActionButton label="Leave route" secondary disabled={actionBusy} onPress={() => confirmAction('Leave route', () => account.api.leave(member.code))} />}
+        {snapshot.viewer.canCloseRoute && <ActionButton label="Close route" secondary disabled={actionBusy} onPress={() => confirmAction('Close route', () => account.api.close(snapshot))} />}
+        {snapshot.viewer.canDeleteRoute && <ActionButton label="Delete route" secondary disabled={actionBusy} onPress={() => confirmAction('Delete route', () => account.api.remove(member.code))} />}
+      </>}
+      <ActionButton label={account ? 'My routes' : 'Join another route'} secondary disabled={actionBusy || !!sharingState.action || (sharingState.sharing && liveStatus !== 'live')}
         onPress={() => { void (async () => {
           if (sharingState.sharing || sharingState.recovery) {
             if (!await sharing.current?.stop()) return;
