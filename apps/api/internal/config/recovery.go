@@ -75,33 +75,34 @@ func loadRecovery(c *AuthConfig, env string) error {
 		}
 		c.TrustedProxies = append(c.TrustedProxies, prefix)
 	}
-	c.MailProvider = os.Getenv("AUTH_MAIL_PROVIDER")
+	c.MailProvider = os.Getenv("EMAIL_PROVIDER")
 	c.SMTP = maildelivery.SMTPConfig{Host: os.Getenv("SMTP_HOST"), Port: 587, Username: os.Getenv("SMTP_USERNAME"), Password: os.Getenv("SMTP_PASSWORD"), From: os.Getenv("SMTP_FROM"), TLSMode: valueOrDefault("SMTP_TLS_MODE", "starttls"), Timeout: p.DeliveryTimeout}
-	if raw := os.Getenv("SMTP_PORT"); raw != "" {
-		port, err := strconv.Atoi(raw)
-		if err != nil {
-			return fmt.Errorf("SMTP_PORT must be an integer")
-		}
-		c.SMTP.Port = port
-	}
 	if c.MailProvider == "" && c.SMTP.Host != "" {
 		c.MailProvider = "smtp"
 	}
 	switch c.MailProvider {
 	case "smtp":
+		if raw := os.Getenv("SMTP_PORT"); raw != "" {
+			port, err := strconv.Atoi(raw)
+			if err != nil {
+				return fmt.Errorf("SMTP_PORT must be an integer")
+			}
+			c.SMTP.Port = port
+		}
 		if err := c.SMTP.Validate(); err != nil {
 			return err
 		}
+	case "log":
 	case "fake":
 		if env != "test" {
 			return fmt.Errorf("fake mail provider is only allowed in test environments")
 		}
 	case "":
 		if c.Enabled {
-			return fmt.Errorf("SMTP configuration or AUTH_MAIL_PROVIDER is required when AUTH_ENABLED is true")
+			return fmt.Errorf("SMTP configuration or EMAIL_PROVIDER is required when AUTH_ENABLED is true")
 		}
 	default:
-		return fmt.Errorf("unsupported AUTH_MAIL_PROVIDER")
+		return fmt.Errorf("unsupported EMAIL_PROVIDER")
 	}
 	if p.Retention < c.Policy.AttemptWindow || p.Retention < p.MailWindow || p.Retention < p.ConfirmWindow || p.Retention < p.ResendCooldown {
 		return fmt.Errorf("AUTH_RETENTION must cover rate-limit windows")

@@ -19,8 +19,8 @@ func TestRecoveryConfiguration(t *testing.T) {
 		{"origin query", map[string]string{"AUTH_PUBLIC_URL": "https://keepup.example?token=bad"}, false},
 		{"missing sender", map[string]string{"SMTP_FROM": ""}, false},
 		{"missing provider", map[string]string{"SMTP_HOST": ""}, false},
-		{"unknown provider", map[string]string{"AUTH_MAIL_PROVIDER": "missing"}, false},
-		{"fake forbidden production", map[string]string{"AUTH_MAIL_PROVIDER": "fake"}, false},
+		{"unknown provider", map[string]string{"EMAIL_PROVIDER": "missing"}, false},
+		{"fake forbidden production", map[string]string{"EMAIL_PROVIDER": "fake"}, false},
 		{"plaintext forbidden", map[string]string{"SMTP_TLS_MODE": "none"}, false},
 		{"partial credentials", map[string]string{"SMTP_USERNAME": "user", "SMTP_PASSWORD": ""}, false},
 		{"invalid lifetime", map[string]string{"AUTH_RESET_TTL": "0s"}, false},
@@ -34,7 +34,7 @@ func TestRecoveryConfiguration(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for key, value := range map[string]string{
 				"AUTH_ENABLED": "true", "AUTH_ALLOWED_ORIGINS": "https://keepup.example", "AUTH_PUBLIC_URL": "https://keepup.example",
-				"AUTH_OUTBOX_KEY": base64.StdEncoding.EncodeToString(make([]byte, 32)), "AUTH_MAIL_PROVIDER": "",
+				"AUTH_OUTBOX_KEY": base64.StdEncoding.EncodeToString(make([]byte, 32)), "EMAIL_PROVIDER": "",
 				"SMTP_HOST": "smtp.example", "SMTP_PORT": "587", "SMTP_FROM": "keepup@example.com", "SMTP_TLS_MODE": "starttls", "SMTP_USERNAME": "", "SMTP_PASSWORD": "",
 			} {
 				t.Setenv(key, value)
@@ -48,6 +48,46 @@ func TestRecoveryConfiguration(t *testing.T) {
 			}
 			if tc.valid && cfg.MailProvider != "smtp" {
 				t.Fatal("SMTP settings did not select SMTP")
+			}
+		})
+	}
+}
+
+func TestEmailProviderSelection(t *testing.T) {
+	for _, tc := range []struct {
+		name, env, provider, host, port, want string
+		valid                                 bool
+	}{
+		{"development log without SMTP", "development", "log", "", "", "log", true},
+		{"log ignores unused SMTP settings", "development", "log", "smtp.example", "invalid", "log", true},
+		{"production log", "production", "log", "", "", "log", true},
+		{"staging log", "staging", "log", "", "", "log", true},
+		{"test log", "test", "log", "", "", "log", true},
+		{"test fake", "test", "fake", "", "", "fake", true},
+		{"development fake rejected", "development", "fake", "", "", "", false},
+		{"explicit SMTP", "production", "smtp", "smtp.example", "587", "smtp", true},
+		{"automatic SMTP", "production", "", "smtp.example", "587", "smtp", true},
+		{"invalid SMTP port", "production", "smtp", "smtp.example", "invalid", "", false},
+		{"unknown provider", "development", "unknown", "", "", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AUTH_ENABLED", "true")
+			t.Setenv("AUTH_ALLOWED_ORIGINS", "https://keepup.example")
+			t.Setenv("AUTH_PUBLIC_URL", "https://keepup.example")
+			t.Setenv("AUTH_OUTBOX_KEY", base64.StdEncoding.EncodeToString(make([]byte, 32)))
+			t.Setenv("EMAIL_PROVIDER", tc.provider)
+			t.Setenv("SMTP_HOST", tc.host)
+			t.Setenv("SMTP_PORT", tc.port)
+			t.Setenv("SMTP_FROM", "keepup@example.com")
+			t.Setenv("SMTP_TLS_MODE", "starttls")
+			t.Setenv("SMTP_USERNAME", "")
+			t.Setenv("SMTP_PASSWORD", "")
+			cfg, err := loadAuth(tc.env)
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v error=%v", tc.valid, err)
+			}
+			if tc.valid && cfg.MailProvider != tc.want {
+				t.Fatalf("provider=%q, want %q", cfg.MailProvider, tc.want)
 			}
 		})
 	}

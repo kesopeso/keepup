@@ -10,7 +10,7 @@ func TestAuthConfiguration(t *testing.T) {
 	t.Setenv("AUTH_OUTBOX_KEY", base64.StdEncoding.EncodeToString(make([]byte, 32)))
 	t.Setenv("SMTP_HOST", "smtp.example")
 	t.Setenv("SMTP_FROM", "keepup@example.com")
-	t.Setenv("AUTH_MAIL_PROVIDER", "")
+	t.Setenv("EMAIL_PROVIDER", "")
 	for _, tc := range []struct {
 		name, env, enabled, origins, idle, attempts string
 		valid                                       bool

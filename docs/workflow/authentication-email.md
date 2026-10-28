@@ -13,17 +13,17 @@ Apply migrations through 0007 manually to the intended development database befo
 
 Supply `AUTH_ALLOWED_ORIGINS`, `AUTH_PUBLIC_URL`, `AUTH_OUTBOX_KEY`, and a delivery provider alongside the [base account settings](development.md#staged-account-api). Origins are exact scheme/host/port values without paths, query strings or credentials. HTTPS is required outside `APP_ENV=development`. The public origin is trusted deployment configuration; links never use an inbound Host header.
 
-Generate 32 cryptographically random bytes in your secret manager, base64-encode them, and provide that value as `AUTH_OUTBOX_KEY`. Keep the key outside PostgreSQL and source control. It encrypts queued links with AES-256-GCM, authenticated against the token row ID. Purpose-token records hold SHA-256 digests; raw links are not stored in plaintext. Drain the queue before rotating the key, or queued ciphertext will fail closed and require a fresh resend. Terminal messages erase encrypted payloads immediately. No endpoint or log exposes queued links.
+Generate 32 cryptographically random bytes in your secret manager, base64-encode them, and provide that value as `AUTH_OUTBOX_KEY`. Keep the key outside PostgreSQL and source control. It encrypts queued links with AES-256-GCM, authenticated against the token row ID. Purpose-token records hold SHA-256 digests; raw links are not stored in plaintext. Drain the queue before rotating the key, or queued ciphertext will fail closed and require a fresh resend. Terminal messages erase encrypted payloads immediately. No endpoint exposes queued links. Only the explicitly selected `log` provider writes email bodies and links to logs.
 
 ## Provider selection
 
-If `AUTH_MAIL_PROVIDER` is absent and `SMTP_HOST` is present, the API selects SMTP. An explicit `smtp` also selects it. Unknown providers, partial SMTP settings, invalid keys and missing required settings fail startup. `fake` is allowed only with `APP_ENV=test` and records messages in memory for tests. It does not send mail or expose messages over HTTP.
+If `EMAIL_PROVIDER` is absent and `SMTP_HOST` is present, the API selects SMTP. An explicit `smtp` also selects it. Unknown providers, invalid selected-provider settings, invalid keys and missing required settings fail startup. SMTP settings are validated only when SMTP is selected. `fake` is allowed only with `APP_ENV=test` and records messages in memory for tests. It does not send mail or expose messages over HTTP. `EMAIL_PROVIDER` replaces `AUTH_MAIL_PROVIDER`; update existing deployment configuration to the new name.
 
 The provider boundary is [maildelivery.Sender](../../apps/api/internal/maildelivery/mail.go). A third-party API implementation supplies `Send(context.Context, Message) error`, honors cancellation, and is registered explicitly in configuration and startup selection. Authentication logic and the outbox do not depend on SMTP.
 
 | Setting | Default | Use |
 |---|---|---|
-| `AUTH_MAIL_PROVIDER` | auto-select SMTP from host | `smtp`, or test-only `fake` |
+| `EMAIL_PROVIDER` | auto-select SMTP from host | `smtp`, `log`, or test-only `fake` |
 | `AUTH_PUBLIC_URL` | required when enabled | Public origin for `/auth/verify#token=...` and `/auth/reset-password#token=...` |
 | `AUTH_OUTBOX_KEY` | required when enabled | Base64 encoding of a persistent 32-byte encryption key |
 | `SMTP_HOST` | required for SMTP | Server hostname or IPv4 address |
@@ -33,6 +33,16 @@ The provider boundary is [maildelivery.Sender](../../apps/api/internal/maildeliv
 | `SMTP_TLS_MODE` | `starttls` | Required STARTTLS, or `tls` for implicit TLS, typically port 465 |
 
 TLS certificate verification is mandatory, with TLS 1.2 or later. STARTTLS absence is an error; credentials are never sent before encryption. Header injection is rejected. A stable Message-ID is retained across retries. Tests use a local TLS SMTP server and fake delivery; no real inbox delivery or Gmail account setup has been verified. Real provider credentials, authentication requirements and delivery limits belong to R1.
+
+### Email log previews
+
+Set `EMAIL_PROVIDER=log` in the API environment. This provider works with any `APP_ENV` value. No SMTP settings are required. Authentication still requires `AUTH_ENABLED=true`, allowed origins, a public URL, an outbox key and the manually applied migrations described above. Selecting the provider does not enable authentication.
+
+The development Compose API service forwards `EMAIL_PROVIDER` from the shell or root `.env` file. Set `EMAIL_PROVIDER=log` there and recreate the API container after changing it. Supply the other account settings through your Compose override or container environment; the root `.env` file alone does not forward them.
+
+The [log provider](../../apps/api/internal/maildelivery/log.go) writes one structured `email preview` record at INFO level with `provider`, `message_id`, `to`, `subject` and `body` fields. The body contains the complete text and usable verification/reset/Google challenge link. It sends no network email and treats the preview as successful delivery through the normal outbox worker, including its token checks and quotas. JSON logs escape body newlines. Inspect records with `docker compose logs -f api`.
+
+With this provider selected, logs contain account addresses and authentication links in every environment. SMTP and normal worker logs continue to omit email bodies and tokens.
 
 ## Lifetimes, limits and worker settings
 

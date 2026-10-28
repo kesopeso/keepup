@@ -64,6 +64,8 @@ func main() {
 				os.Exit(1)
 			}
 			sender = smtpSender
+		case "log":
+			sender = maildelivery.NewLog(logger)
 		case "fake":
 			sender = &maildelivery.Fake{}
 		default:
