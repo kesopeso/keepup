@@ -13,9 +13,9 @@ Each task below is an independent change with its own validation. Web and Androi
 
 ## Resume point
 
-B1–B6, W1/W2 and A1/A2 implementation are complete. Continue with R1 configuration and cross-client/device acceptance. Browser-restart restoration is verified; real Google and email delivery remain R1. `AUTH_ENABLED` remains false by default; enabling it replaces route/socket authority as well as mounting account endpoints. Checks apply migrations through 0007 only to disposable databases/schemas; no application tables were migrated/reset and nothing was deployed. Web and Android both support account route authority.
+B1–B6, W1/W2 and A1/A2 implementation are complete. R1 is complete for the agreed log-email scope on owner acceptance; continue with R2 rollout follow-up. The owner deployed production and confirmed web/phone acceptance. The agent did not inspect production migration/reset state or mutate production. `AUTH_ENABLED` remains false by default; enabling it replaces route/socket authority as well as mounting account endpoints. Real inbox delivery remains deferred.
 
-B2 implements pending signup, normalized uniqueness and immutable identifiers, Argon2id, email/username login, hashed opaque sessions, idle extension, explicit atomic rotation, current/all-session revocation, configurable attempt limits, and protected browser/native transports. B3 adds purpose-bound token consumption/replacement, pending activation, reset/change revocation, encrypted transactional outbox, SMTP/fake providers, quotas, trusted-proxy support, and cleanup. B4 adds Google proof/onboarding/linking; B5 applies active-account authority to routes, dashboard lists and live bootstrap. B6 adds independent viewers, exclusive sharing generations and immediate live revocation cleanup. Race-enabled PostgreSQL and local TLS SMTP tests cover these boundaries. Web and native link/form UI are implemented; actual SMTP credentials/proxy CIDRs/real delivery remain R1.
+B2 implements pending signup, normalized uniqueness and immutable identifiers, Argon2id, email/username login, hashed opaque sessions, idle extension, explicit atomic rotation, current/all-session revocation, configurable attempt limits, and protected browser/native transports. B3 adds purpose-bound token consumption/replacement, pending activation, reset/change revocation, encrypted transactional outbox, SMTP/fake providers, quotas, trusted-proxy support, and cleanup. B4 adds Google proof/onboarding/linking; B5 applies active-account authority to routes, dashboard lists and live bootstrap. B6 adds independent viewers, exclusive sharing generations and immediate live revocation cleanup. Race-enabled PostgreSQL and local TLS SMTP tests cover these boundaries. Web and native link/form UI are implemented; real SMTP delivery remains deferred; production proxy-trust settings were not independently inspected.
 
 ## AUTH-01: Backend
 
@@ -109,11 +109,15 @@ State: implementation complete. [Native account routes](../system/mobile.md#acco
 
 ### R1: Configuration and cross-client acceptance
 
+State: complete for the agreed log-email scope on owner acceptance. [Configuration](../workflow/authentication-release.md), [local Google/emulator acceptance](validation-history.md#r1-local-google-and-emulator-acceptance-on-2026-11-03), [production HTTPS/APK preparation](validation-history.md#r1-production-endpoint-and-phone-apk-preparation-on-2026-11-03) and [physical-phone feedback](validation-history.md#r1-physical-phone-feedback-and-sharing-fix-on-2026-11-03) record implementation, checks and limits. The permission/reconnect sharing bug is fixed with 114 passing mobile tests, TypeScript, emulator review and a replacement APK. The owner confirmed production sign-in, route restoration, route-link dispatch, screen-off sharing, revocation/notification cleanup, network/Location recovery, app-permission loss, autofill, HTTPS verification/reset links and Google account linking. The owner instructed that the third-party Google email challenge be marked working; no additional provider execution details were supplied. Real inbox delivery remains deferred by the chosen log provider. R2 remains separate and incomplete.
+
 - Depends on B2–B6, W1/W2, A2. Configure Google web/Android clients, redirect/app links, trusted origins, session/email settings, and SMTP secrets. Verify Gmail SMTP compatibility if chosen; implement the selected authentication mode rather than assuming ordinary account-password login works.
 - Test actual delivery to owned test inboxes, Google login on both clients, same-account route restoration, verification opened elsewhere, simultaneous sharing, reset/logout revocation, and background-service shutdown.
 - Done when acceptance results and remaining device limits are recorded, with no credentials in fixtures or docs.
 
 ### R2: Fresh-start rollout and documentation
+
+State: pending rollout follow-up. The owner has deployed production; database migration/reset state and rollout rehearsal/rollback evidence have not been inspected. This status authorizes no production reset or further deployment.
 
 - Depends on R1. Rehearse database reset/migrations in a disposable environment, legacy credential rejection, client local-state invalidation, coordinated API/client deployment, and rollback/maintenance behavior.
 - Obtain explicit authorization for the concrete production reset/deployment. This plan authorizes no production deletion.
@@ -123,5 +127,5 @@ State: implementation complete. [Native account routes](../system/mobile.md#acco
 ## Release boundaries
 
 - Owner accepted credential/default proposals and authorized implementation on 2026-10-21. The contract fixes the engineering defaults for independent tasks.
-- R1/R2 remain pending. W1/W2 and A1/A2 web/native account and route implementation are complete. Complete release acceptance before exposing account mode; pending signup never grants usable route authority.
-- Production data reset and deployment still require explicit authorization for the concrete rollout.
+- R1 is complete for the agreed log-email scope on owner acceptance. R2 remains pending. W1/W2 and A1/A2 web/native account and route implementation are complete; pending signup never grants usable route authority.
+- Any further agent-driven production data reset or deployment requires explicit authorization for the concrete rollout.

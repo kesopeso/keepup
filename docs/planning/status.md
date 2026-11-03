@@ -9,9 +9,11 @@ Current progress and material validation limits. Read only for task selection, d
 
 ## Immediate next step
 
-Account authentication B1–B6, W1/W2 web account/route integration and A1/A2 Android account/route integration are implemented. The [task handoff](authentication-tasks.md) continues with R1 configuration and cross-client/device acceptance. Authentication remains disabled by default. W2 has real backend browser checks in a disposable schema, 28 passing web regression tests, a production build, responsive review and zero dashboard accessibility violations. W1 browser-restart restoration remains verified. A1/A2 native evidence and limits are recorded below. Real Google/email and physical-device account-mode release checks remain R1.
+R1 is complete for the agreed log-email scope on owner acceptance. [Local Google/emulator checks](validation-history.md#r1-local-google-and-emulator-acceptance-on-2026-11-03), [production HTTPS/APK checks](validation-history.md#r1-production-endpoint-and-phone-apk-preparation-on-2026-11-03) and [physical-phone acceptance](validation-history.md#r1-physical-phone-feedback-and-sharing-fix-on-2026-11-03) record sign-in, route restoration, app links, sharing, revocation, network/Location recovery, autofill and email/account-linking results. The owner accepted the third-party Google email challenge as working without supplying further execution details. Real inbox delivery remains deferred; device/OS and detailed duration/battery measurements were not supplied. Continue with [R2 rollout follow-up](authentication-tasks.md#r2-fresh-start-rollout-and-documentation): reconcile the owner-deployed production state, rehearse migration/rollback behavior in a disposable environment and complete rollout documentation. No production reset or further deployment is authorized by this status change.
 
-Account mode requires verified sessions and implements multiple viewers, exclusive sharing generations, synchronous revocation cleanup and startup recovery. Its process-local live hub requires one API runtime per database/schema. Backend tests use isolated databases/schemas through migration 0007, locally signed Google proofs and local TLS SMTP. No application tables were migrated/reset and nothing was deployed.
+Account authentication B1–B6, W1/W2 web account/route integration and A1/A2 Android account/route integration are implemented. The [task handoff](authentication-tasks.md) continues with R2 rollout follow-up. Authentication remains disabled by default. W2 has real backend browser checks in a disposable schema, 28 passing web regression tests, a production build, responsive review and zero dashboard accessibility violations. W1 browser-restart restoration remains verified. A1/A2 native evidence and limits are recorded below. R1 acceptance is complete for the agreed log-email scope.
+
+Account mode requires verified sessions and implements multiple viewers, exclusive sharing generations, synchronous revocation cleanup and startup recovery. Its process-local live hub requires one API runtime per database/schema. Backend tests use isolated databases/schemas through migration 0007, locally signed Google proofs and local TLS SMTP. The agent did not migrate/reset production or deploy it; the owner's production database state was not inspected.
 
 Account-mode Android owner edit/close/delete controls are included in A2. Equivalent legacy-shell controls remain deferred during the account transition. See the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
@@ -23,7 +25,7 @@ The owner reported successful outdoor testing of foreground and screen-off track
 
 Route creation and the drawer layout have Docker TypeScript/regression checks and emulator review recorded on 2026-10-08. The owner confirmed emulator pinch zoom; physical-phone review of creation and the later drawer/gesture changes remains unverified. Dated evidence is separate for [creation](validation-history.md#android-route-creation-validation-on-2026-10-08) and [drawer layout](validation-history.md#android-route-map-layout-implemented-on-2026-10-08).
 
-A1 has Docker TypeScript/regression checks, a compiled Android APK, real B2–B4 native requests, and emulator account/link/restart/cancellation checks. A2 adds native My routes, account memberships, lifecycle controls and ticket/generation live authority, with 111 passing mobile tests and real B5/B6 and emulator checks. Account mode remains opt-in. Real Google/email, verified domain association, physical-device password-manager/autofill and account-mode power/network acceptance remain release gates. See [native account boundaries](../system/mobile.md#account-routes-and-live-authority) and [A2 evidence](validation-history.md#android-account-routes-a2-on-2026-10-22).
+A1 has Docker TypeScript/regression checks, a compiled Android APK, real B2–B4 native requests, and emulator account/link/restart/cancellation checks. A2 adds native My routes, account memberships, lifecycle controls and ticket/generation live authority, with 111 passing mobile tests and real B5/B6 and emulator checks. Account mode remains opt-in. The owner-reported production phone checks cover sign-in, route-link dispatch, screen-off sharing, network recovery, revocation cleanup, permission loss and password-manager autofill. R1 phone/provider acceptance is complete on owner reports and acceptance; real inbox delivery remains deferred. See [native account boundaries](../system/mobile.md#account-routes-and-live-authority) and [A2 evidence](validation-history.md#android-account-routes-a2-on-2026-10-22).
 
 ## Android implementation checkpoints
 
@@ -34,9 +36,9 @@ A1 has Docker TypeScript/regression checks, a compiled Android APK, real B2–B4
 | Screen-off tracking | Complete; owner-reported outdoor validation | Detailed battery, manufacturer restrictions, and screen-lock duration not supplied |
 | Android route creation | Complete; emulator validated | Physical-phone form review remains unverified |
 | Native map and Peek/Full drawer | Complete; emulator reviewed | Physical-phone gesture review remains unverified |
-| Account authentication/settings | Implemented; emulator and B2–B4 checked | Real Google/email, domain association and physical-device autofill remain R1 |
-| Account My routes/live integration | Implemented; B5/B6 and emulator checked | Physical-device account-mode screen-off/network/power acceptance remains R1 |
-| Android owner controls | Implemented in account mode | Legacy shell still lacks owner controls; physical-device account-mode review remains R1 |
+| Account authentication/settings | Implemented; emulator and B2–B4 checked | Owner-accepted R1 checks passed; real inbox delivery remains deferred |
+| Account My routes/live integration | Implemented; B5/B6 and emulator checked | Owner-reported screen-off/network/revocation checks passed; detailed device/duration evidence was not supplied |
+| Android owner controls | Implemented in account mode | Legacy shell still lacks owner controls; detailed phone owner-control review was not separately reported |
 
 ## UI redesign
 

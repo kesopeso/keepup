@@ -67,6 +67,7 @@ export function createForegroundSharing(options: {
   let connectedSince = 0;
   let preparing: AbortController | null = null;
   let permissionPending = false;
+  let permissionPausedStart = false;
   let resume: (() => void) | null = null;
   let cancelResume: (() => void) | null = null;
   function waitForLive(): Promise<void> {
@@ -121,6 +122,7 @@ export function createForegroundSharing(options: {
   async function start() {
     if (!active || state.action || live !== 'live' || (!snapshot?.viewer.canStartSharing && !snapshot?.viewer.canStopSharing)) return;
     const generation = version;
+    permissionPausedStart = false;
     publish({ action: 'start', error: null, settings: false });
     try {
       permissionPending = !!options.requestPermission;
@@ -138,7 +140,12 @@ export function createForegroundSharing(options: {
       intent = true; first = location; publish({ error: null }); reconcile();
     } catch (error) {
       if (active && generation === version) publish({ error: sharingError(error), settings: error instanceof LocationAccessError && error.settings });
-    } finally { if (active && generation === version) publish({ action: null }); }
+    } finally {
+      if (active && generation === version) {
+        permissionPausedStart = false;
+        publish({ action: null });
+      }
+    }
   }
   async function stop() {
     if (!active || state.action) return false;
@@ -174,9 +181,15 @@ export function createForegroundSharing(options: {
       live = status;
       if (status === 'paused' && permissionPending) {
         // Android's runtime permission dialog pauses the activity. Wait for foreground before obtaining GPS.
+        permissionPausedStart = true;
         return;
       }
-      if (status === 'live') resume?.();
+      if (permissionPausedStart && state.action === 'start' && ['connecting', 'reconnecting', 'paused'].includes(status)) {
+        // The permission dialog also closes the viewer socket. Preserve this explicit
+        // Start until its replacement is live, without resuming an existing sender.
+        return;
+      }
+      if (status === 'live') { permissionPausedStart = false; resume?.(); }
       if (status === 'paused' || status === 'invalid' || status === 'archive' || (options.explicitReconnect && status !== 'live')) {
         cancelResume?.();
         intent = false; first = null; stopWatch(); publish({ action: null });

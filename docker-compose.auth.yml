@@ -1,0 +1,11 @@
+# Optional local R1 database isolation. Select alongside docker-compose.yml
+# through COMPOSE_FILE in the private root .env. Account settings still come
+# from that .env; this override does not enable authentication by itself.
+services:
+  postgres:
+    ports: !reset []
+    volumes: !override
+      - r1_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  r1_postgres_data:

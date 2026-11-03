@@ -1,11 +1,20 @@
 package config
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestLoad(t *testing.T) {
+	// Runtime account settings must not change these base-configuration cases.
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(key, "AUTH_") || strings.HasPrefix(key, "SMTP_") || key == "EMAIL_PROVIDER" {
+			t.Setenv(key, "")
+		}
+	}
 	testCases := []struct {
 		name                          string
 		env                           map[string]string

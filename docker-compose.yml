@@ -14,6 +14,9 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile.dev
     working_dir: /workspace
+    environment:
+      AUTH_GOOGLE_WEB_CLIENT_ID: ${AUTH_GOOGLE_WEB_CLIENT_ID:-}
+      ANDROID_APP_LINK_SHA256_FINGERPRINTS: ${ANDROID_APP_LINK_SHA256_FINGERPRINTS:-}
     command: >
       sh -c "pnpm --filter '@keepup/web' install &&
              pnpm --filter '@keepup/web' dev"
@@ -78,6 +81,20 @@ services:
       WEBSOCKET_AUTH_TIMEOUT: 5s
       DEFAULT_MAX_TRACKING_MEMBERS: 10
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      AUTH_ENABLED: ${AUTH_ENABLED:-false}
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-}
+      AUTH_PUBLIC_URL: ${AUTH_PUBLIC_URL:-}
+      AUTH_OUTBOX_KEY: ${AUTH_OUTBOX_KEY:-}
+      AUTH_SESSION_IDLE: ${AUTH_SESSION_IDLE:-720h}
+      AUTH_TRUSTED_PROXIES: ${AUTH_TRUSTED_PROXIES:-}
+      AUTH_GOOGLE_WEB_CLIENT_IDS: ${AUTH_GOOGLE_WEB_CLIENT_IDS:-}
+      AUTH_GOOGLE_NATIVE_CLIENT_IDS: ${AUTH_GOOGLE_NATIVE_CLIENT_IDS:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_TLS_MODE: ${SMTP_TLS_MODE:-starttls}
     volumes:
       - .:/workspace
       - go_pkg_mod:/go/pkg/mod

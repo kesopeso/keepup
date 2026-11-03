@@ -86,6 +86,62 @@ test('Android permission-dialog pause reports denial and waits for foreground be
   assert.equal(prepared, true); assert.equal(allowed.commands.at(-1), 'start_sharing');
 });
 
+test('account Start survives the live reconnect caused by Android permission dialogs', async t => {
+  let allow; let prepared = false;
+  const h = harness(t, { explicitReconnect: true,
+    requestPermission: () => new Promise(resolve => { allow = resolve; }),
+    prepare: async () => { prepared = true; return fix(); },
+  });
+  const starting = h.capture.start();
+  h.capture.connection('paused');
+  allow(); await flush();
+  h.capture.connection('connecting');
+  h.capture.update(snapshot());
+  assert.equal(prepared, false);
+  assert.equal(h.states.at(-1).action, 'start');
+  h.capture.connection('live'); await starting;
+  h.capture.update(snapshot('tracking')); await flush();
+  assert.deepEqual(h.commands, ['start_sharing']);
+  assert.equal(h.states.at(-1).sharing, true);
+  assert.equal(h.watches.length, 1);
+});
+
+test('account permission denial remains visible if live reconnect starts before the dialog resolves', async t => {
+  let deny;
+  const h = harness(t, { explicitReconnect: true,
+    requestPermission: () => new Promise((_, reject) => { deny = reject; }),
+  });
+  const starting = h.capture.start();
+  h.capture.connection('paused');
+  h.capture.connection('connecting');
+  deny(new LocationAccessError('Permission denied'));
+  await starting;
+  h.capture.connection('live');
+  assert.equal(h.states.at(-1).error, 'Permission denied');
+  assert.equal(h.states.at(-1).action, null);
+  assert.equal(h.commands.length, 0);
+  assert.equal(h.watches.length, 0);
+});
+
+test('a subsequent account disconnect cancels GPS preparation after permission reconnect succeeds', async t => {
+  let allow, locate; let signal;
+  const h = harness(t, { explicitReconnect: true,
+    requestPermission: () => new Promise(resolve => { allow = resolve; }),
+    prepare: value => { signal = value; return new Promise(resolve => { locate = resolve; }); },
+  });
+  const starting = h.capture.start();
+  h.capture.connection('paused');
+  allow(); await flush();
+  h.capture.connection('connecting');
+  h.capture.connection('live'); await flush();
+  h.capture.connection('reconnecting');
+  assert.equal(signal.aborted, true);
+  h.capture.connection('live');
+  locate(fix()); await starting;
+  assert.equal(h.commands.length, 0);
+  assert.equal(h.watches.length, 0);
+});
+
 
 test('Stop while disconnected cancels sharing intent and never restarts GPS on reconnection', async t => {
   const h = harness(t); await start(h); h.capture.connection('reconnecting');
