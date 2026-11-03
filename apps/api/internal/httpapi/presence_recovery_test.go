@@ -24,7 +24,7 @@ func TestStaleReconnectTimerEndsWhenSharingChanges(t *testing.T) {
 			offline := make(chan struct{}, 4)
 			member := routes.Member{ID: "member", RouteID: "route", Status: routes.MemberStatusStale}
 			cfg := config.AppConfig{TrackingOfflineAfter: 100 * time.Millisecond, TrackingStaleAfter: time.Hour, SpectatorOfflineAfter: time.Hour}
-			handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, stubHealthChecker{}, stubRouteService{
+			handler := legacyTestHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), cfg, stubHealthChecker{}, stubRouteService{
 				authorizeMemberFn: func(context.Context, string) (routes.AuthorizedMember, error) {
 					return routes.AuthorizedMember{Route: routes.Route{ID: "route", Code: "ABC123", Status: routes.RouteStatusActive}, Member: member}, nil
 				},

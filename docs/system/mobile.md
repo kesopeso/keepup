@@ -19,9 +19,11 @@ This is a separate mobile UI. The Next.js web screens are not automatically reus
 
 ### Current source ownership
 
+The account entry and account route flow are the application path. Legacy create/join, membership storage and request adapters listed below remain internal helpers and regression fixtures; the app no longer opens their anonymous navigation shell.
+
 | Source | Responsibility |
 |---|---|
-| [App.tsx](../../apps/mobile/App.tsx), [mobile app](../../apps/mobile/src/MobileApp.tsx) | Restore saved access and route between creation, joining, snapshot, and connection-check screens |
+| [App.tsx](../../apps/mobile/App.tsx), [AccountApp](../../apps/mobile/src/auth/AccountApp.tsx), [AccountRoutes](../../apps/mobile/src/auth/AccountRoutes.tsx) | Always launch account authentication and navigate through My routes, creation, joining and settings |
 | [Create screen](../../apps/mobile/src/screens/CreateRouteScreen.tsx), [creation session](../../apps/mobile/src/domain/create-session.ts), [creation tests](../../apps/mobile/tests/create.test.cjs) | Route form, create request, secure owner/member persistence, and saving retry without repeated creation |
 | [Join screen](../../apps/mobile/src/screens/JoinRouteScreen.tsx) | Route code/link entry, access metadata, display name, transport mode, and conditional password |
 | [Snapshot screen](../../apps/mobile/src/screens/RouteSnapshotScreen.tsx), [route drawer](../../apps/mobile/src/components/RouteDrawer.tsx) | Full-screen map layout, Peek/Full drawer, authenticated route details and members, sharing actions, refresh/retry, and archives |
@@ -55,7 +57,7 @@ The `expo-splash-screen` config plugin renders the branded `assets/splash-icon.p
 
 ### Account authentication
 
-A1 adds an opt-in native account UI. `EXPO_PUBLIC_AUTH_ENABLED=true` selects [AccountApp](../../apps/mobile/src/auth/AccountApp.tsx) instead of the legacy route shell. The default remains false. A2 adds My routes and account route/live integration. Account mode never reads legacy device identity or saved membership credentials.
+[App.tsx](../../apps/mobile/App.tsx) always launches [AccountApp](../../apps/mobile/src/auth/AccountApp.tsx). The anonymous app entry has been removed. The account application never reads legacy device identity or saved membership credentials. Shared route/map/location helpers and their legacy regression cases remain; they do not select application authority.
 
 The [controller](../../apps/mobile/src/auth/controller.ts) serializes requests and credential writes. React receives public user/context state, without session or flow credentials. [Native transport](../../apps/mobile/src/auth/api.ts) sends `X-KeepUp-Client: native`, omits cookies and browser headers, and uses the session bearer or the separate Google flow bearer for the appropriate endpoints. Request and response-body consumption share a fifteen-second timeout. Password change saves its replacement credential before the next authenticated read. Failed secure writes retain the issued response for Retry saving access without repeating signup or rotation; polling pauses during this recovery.
 
@@ -75,7 +77,7 @@ Configuration, rebuilding and device review belong to the [Android account workf
 
 The list has Active/Archived tabs, full filtered counts, additive Owned/Joined/Left categories, 20-item cursor pagination and route-ID deduplication. Fresh startup uses Active with Owned/Joined enabled and Left disabled. Returning from a route/settings retains filters, loaded pages and scroll in memory, revalidating the retained pages. Logout, revocation and account switching discard that cache. Loading, no routes, no matches, all categories off, retry and offline feedback are distinct. Retained offline summaries cannot open routes or start create/join. Every row retains Share, including archives and former memberships. List and map use the same native share helper, silent cancellation and selectable-link fallback. Public links contain only the code and use the approved link origin, falling back to the configured API origin and deployment prefix.
 
-Opening a code first requests a snapshot to restore current account membership without another join. A 403 opens access metadata and transport/password entry. Former active and archived memberships require explicit rejoin, including password checks; archives remain read-only. Owner edit/close/delete and member leave controls follow server capabilities. Close/delete/leave require confirmation. Successful lifecycle actions return to My routes and revalidate it. These account controls do not change the legacy route shell's owner-control gap.
+Opening a code first requests a snapshot to restore current account membership without another join. A 403 opens access metadata and transport/password entry. Former active and archived memberships require explicit rejoin, including password checks; archives remain read-only. Owner edit/close/delete and member leave controls follow server capabilities. Close/delete/leave require confirmation. Successful lifecycle actions return to My routes and revalidate it. The removed legacy shell has no separate owner-control delivery task.
 
 The shared [native route screen](../../apps/mobile/src/screens/RouteSnapshotScreen.tsx) keeps the existing map, drawer and foreground location service. Account [viewing sessions](../../apps/mobile/src/live/viewing-session.ts) fetch a fresh one-use ticket before opening the socket. Native upgrades send the native transport header; the first frame carries the ticket, never a legacy token or URL credential. Connection-specific viewer capabilities override REST capabilities while connected. Start acknowledgments establish the sender generation; positions and Stop include it. Concurrent viewers and other-device restrictions follow B6. Reconnect clears the generation, removes local GPS capture and requires an explicit Start after returning to a live viewer connection. Successful Start is the only way to start the native location service; login, process restoration and list navigation never start it.
 
@@ -83,7 +85,7 @@ Remote session revocation immediately invalidates viewing, hides history, stops 
 
 ### Live viewing
 
-Active routes connect to the existing `/ws` endpoint and authenticate with the saved member token in the first message. The token never appears in the URL. Closed archives do not connect. The screen shows connecting, connected, reconnecting, paused, and invalid-access states.
+Active account routes connect to `/ws` using a fresh one-use ticket in the first message. The account session credential never appears in the URL. Legacy saved-member adapters remain internal helpers and are not restored by the app entry. Closed archives do not connect. The screen shows connecting, connected, reconnecting, paused, and invalid-access states.
 
 Accepted position events update the existing segment directly. The client validates coordinates, timestamp, and sequence; orders points by segment sequence; and ignores duplicates. Membership, presence, metadata, and route-close events trigger a coalesced authenticated snapshot refresh. Positions arriving during a refresh are buffered and merged so a slower snapshot cannot erase new locations. A bounded buffer forces resynchronization if overwhelmed. No map remount is needed, so a manual viewport survives updates.
 

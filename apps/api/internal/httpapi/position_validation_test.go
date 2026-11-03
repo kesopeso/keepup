@@ -19,7 +19,7 @@ import (
 func TestGPSRejectionsKeepLiveConnection(t *testing.T) {
 	codes := []string{"accuracy_required", "accuracy_too_low", "timestamp_required", "timestamp_too_old", "timestamp_in_future", "duplicate_timestamp", "out_of_order_timestamp", "impossible_jump"}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := NewHandler(logger, config.AppConfig{}, stubHealthChecker{}, stubRouteService{
+	handler := legacyTestHandler(logger, config.AppConfig{}, stubHealthChecker{}, stubRouteService{
 		authorizeMemberFn: func(context.Context, string) (routes.AuthorizedMember, error) {
 			return routes.AuthorizedMember{Route: routes.Route{ID: "r", Status: routes.RouteStatusActive}, Member: routes.Member{ID: "m", Status: routes.MemberStatusStale}}, nil
 		},
@@ -103,7 +103,7 @@ func TestPositionRejectionLogsExcludeSampleData(t *testing.T) {
 
 func TestRejectedSamplesDoNotRefreshTrackingTimer(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := NewHandler(logger, config.AppConfig{TrackingStaleAfter: 50 * time.Millisecond, TrackingOfflineAfter: time.Hour}, stubHealthChecker{}, stubRouteService{
+	handler := legacyTestHandler(logger, config.AppConfig{TrackingStaleAfter: 50 * time.Millisecond, TrackingOfflineAfter: time.Hour}, stubHealthChecker{}, stubRouteService{
 		authorizeMemberFn: func(context.Context, string) (routes.AuthorizedMember, error) {
 			return routes.AuthorizedMember{Route: routes.Route{ID: "r", Status: routes.RouteStatusActive}, Member: routes.Member{ID: "m", Status: routes.MemberStatusTracking}}, nil
 		},

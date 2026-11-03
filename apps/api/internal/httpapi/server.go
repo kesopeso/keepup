@@ -51,20 +51,6 @@ type Server struct {
 	accountSockets     sync.Map
 }
 
-// ServerOption selects a coordinated API authority mode before serving requests.
-type ServerOption func(*Server)
-
-// WithAccountRoutes replaces the entire legacy route and socket HTTP surface.
-func WithAccountRoutes(service *routes.AccountService, accounts AccountService, cfg config.AuthConfig) ServerOption {
-	return func(s *Server) {
-		s.accountRoutes = service
-		s.accountTransport = &accountHandler{service: accounts, logger: s.logger, cfg: cfg, secure: s.appConfig.Env != "development"}
-		service.ConfigureLive(s.appConfig, func(routeID, kind string, member routes.Member) {
-			s.broadcastLiveEvent(routeID, live.Event{"type": kind, "member": member})
-		}, s.revokeAccountSockets, s.closeAccountSockets)
-	}
-}
-
 // RouteService contains the first route lifecycle operations served over HTTP.
 type RouteService interface {
 	CreateRoute(context.Context, routes.CreateRouteInput) (routes.CreateRouteResult, error)
@@ -83,14 +69,23 @@ type RouteService interface {
 	DeleteRoute(context.Context, string, string) error
 }
 
-// NewHandler builds the KeepUp API HTTP handler tree.
-func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, routeService RouteService, options ...ServerOption) http.Handler {
+// NewHandler builds the account-authorized KeepUp API HTTP handler tree.
+func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, service *routes.AccountService, accounts AccountService, authCfg config.AuthConfig) http.Handler {
+	server := newServer(logger, cfg, db)
+	server.accountRoutes = service
+	server.accountTransport = &accountHandler{service: accounts, logger: logger, cfg: authCfg, secure: cfg.Env != "development"}
+	service.ConfigureLive(server.appConfig, func(routeID, kind string, member routes.Member) {
+		server.broadcastLiveEvent(routeID, live.Event{"type": kind, "member": member})
+	}, server.revokeAccountSockets, server.closeAccountSockets)
+	return server.accountHTTPHandler()
+}
+
+func newServer(logger *slog.Logger, cfg config.AppConfig, db HealthChecker) *Server {
 	server := &Server{
 		appConfig: cfg,
 		db:        db,
 		liveHub:   live.NewHub(),
 		logger:    logger,
-		routes:    routeService,
 	}
 	if server.appConfig.WebSocketAuthTimeout <= 0 {
 		server.appConfig.WebSocketAuthTimeout = defaultWebSocketAuthTimeout
@@ -101,27 +96,7 @@ func NewHandler(logger *slog.Logger, cfg config.AppConfig, db HealthChecker, rou
 	if server.appConfig.WebSocketPingTimeout <= 0 {
 		server.appConfig.WebSocketPingTimeout = defaultWebSocketPingTimeout
 	}
-	for _, option := range options {
-		option(server)
-	}
-	if server.accountRoutes != nil {
-		return server.accountHTTPHandler()
-	}
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", server.handleRoot)
-	mux.HandleFunc("/livez", server.handleLiveness)
-	mux.HandleFunc("/healthz", server.handleHealth)
-	mux.HandleFunc("POST /routes", server.handleCreateRoute)
-	mux.HandleFunc("GET /routes/{code}/access", server.handleRouteAccess)
-	mux.HandleFunc("POST /routes/{code}/members", server.handleCreateRouteMember)
-	mux.HandleFunc("GET /routes/{code}", server.handleRoute)
-	mux.HandleFunc("PATCH /routes/{code}", server.handleUpdateRoute)
-	mux.HandleFunc("DELETE /routes/{code}", server.handleDeleteRoute)
-	mux.HandleFunc("DELETE /routes/{code}/members/me", server.handleLeaveRoute)
-	mux.HandleFunc("GET /ws", server.handleWebSocket)
-
-	return server.withCORS(server.withLogging(mux))
+	return server
 }
 
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {

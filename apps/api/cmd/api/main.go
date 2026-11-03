@@ -36,59 +36,54 @@ func main() {
 	}
 	defer dbPool.Close()
 
-	routeService := routes.NewService(routes.NewPostgresRepository(dbPool), cfg.Routes.DefaultMaxTrackingMembers, cfg.Routes.PositionValidation)
-	handler := httpapi.NewHandler(logger, cfg.App, dbPool, routeService)
-	if cfg.Auth.Enabled {
-		accountRoutes, routeErr := routes.NewAccountService(dbPool, cfg.Routes.DefaultMaxTrackingMembers, cfg.Routes.PositionValidation, cfg.Auth.Policy.SessionIdle, cfg.Auth.SocketTicketTTL, cfg.Auth.Recovery.Policy.Retention, cfg.Auth.Recovery.EncryptionKey)
-		if routeErr != nil {
-			logger.Error("initialize account route service")
-			os.Exit(1)
-		}
-		var options []auth.ServiceOption
-		options = append(options, auth.WithCleanup(accountRoutes.CleanupTickets), auth.WithSessionRevoker(accountRoutes))
-		if len(cfg.Auth.Google.WebClientIDs)+len(cfg.Auth.Google.NativeClientIDs) > 0 {
-			presenters := append(append([]string(nil), cfg.Auth.Google.WebClientIDs...), cfg.Auth.Google.NativeClientIDs...)
-			options = append(options, auth.WithGoogle(cfg.Auth.Google, auth.NewGoogleVerifier(ctx, cfg.Auth.Google.RequestTimeout, presenters)))
-		}
-		accountService, initErr := auth.NewService(auth.NewPostgresRepository(dbPool), cfg.Auth.Policy, cfg.Auth.Recovery, options...)
-		if initErr != nil {
-			logger.Error("initialize account service")
-			os.Exit(1)
-		}
-		var sender maildelivery.Sender
-		switch cfg.Auth.MailProvider {
-		case "smtp":
-			smtpSender, smtpErr := maildelivery.NewSMTP(cfg.Auth.SMTP)
-			if smtpErr != nil {
-				logger.Error("initialize SMTP provider")
-				os.Exit(1)
-			}
-			sender = smtpSender
-		case "log":
-			sender = maildelivery.NewLog(logger)
-		case "fake":
-			sender = &maildelivery.Fake{}
-		default:
-			logger.Error("unsupported account mail provider")
-			os.Exit(1)
-		}
-		mailCtx, cancelMail := context.WithCancel(ctx)
-		mailDone := make(chan struct{})
-		go func() { defer close(mailDone); accountService.RunMail(mailCtx, sender, logger) }()
-		defer func() { cancelMail(); <-mailDone }()
-		mux := http.NewServeMux()
-		mux.Handle("/auth/", httpapi.NewAccountHandler(logger, cfg.Auth, cfg.App.Env, accountService))
-		mux.Handle("/", httpapi.NewHandler(logger, cfg.App, dbPool, routeService, httpapi.WithAccountRoutes(accountRoutes, accountService, cfg.Auth)))
-		handler = mux
-		stopLive, liveErr := accountRoutes.StartLive(ctx, logger, stop)
-		if liveErr != nil {
-			logger.Error("initialize account live runtime", "error", liveErr)
-			os.Exit(1)
-		}
-		defer stopLive()
+	accountRoutes, routeErr := routes.NewAccountService(dbPool, cfg.Routes.DefaultMaxTrackingMembers, cfg.Routes.PositionValidation, cfg.Auth.Policy.SessionIdle, cfg.Auth.SocketTicketTTL, cfg.Auth.Recovery.Policy.Retention, cfg.Auth.Recovery.EncryptionKey)
+	if routeErr != nil {
+		logger.Error("initialize account route service")
+		os.Exit(1)
 	}
+	var options []auth.ServiceOption
+	options = append(options, auth.WithCleanup(accountRoutes.CleanupTickets), auth.WithSessionRevoker(accountRoutes))
+	if len(cfg.Auth.Google.WebClientIDs)+len(cfg.Auth.Google.NativeClientIDs) > 0 {
+		presenters := append(append([]string(nil), cfg.Auth.Google.WebClientIDs...), cfg.Auth.Google.NativeClientIDs...)
+		options = append(options, auth.WithGoogle(cfg.Auth.Google, auth.NewGoogleVerifier(ctx, cfg.Auth.Google.RequestTimeout, presenters)))
+	}
+	accountService, initErr := auth.NewService(auth.NewPostgresRepository(dbPool), cfg.Auth.Policy, cfg.Auth.Recovery, options...)
+	if initErr != nil {
+		logger.Error("initialize account service")
+		os.Exit(1)
+	}
+	var sender maildelivery.Sender
+	switch cfg.Auth.MailProvider {
+	case "smtp":
+		smtpSender, smtpErr := maildelivery.NewSMTP(cfg.Auth.SMTP)
+		if smtpErr != nil {
+			logger.Error("initialize SMTP provider")
+			os.Exit(1)
+		}
+		sender = smtpSender
+	case "log":
+		sender = maildelivery.NewLog(logger)
+	case "fake":
+		sender = &maildelivery.Fake{}
+	default:
+		logger.Error("unsupported account mail provider")
+		os.Exit(1)
+	}
+	mailCtx, cancelMail := context.WithCancel(ctx)
+	mailDone := make(chan struct{})
+	go func() { defer close(mailDone); accountService.RunMail(mailCtx, sender, logger) }()
+	defer func() { cancelMail(); <-mailDone }()
+	mux := http.NewServeMux()
+	mux.Handle("/auth/", httpapi.NewAccountHandler(logger, cfg.Auth, cfg.App.Env, accountService))
+	mux.Handle("/", httpapi.NewHandler(logger, cfg.App, dbPool, accountRoutes, accountService, cfg.Auth))
+	stopLive, liveErr := accountRoutes.StartLive(ctx, logger, stop)
+	if liveErr != nil {
+		logger.Error("initialize account live runtime", "error", liveErr)
+		os.Exit(1)
+	}
+	defer stopLive()
 
-	if err := httpapi.Serve(ctx, logger, cfg.App, handler); err != nil && !errors.Is(err, context.Canceled) {
+	if err := httpapi.Serve(ctx, logger, cfg.App, mux); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("serve api", "error", err)
 		os.Exit(1)
 	}

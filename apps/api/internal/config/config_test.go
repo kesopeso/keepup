@@ -15,6 +15,7 @@ func TestLoad(t *testing.T) {
 			t.Setenv(key, "")
 		}
 	}
+	setAccountEnvironment(t)
 	testCases := []struct {
 		name                          string
 		env                           map[string]string
@@ -160,6 +161,7 @@ func TestLoad(t *testing.T) {
 }
 
 func TestGPSConfig(t *testing.T) {
+	setAccountEnvironment(t)
 	tests := []struct {
 		key, value string
 		invalid    bool

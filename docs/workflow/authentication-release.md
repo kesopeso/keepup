@@ -9,11 +9,11 @@ Account configuration and acceptance procedure. [Task status](../planning/authen
 
 ## Local account configuration
 
-Copy the root [environment example](../../.env.example) to `.env` if no local file exists. Preserve existing values. Set `AUTH_ENABLED=true`, exact browser origins in `AUTH_ALLOWED_ORIGINS`, and the browser origin in `AUTH_PUBLIC_URL`. Generate `AUTH_OUTBOX_KEY` with `openssl rand -base64 32`, store it privately and keep it stable. Use `EMAIL_PROVIDER=log` for the selected local acceptance mode. No SMTP configuration is needed. [Email configuration](authentication-email.md) owns queue behavior and settings.
+Copy the root [environment example](../../.env.example) to `.env` if no local file exists. Preserve existing values. Set exact browser origins in `AUTH_ALLOWED_ORIGINS`, and the browser origin in `AUTH_PUBLIC_URL`. Generate `AUTH_OUTBOX_KEY` with `openssl rand -base64 32`, store it privately and keep it stable. Use `EMAIL_PROVIDER=log` for the selected local acceptance mode. No SMTP configuration is needed. [Email configuration](authentication-email.md) owns queue behavior and settings.
 
 Compose forwards these account settings, session idle duration, trusted proxy CIDRs, SMTP settings and Google public client IDs into their owning API/web services. Other optional settings still require a Compose override. An empty Google configuration leaves password authentication available. Root `.env` does not configure Expo; use the separate [mobile environment example](../../apps/mobile/.env.example).
 
-Before starting account mode, apply migrations through 0007 manually to the intended database. For acceptance, use an isolated Compose project and a disposable database, with separate proxy ports and no existing database-volume mounts. Do not point acceptance/reset commands at application or production data. The API never migrates automatically. Recreate services after environment changes; `restart` alone does not apply new container environment values.
+Before starting the API, apply migrations through 0007 manually to the intended database. For acceptance, use an isolated Compose project and a disposable database, with separate proxy ports and no existing database-volume mounts. Do not point acceptance/reset commands at application or production data. The API never migrates automatically. Recreate services after environment changes; `restart` alone does not apply new container environment values.
 
 For persistent local testing on `http://localhost:3000`, the optional [account Compose override](../../docker-compose.auth.yml) replaces the PostgreSQL mount with a separate `r1_postgres_data` volume and removes its published database port. Select it in the private root `.env` before starting services:
 
@@ -21,7 +21,7 @@ For persistent local testing on `http://localhost:3000`, the optional [account C
 COMPOSE_FILE=docker-compose.yml:docker-compose.auth.yml
 ```
 
-Then run `docker compose up -d postgres`, `./bin/migrate.sh up`, and `docker compose up -d api web proxy` in that order. The override does not enable authentication itself; the account settings above still apply. It preserves the legacy `postgres_data` volume. Existing credentials and routes in the selected account database persist across ordinary restarts. To switch back, stop this stack first, remove `COMPOSE_FILE` from `.env`, disable account mode in the API/mobile environments, and recreate the original services. Do not use volume deletion as a switching step.
+Then run `docker compose up -d postgres`, `./bin/migrate.sh up`, and `docker compose up -d api web proxy` in that order. The required account settings above still apply. It preserves the legacy `postgres_data` volume. Existing credentials and routes in the selected account database persist across ordinary restarts. To switch back, stop this stack first, remove `COMPOSE_FILE` from `.env`, apply migrations through 0007 to that database and recreate the original services. Accounts remain required. Do not use volume deletion as a switching step.
 
 Use mobile API base `http://10.0.2.2:3000/api` for the standard Android emulator. Keep its Google server client ID equal to the web client ID; the native API allowlist includes that audience and the Android client ID. Native link parsing can use the intended HTTPS deployment origin while REST uses local development HTTP, but the local association endpoint cannot establish association with the HTTPS production domain. Metro uses the separate mobile environment file. Existing local mobile settings can be backed up privately before changing it.
 
@@ -33,7 +33,7 @@ Set the web ID as `AUTH_GOOGLE_WEB_CLIENT_ID` for Next.js and include it in API 
 
 ## HTTPS links and signing
 
-Choose the owned HTTPS test origin before configuring Android links. Set API `AUTH_PUBLIC_URL` and the exact browser allowlist, then mobile `EXPO_PUBLIC_AUTH_LINK_ORIGIN` and its reachable `EXPO_PUBLIC_API_URL`. Release native sessions require HTTPS. Set `EXPO_PUBLIC_AUTH_ENABLED=true` only against that account-enabled backend.
+Choose the owned HTTPS test origin before configuring Android links. Set API `AUTH_PUBLIC_URL` and the exact browser allowlist, then mobile `EXPO_PUBLIC_AUTH_LINK_ORIGIN` and its reachable `EXPO_PUBLIC_API_URL`. Release native sessions require HTTPS.
 
 Next.js serves `/.well-known/assetlinks.json` dynamically. Set `ANDROID_APP_LINK_SHA256_FINGERPRINTS` on the web server to comma-separated, colon-delimited SHA-256 fingerprints of the APK signing certificates approved for this domain. Empty configuration returns `[]` and grants no association; malformed fingerprints return 503. Only package `eu.kesopeso.keepup` is granted link handling. Use the actual installed app signer, including the Play App Signing certificate for Play-distributed APKs. See [Android website associations](https://developer.android.com/training/app-links/configure-assetlinks).
 
@@ -41,11 +41,10 @@ Rebuild Android after changing its link origin, then verify domain association a
 
 ## Standalone Android acceptance build
 
-The [outdoor build](mobile-development.md#standalone-android-release-build-for-outdoor-testing) does not explicitly enable account mode. For R1, replace the example HTTPS origin and Google web/server client ID below with the configured test deployment values. The same environment must reach both Expo native generation and JavaScript bundling. `EXPO_NO_DOTENV=1` excludes local development overrides; rerunning Gradle tasks avoids reusing a bundle built with earlier public settings.
+Every build opens the account application. For R1, replace the example HTTPS origin and Google web/server client ID below with the configured test deployment values. The same environment must reach both Expo native generation and JavaScript bundling. `EXPO_NO_DOTENV=1` excludes local development overrides; rerunning Gradle tasks avoids reusing a bundle built with earlier public settings.
 
 ```sh
 docker compose run --rm --no-deps \
-  -e EXPO_PUBLIC_AUTH_ENABLED=true \
   -e EXPO_PUBLIC_API_URL=https://YOUR_TEST_HOST/api \
   -e EXPO_PUBLIC_AUTH_LINK_ORIGIN=https://YOUR_TEST_HOST \
   -e EXPO_PUBLIC_GOOGLE_SERVER_CLIENT_ID=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com \

@@ -13,9 +13,8 @@ import (
 	"keepup/apps/api/internal/maildelivery"
 )
 
-// AuthConfig gates the staged account API; route integration is delivered separately.
+// AuthConfig configures account authentication and route authority.
 type AuthConfig struct {
-	Enabled         bool
 	Origins         []string
 	Policy          auth.Policy
 	Recovery        auth.RecoveryConfig
@@ -28,13 +27,6 @@ type AuthConfig struct {
 
 func loadAuth(env string) (AuthConfig, error) {
 	cfg := AuthConfig{Policy: auth.DefaultPolicy()}
-	if value := os.Getenv("AUTH_ENABLED"); value != "" {
-		enabled, err := strconv.ParseBool(value)
-		if err != nil {
-			return cfg, fmt.Errorf("AUTH_ENABLED must be a boolean")
-		}
-		cfg.Enabled = enabled
-	}
 	var err error
 	if cfg.Policy.SessionIdle, err = durationOrDefault("AUTH_SESSION_IDLE", cfg.Policy.SessionIdle); err != nil {
 		return cfg, err
@@ -69,8 +61,8 @@ func loadAuth(env string) (AuthConfig, error) {
 		}
 		cfg.Origins = append(cfg.Origins, raw)
 	}
-	if cfg.Enabled && len(cfg.Origins) == 0 {
-		return cfg, fmt.Errorf("AUTH_ALLOWED_ORIGINS is required when AUTH_ENABLED is true")
+	if len(cfg.Origins) == 0 {
+		return cfg, fmt.Errorf("AUTH_ALLOWED_ORIGINS is required")
 	}
 	if err := loadRecovery(&cfg, env); err != nil {
 		return cfg, err

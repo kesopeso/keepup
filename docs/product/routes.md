@@ -5,7 +5,7 @@ status: specified
 
 # Routes and membership
 
-The sections below describe legacy behavior with `AUTH_ENABLED=false`. Account-mode identity and route rules belong to the [authentication PRD](authentication-prd.md); B5 implements backend route authorization, membership history and My routes in the [account contract](../system/authentication-contract.md#account-route-api). Account mode requires verified accounts and derives display names/ownership from them; it does not issue per-route credentials. Legacy mode cannot join/access account-owned routes. B6 implements multiple viewers and exclusive sharing; W2/A2 integrate web and Android. Release acceptance and rollout remain pending.
+Route access requires a verified account on both web and Android. The [authentication PRD](authentication-prd.md) owns account identity and the [account contract](../system/authentication-contract.md#account-route-api) owns REST/live authority. Display names and ownership derive from the account; no per-route credentials are issued or restored.
 
 ## Product Summary
 
@@ -13,56 +13,40 @@ KeepUp is a mobile-first live route-sharing application with web and Android cli
 
 ## Route Access
 
-- Routes are accessible only by share link/code
-- Route code is human-friendly, uppercase, case-insensitive
-- Route names are required and not unique
-- Route descriptions are optional
-- Routes may be:
-  - open by link/code
-  - password-protected
-- Password is required only to gain membership
-- Returning browsers with valid member tokens do not re-enter the password
-- Closed routes remain accessible by link/code and password if protected
-- Creating a route collects the owner's display name and transport mode
-- Successful route creation stores member and owner tokens for that route in the browser
-- Successful route creation takes the owner to the route page for the new route code
-- Opening a route page without saved member access fetches access metadata and shows the join flow
-- Joining a route collects display name, transport mode, and password when required
-- Successful join stores the member token for that route in the browser
-- Opening a route page with saved member access fetches the authenticated route snapshot
-- Expired or invalid saved member access is cleared and the browser returns to the join flow
+- Share links and case-insensitive uppercase codes open a route after sign-in and verification.
+- My routes lists owned, current and former memberships across devices.
+- Route names are required and need not be unique; descriptions are optional.
+- Routes may be open by code or protected by a password.
+- Current account memberships restore without repeating the password or transport selection.
+- New memberships and explicit rejoin require transport mode and the route password when protected.
+- Closed archives permit explicit rejoin and remain read-only.
+- Creating a route or joining uses the immutable account username, never a device alias.
+- Protected content checks server authority before displaying route history; cached summaries and old route tokens grant no access.
 
-API contracts: [REST and live protocol](../system/api-and-live.md).
+API contracts: [account REST and live protocol](../system/authentication-contract.md).
 
 ## Membership and Identity
 
-- Users are anonymous for MVP
-- Browser stores:
-  - `clientId`
-  - `displayName`
-  - preferred `transportMode`
-  - per-route member/owner tokens
-- Alias must be unique within a route
-- Membership is browser/device-specific
-- Every viewer becomes a route member, including spectators
-- Members can leave the route
-- Leaving preserves history and keeps the member visible as `Left`
-- `Left` is terminal for that membership, revokes the member token, and does not block alias reuse
-- Active-route owners cannot leave; they can stop sharing, close the route, or delete the route
+- Membership and ownership belong to the account and restore across clients.
+- Every viewer has a current membership, including spectators.
+- Members may leave; history remains associated with that membership episode.
+- Rejoining creates a new episode while preserving prior paths.
+- Active-route owners cannot leave; they may stop sharing, close or delete the route.
+- Multiple viewers may watch concurrently; one connection may share per account/route.
 
 ## Owner Rules
 
 - Owner is a role, not an automatically tracked participant
 - Owner may spectate or track
 - Owner cannot leave an active route in the MVP; they can close or delete it
-- Owner authority persists via owner token
+- Owner authority persists through the account
 - Owner can:
   - edit route name/description
   - close route
   - delete route
 - Closing requires confirmation explaining the permanent archive transition
 - Deleting requires typing the exact route code
-- Successful deletion clears route-scoped browser credentials and returns the deleting owner to the create screen
+- Successful deletion returns the owner to My routes and removes the route from account lists
 - Closed routes cannot be reopened
 
 ## Sharing Policies

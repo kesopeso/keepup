@@ -175,9 +175,8 @@ The tests use the container's Node 24 built-in runner and TypeScript support, wi
 
 ### Account authentication review
 
-A1/A2 account mode is opt-in. Keep `EXPO_PUBLIC_AUTH_ENABLED=false` for the existing legacy backend. Against a separately configured account-enabled backend, copy the [example](../../apps/mobile/.env.example) to `apps/mobile/.env.local` and set:
+The app always requires an account backend. Copy the [example](../../apps/mobile/.env.example) to `apps/mobile/.env.local` and set:
 
-- `EXPO_PUBLIC_AUTH_ENABLED=true`.
 - `EXPO_PUBLIC_API_URL` to that backend's REST base. Release account sessions require HTTPS.
 - `EXPO_PUBLIC_AUTH_LINK_ORIGIN` to the approved HTTPS origin without a path or port.
 - `EXPO_PUBLIC_GOOGLE_SERVER_CLIENT_ID` to the public web/server OAuth client ID used as the native ID-token audience. Include the same ID in the API's `AUTH_GOOGLE_NATIVE_CLIENT_IDS`.

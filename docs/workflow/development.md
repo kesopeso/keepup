@@ -12,11 +12,16 @@ All application tooling runs through Docker Compose. Do not run host pnpm, npm, 
 Clone the repository, install Docker Engine with the Compose plugin, and run these commands from the repository root. Docker supplies the web and API toolchains. Android Studio is only needed for mobile work.
 
 ```sh
+cp .env.example .env
+# Generate a key, then paste it into AUTH_OUTBOX_KEY in .env.
+openssl rand -base64 32
 make doctor
 make setup
 ```
 
-`make doctor` checks Docker access and the Compose configuration. `make setup` starts the proxy, web app, API, and PostGIS, then applies migrations through the existing manual migration helper. Open `http://localhost:3000`; the KeepUp landing page should load, with route creation at `/routes/new` and joining by route code. Check `http://localhost:3000/api/healthz` for an API response with `status: "ok"`. The first run builds images and downloads dependencies, so it takes longer than later starts. The local Compose database credentials are already configured; no `.env` file is required for this path.
+For an existing checkout, preserve the current `.env` and its outbox key instead of copying the example again. Accounts are always required. The example supplies localhost origins and log email delivery; set a persistent `AUTH_OUTBOX_KEY` before starting.
+
+`make doctor` checks Docker access and the Compose configuration. `make setup` starts PostGIS, applies migrations through the existing manual migration helper, then starts the API, web and proxy. The API itself never runs migrations. Open `http://localhost:3000`; the KeepUp landing page should load, with route creation at `/routes/new` and joining by route code. Check `http://localhost:3000/api/healthz` for an API response with `status: "ok"`. The first run builds images and downloads dependencies, so it takes longer than later starts. The local Compose database credentials are already configured. Authentication uses the private settings prepared above.
 
 For Android, continue with [first-time Android setup](mobile-development.md#first-time-android-setup). Developers working only on the web or API can stop here.
 
@@ -26,7 +31,7 @@ Start the existing stack with `docker compose up -d`, then open `http://localhos
 
 ## Web access from another device
 
-Localhost development needs no environment file. To open the web app from another device using your computer's LAN address or a custom hostname, copy the [development environment example](../../apps/web/.env.development.local.example) from the repository root:
+The root `.env` supplies mandatory account settings for localhost development. For a different browser origin, also update API `AUTH_ALLOWED_ORIGINS` and `AUTH_PUBLIC_URL` there and recreate the API container. To open the web app from another device using your computer's LAN address or a custom hostname, copy the [development environment example](../../apps/web/.env.development.local.example) from the repository root:
 
 ```sh
 cp apps/web/.env.development.local.example apps/web/.env.development.local
@@ -69,25 +74,24 @@ On a new Linux `x86_64` computer, use a fresh clone and follow [first-time setup
 
 ## Staged account API
 
-Development Compose forwards account enablement, public URL/origins, outbox key, session idle duration, proxy trust, Google client IDs, email provider and SMTP settings from the root `.env` or shell. The [environment example](../../.env.example) keeps authentication disabled by default. Follow [R1 configuration and acceptance](authentication-release.md) for opt-in setup, Android association fingerprints and remaining provider/device gates. Recreate containers after changing environment values.
+Development Compose forwards public URL/origins, outbox key, session idle duration, proxy trust, Google client IDs, email provider and SMTP settings from the root `.env` or shell. The [environment example](../../.env.example) supplies localhost origins and log email delivery; generate the persistent outbox key before startup. [Account configuration and acceptance](authentication-release.md) owns Google and Android association settings. Recreate containers after changing environment values.
 
 The optional [account database override](../../docker-compose.auth.yml), selected through `COMPOSE_FILE` in `.env`, gives local account acceptance a separate PostgreSQL volume. Setup and switching instructions belong to [local account configuration](authentication-release.md#local-account-configuration).
 
-Password/session, verification/recovery, Google and account route APIs are implemented behind a disabled-by-default flag. Enabling it now replaces route REST/socket authentication and exposes My routes, including multiple viewers, exclusive sharing generations and immediate revocation cleanup. W1/W2 implement web account forms/settings, My routes and account route integration. Native integration remains A1/A2 before account-mode use on Android. See the [contract](../system/authentication-contract.md) and [task handoff](../planning/authentication-tasks.md). Do not use enablement as the production authentication rollout.
+Password/session, verification/recovery and account route APIs are always mounted. Web and Android require accounts. Route REST/socket authentication uses verified sessions, multiple viewers, exclusive sharing generations and immediate revocation cleanup. Google stays optional through audience configuration. See the [contract](../system/authentication-contract.md).
 
-Apply migrations through 0007 manually to the intended development database before enabling the API. They add account/session/counter, recovery/outbox, Google flow/identity, account route/ticket tables and live connections/leases without resetting route data. Implementation checks use disposable schemas. The API never applies migrations on startup. Legacy-only routes are hidden in account mode; legacy mode cannot access/join account-owned routes. Migration 0006's down script refuses to remove account authority while account-owned route data exists, so rollback needs an explicit data/maintenance plan. Enablement also requires the secrets, public link origin and provider settings in [authentication email configuration](authentication-email.md). Google is optional and requires the audience allowlists in [Google configuration](authentication-google.md); password authentication can run without Google configured.
+Apply migrations through 0007 manually before starting the API. They add account/session/counter, recovery/outbox, Google flow/identity, account route/ticket tables and live connections/leases without resetting route data. Tests use disposable schemas. Legacy-only routes are hidden and old route tokens grant no access. Migration 0006 rollback refuses to remove account authority while account-owned route data exists. Required settings are in [authentication email configuration](authentication-email.md); optional Google audiences are in [Google configuration](authentication-google.md).
 
 | Environment variable | Default | Validation / use |
 |---|---|---|
-| `AUTH_ENABLED` | `false` | Mount `/auth/` and replace route/socket authority with verified account sessions |
-| `AUTH_ALLOWED_ORIGINS` | empty | Required when enabled; comma-separated exact origins, e.g. `http://localhost:3000` in development; HTTPS outside development |
+| `AUTH_ALLOWED_ORIGINS` | empty | Required; comma-separated exact origins, e.g. `http://localhost:3000` in development; HTTPS outside development |
 | `AUTH_SESSION_IDLE` | `720h` | Positive Go duration; idle session lifetime |
 | `AUTH_ATTEMPT_WINDOW` | `15m` | Positive Go duration for shared fixed-window limits |
 | `AUTH_LOGIN_ATTEMPTS` | `20` | 1–10000 attempts per identifier and peer address per window |
 | `AUTH_SIGNUP_ATTEMPTS` | `5` | 1–10000 attempts per peer address per window |
 | `AUTH_SOCKET_TICKET_TTL` | `30s` | Positive duration for single-use route/session/membership socket bootstrap tickets |
 
-Run account checks using the existing race-enabled API command and `TEST_DATABASE_URL` below. Account credential tests use migrations 0003–0005; route/HTTP/socket tests apply all migrations through 0007 in isolated schemas. Local SMTP tests use disposable TLS servers; Google verification tests use locally signed proofs and a local key endpoint. They do not send external email or contact Google. Browser mutations require the configured Origin, JSON content type and `X-KeepUp-Request: 1`; native requests use `X-KeepUp-Client: native` with no browser cookies/Origin. Account WebSocket upgrades require a trusted browser Origin or the native marker, no Authorization/query credentials, and a ticket in the first frame. Forwarded source addresses require explicitly configured trusted proxy CIDRs. Cleanup and mail delivery run with the enabled API worker, including expired socket tickets. A separate live worker applies sharing deadlines. Startup recovers abandoned account live state before serving and holds a database/schema advisory lock; a second account-mode API process fails startup while the hub remains process-local. Stop the API before rolling back migration 0007. Cursor signing uses a key derived from `AUTH_OUTBOX_KEY`; key rotation restarts pagination. Actual deployment CIDRs, credentials and real Google/email smoke checks remain R1.
+Run account checks using the existing race-enabled API command and `TEST_DATABASE_URL` below. Account credential tests use migrations 0003–0005; route/HTTP/socket tests apply all migrations through 0007 in isolated schemas. Local SMTP tests use disposable TLS servers; Google verification tests use locally signed proofs and a local key endpoint. They do not send external email or contact Google. Browser mutations require the configured Origin, JSON content type and `X-KeepUp-Request: 1`; native requests use `X-KeepUp-Client: native` with no browser cookies/Origin. Account WebSocket upgrades require a trusted browser Origin or the native marker, no Authorization/query credentials, and a ticket in the first frame. Forwarded source addresses require explicitly configured trusted proxy CIDRs. Cleanup and mail delivery run with the API worker, including expired socket tickets. A separate live worker applies sharing deadlines. Startup recovers abandoned account live state before serving and holds a database/schema advisory lock; a second API process fails startup while the hub remains process-local. Stop the API before rolling back migration 0007. Cursor signing uses a key derived from `AUTH_OUTBOX_KEY`; key rotation restarts pagination. Actual deployment CIDRs, credentials and real Google/email smoke checks remain R1.
 
 ## GPS validation
 

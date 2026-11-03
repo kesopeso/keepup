@@ -1,11 +1,11 @@
 ---
 type: plan
-status: planned
+status: active
 ---
 
 # Remove the authentication feature flags
 
-Local issue. Priority: next implementation task. Application changes have not started.
+Local issue. State: complete. Account authentication is unconditional across API, web and Android.
 
 ## Purpose
 
@@ -39,4 +39,4 @@ Update [account setup and release instructions](../workflow/authentication-relea
 
 ## Validation
 
-Issue scope was checked against current startup, configuration and client authority selection. This is planned work, not an implementation or a new test result. The earlier [R2 decision](authentication-tasks.md#r2-fresh-start-rollout-and-documentation) remains discarded; this issue is a separate code cleanup task.
+The API constructor requires account services and only mounts account transports. Legacy HTTP routing is restricted to a test fixture so shared protocol and recovery regression coverage remains intact. Android always launches AccountApp; web never mounts anonymous route content after an unavailable authentication response. Setup applies migrations before starting the API. Validation is recorded in [dated evidence](validation-history.md#authentication-flag-removal-on-2026-11-03). The earlier [R2 decision](authentication-tasks.md#r2-fresh-start-rollout-and-documentation) remains discarded; this issue is a separate code cleanup task.

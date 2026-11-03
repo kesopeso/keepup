@@ -249,3 +249,19 @@ A2 implements native My routes and account route/live integration. Checks used D
 - Restoring the disposable API recovered list loading. Signing out and switching to the other synthetic account cleared the previous account's loaded pages/scroll and restored default filters; that account saw its own empty Active list. Native creation opened the new owner route as a viewer; confirming Close returned to a revalidated list and the archive opened read-only. Confirming Delete removed that archive and returned to the list.
 
 The native list layout was inspected on the emulator. Real Google/email, verified production app-link dispatch, password-manager fill, larger-text and physical-device account-mode power/network behavior remain R1. Earlier outdoor legacy tracking evidence does not establish account-mode device reliability. Application graph freshness, local documentation links and whitespace checks accompany this change.
+
+## Authentication flag removal on 2026-11-03
+
+The [local issue](remove-auth-feature-flag.md) is implemented. The API always initializes account authentication, route authority and workers; its public handler constructor requires account services. Legacy HTTP routing exists only in a test fixture, retaining shared protocol/recovery regression coverage. Android always launches AccountApp and no longer has the anonymous app entry. Web route gates require verified account sessions and never fall back to anonymous identity when authentication is unavailable.
+
+Docker checks passed:
+
+- `go test -race ./...` with `TEST_DATABASE_URL`, including isolated PostGIS/account HTTP/socket schemas through migration 0007. Configuration cases cover absent/obsolete false/true/invalid flag values and missing mandatory account settings.
+- `go vet ./...` and `golangci-lint run`, with zero lint issues.
+- All 30 web tests and the Next.js production build/typecheck.
+- All 114 mobile tests and TypeScript typecheck.
+- ARM64 `assembleRelease` with staging HTTPS API, link origin and the configured public Google audience, with dotenv loading disabled and no authentication enablement flag. APK SHA-256: `3ebd2b964e45c9e9b24ec30e357f008a03348a3e14cb556c4540c5ff9873d8c8`. The generated release variant retains the existing test signing setup.
+
+The local API was recreated without the removed flag. Browser checks confirmed signed-out route creation redirects to sign-in with the destination retained. A browser-only 404 fixture for `/api/auth/me`, with obsolete route credentials in local storage, rendered a retryable authentication error and no route form. Try again returned to the real API's sign-in flow. No test account or route was created. Browser sessions and the testing container were closed.
+
+Setup now prepares Postgres and applies migrations before starting the API; `make -n setup` confirmed command order. A fresh-machine setup, new physical-phone run, real Google/email acceptance and staging deployment/reset were not performed for this cleanup. Prior R1 acceptance remains separate evidence. Documentation links, diff whitespace and the refreshed application graph are checked before completion.

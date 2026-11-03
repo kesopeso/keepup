@@ -33,7 +33,7 @@ For web development from another device, follow [web access from another device]
 
 - Route snapshot from REST
 - Live events from WebSocket
-- Local browser identity and per-route tokens from local storage
+- Account sessions in HttpOnly cookies; credential-free list state in session storage
 - Map adapter separated from tile provider config
 
 ### Account authentication
@@ -44,7 +44,7 @@ W1 supplies public `/auth/login`, `/auth/signup`, `/auth/verify`, `/auth/forgot-
 
 The [account API client](../../apps/web/lib/auth-api.ts) uses same-origin cookies, no-store requests, JSON and the CSRF header. JavaScript never stores session credentials. Requests serialize cookie rotation with account reads, using Web Locks across tabs when available and a local queue otherwise. The [session store](../../apps/web/lib/account-session.ts) rechecks authority on focus, online, visibility and cross-tab notifications, and every five seconds while visible. Notifications contain no account data or credentials. Stale lookups cannot restore a locally logged-out account. `/account` requires a verified session; pending sessions go to verification.
 
-The [destination helper](../../apps/web/lib/auth-destination.ts) accepts only `/my-routes`, `/account`, `/routes/new`, or a six-character route-code path. A `next` parameter and a credential-free local record retain the destination across authentication and restarts, with a 24-hour record lifetime. Invitation access is checked again before returning; unavailable routes offer My routes. W2 supplies `/my-routes` and account route access. The route gate identifies account mode through `/auth/me`; only an explicit disabled-account response permits legacy identity. Missing or pending sessions return through authentication with the protected destination retained.
+The [destination helper](../../apps/web/lib/auth-destination.ts) accepts only `/my-routes`, `/account`, `/routes/new`, or a six-character route-code path. A `next` parameter and a credential-free local record retain the destination across authentication and restarts, with a 24-hour record lifetime. Invitation access is checked again before returning; unavailable routes offer My routes. W2 supplies `/my-routes` and account route access. The route gate requires `/auth/me` to confirm a verified account before mounting protected content. Missing authentication endpoints or server/network failures show a retryable error and never permit anonymous access. Missing or pending sessions return through authentication with the protected destination retained.
 
 Email links capture fragment tokens into component memory and immediately remove the fragment. Explicit POST confirmation consumes verification links; GET never activates an account. Reloading a token page requires reopening the email link. No analytics or Google SDK loads on link pages, and account pages use a no-referrer policy. Verification elsewhere activates the original pending session without signing in the link-opening browser. Reset success returns to login and clears the local session.
 
@@ -58,7 +58,7 @@ The [dashboard](../../apps/web/app/my-routes/page.tsx) follows the reviewed [My 
 
 The dashboard has explicit loading, no-routes, no-matches, no-selected-filters, offline and retry states. The account menu links settings and logout; creation and route-code joining remain explicit actions. Every row, including left and archived routes, uses the same [share helper](../../apps/web/lib/route-share.ts) as the route screen, with native sharing, silent cancellation, clipboard feedback and manual fallback. No session credential or route password enters the shared URL. Dashboard pages exclude indexing and use no-referrer metadata.
 
-The [route gate](../../apps/web/app/components/route-account.tsx) and [route API client](../../apps/web/lib/routes-api.ts) restore account membership and owner authority through cookies. Account create/join omit legacy identifiers and tokens, and show the immutable account username. Current memberships open without repeated join/password entry; former memberships, including closed archives and former owners, go through the server access and rejoin gate. Account route details expose explicit membership leave when permitted. Snapshot, ticket and mutation requests share the account HTTP rotation lock and CSRF transport. The disabled-by-default legacy mode retains its separate existing identity flow.
+The [route gate](../../apps/web/app/components/route-account.tsx) and [route API client](../../apps/web/lib/routes-api.ts) restore account membership and owner authority through cookies. Account create/join omit legacy identifiers and tokens, and show the immutable account username. Current memberships open without repeated join/password entry; former memberships, including closed archives and former owners, go through the server access and rejoin gate. Account route details expose explicit membership leave when permitted. Snapshot, ticket and mutation requests share the account HTTP rotation lock and CSRF transport. Create/join never restore legacy route credentials. Shared legacy transport helpers remain for regression coverage.
 
 Account live bootstrap fetches a fresh one-use ticket before opening each socket. Multiple viewers remain connected; only the sender acknowledged with a sharing generation captures GPS or submits generation-bearing positions/stops. Connection-specific `viewer_updated` capabilities override room membership status. Other viewers show the other-device restriction; reconnect discards sender authority and remains a viewer until explicit Start. Account stale snapshots never automatically resume capture. Session revocation unmounts route data and stops location capture; membership/deletion rejection after disconnect returns to access checks. Owner close/delete use account authority without route-scoped credentials.
 
@@ -74,12 +74,6 @@ W2 validation and limits are in [dated evidence](../planning/validation-history.
 - Browser identity and sharing-command request IDs use [the browser ID helper](../../apps/web/lib/browser-id.ts). It uses native `randomUUID` when available, otherwise UUID v4 from `getRandomValues`, with the existing timestamp/random fallback when Web Crypto is absent. Saved client IDs are retained; authentication tokens are generated by the API.
 - Route API helpers live in `apps/web/lib/routes-api.ts`
 - The [creation entry](../../apps/web/app/routes/new/page.tsx) at `/routes/new` renders the [create form](../../apps/web/app/routes/new/create-route-form.tsx), which posts to `POST /routes`. The static `new` segment is separate from the six-character route codes used by `/routes/{code}`.
-- In legacy mode, successful create responses save route-scoped member/owner tokens before navigating to `/routes/{code}`
-- In legacy mode, `/routes/{code}` checks for saved member access before showing the join flow
-- Legacy browsers without saved access fetch `GET /routes/{code}/access`, then join with `POST /routes/{code}/members`
-- Legacy successful join responses save the route-scoped member token before fetching the authenticated snapshot
-- Legacy browsers with saved member access fetch `GET /routes/{code}` with `Authorization: Bearer <memberToken>`
-- Legacy unauthorized snapshot responses clear route-scoped auth and fall back to the join flow
 - The authenticated route screen uses a route header with the K4-10 logo and KeepUp wordmark beside the route title, a MapLibre-backed map surface, and a member bottom sheet
 - The member bottom sheet renders sharing state/actions first, then a collapsible member list with initials, member colors, and explicit presence badges
 - Route details and owner controls live in a native modal dialog with keyboard focus containment and restoration
@@ -96,13 +90,8 @@ W2 validation and limits are in [dated evidence](../planning/validation-history.
 - Rejected GPS samples show guidance for the specific validation code. The next accepted `position_updated` for the current viewer clears the location error; other members' updates leave it visible. Confirmed stop-sharing clears the viewer's location error, and late rejections are ignored when the viewer is no longer tracking or stale.
 - Incoming `member_joined` events insert the new member into local snapshot/map state immediately; repeated member events upsert by member ID instead of creating duplicates
 - Incoming leave, sharing, stale, online, and offline events update local member/viewer state without replacing rendered route paths
-- Active route snapshots that initially load with a `stale` current viewer show a blocking recovery prompt; later stale events in the same live session do not trigger it
-- The recovery actions wait for `connection_established`; resume requests browser location permission and sends `start_sharing`, while continue-as-spectator sends `stop_sharing`
-- The stale recovery prompt is dismissed by the resulting member status event rather than optimistically on command acknowledgement
-- Legacy owner route management uses the route-scoped owner token with `PATCH /routes/{code}` for close and `DELETE /routes/{code}` for permanent deletion
-- The shared API supports metadata editing, which the web client does not expose. Account mode exposes explicit membership leave; legacy mode does not. Owner controls provide close and delete.
-- Close uses an explicit confirmation and applies the resulting `route_closed` event to connected clients; delete requires exact route-code confirmation, clears local route auth, and navigates the deleting owner to `/routes/new`
-- In legacy mode, if a second tab/device opens the same active route with the same member token, the route screen shows a blocking notice instead of map/member content after `live_connection_rejected`
+- The shared API supports metadata editing, which the web client does not expose. Account membership leave is exposed. Owner controls provide close and delete.
+- Close uses an explicit confirmation and applies the resulting `route_closed` event to connected clients; delete requires exact route-code confirmation, clears local route auth, and navigates the deleting owner to `/my-routes`
 - Browser position access is isolated behind `apps/web/lib/navigation-service.ts`
 - Browser geolocation failures are normalized by the navigation service into denied, unavailable, timeout, and generic failure codes before the route screen renders actionable guidance
 - In development, sharing bypasses browser location permission and real GPS. The navigation service starts at simulated coordinates `46.0569, 14.5058`, emits a sample immediately with `5m` accuracy, and broadcasts simulated movement every 2 seconds in roughly 10m direction-biased steps with small random turns. Stopping cancels the timer; restarting retains the last simulated coordinates, refreshes the timestamp, and immediately resumes samples.
@@ -115,13 +104,13 @@ W2 validation and limits are in [dated evidence](../planning/validation-history.
 - Tile provider configuration lives separately from the renderer in `apps/web/lib/map/tile-provider.ts`
 - The [MapLibre adapter](../../apps/web/lib/map/maplibre-route-map-renderer.ts) keeps circle/path layers and attaches DOM name pills to saved member positions. System-font names truncate at 152px; their charcoal backgrounds have 0.75 alpha while text remains opaque. Non-tracking labels include written presence. [Label placement](../../apps/web/lib/map/member-labels.ts) hides names that overlap labels, circles, or reserved map edges, with selected-member priority. Position, camera, resize, and member updates recompute visibility; removed members and renderer teardown release DOM markers. Selecting a circle or label opens full name, presence, and localized last-location time in the [map wrapper](../../apps/web/app/components/route-map.tsx); pan and Fit group clear selection.
 - The MapLibre adapter renders historical path polylines and latest member point markers, fits the initial viewport to visible route geometry, and switches to manual viewport mode on map interaction so live updates do not reset user pan/zoom until `Fit group` is pressed again
-- The helper owns local storage access for:
+- The retained identity helper supports older local storage records for:
   - stable `clientId`
   - saved `displayName`
   - preferred `transportMode`
   - per-route `memberToken`
   - per-route `ownerToken`
-- Route codes are normalized to uppercase before reading or writing route-scoped auth
+- Route codes are normalized to uppercase before reading or writing old route-scoped records. Current route entry never restores these records as authority.
 - The helper guards server rendering by returning safe defaults when browser storage is unavailable
 - The KeepUp identity uses the selected K4-10 Waypoint K mark, with one white circle on the lower green route. The same mark appears in the web header, browser icon, install manifest icons, Apple touch icon, and Android icon assets. The web header mark and regular browser icons have transparent corners outside the rounded K box, matching the mobile header. Platform launcher and maskable backgrounds retain their platform-specific exports. Master SVG and platform exports live under `apps/web/public/brand`, `apps/web/public/icons`, and `assets/brand`.
 

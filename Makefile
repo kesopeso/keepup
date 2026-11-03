@@ -9,8 +9,9 @@ doctor-mobile:
 	./bin/doctor.sh mobile
 
 setup: doctor
-	$(MAKE) up
+	$(COMPOSE) up -d postgres
 	./bin/migrate.sh up
+	$(MAKE) up
 
 mobile-setup: doctor-mobile
 	$(COMPOSE) build mobile-helper

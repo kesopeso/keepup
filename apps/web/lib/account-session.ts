@@ -18,20 +18,19 @@ export function setAccountSession(value: AccountSession | null, broadcast = true
     try { localStorage.setItem(eventKey, `${Date.now()}-${Math.random()}`); } catch { /* Polling/focus still rechecks authority. */ }
   }
 }
-export async function refreshAccountSession(reportDisabled = false): Promise<AccountSession | null> {
+export async function refreshAccountSession(): Promise<AccountSession | null> {
   const version = revision;
   try {
     const next = await authRequest<AccountSession>("me");
     if (version === revision) { if (session && session.user.id !== next.user.id) clearRouteListState(); session = next; publish(); }
   } catch (error) {
-    if (version === revision && error instanceof AuthError && ["session_expired", "auth_unavailable"].includes(error.code)) {
+    if (version === revision && error instanceof AuthError && error.code === "session_expired") {
       clearRouteListState(); session = null; publish();
-      if (reportDisabled && error.code === "auth_unavailable") throw error;
     } else throw error;
   }
   return session;
 }
-// Protected screens opt into periodic authority checks after identifying account mode.
+// Protected screens recheck session authority periodically and on browser events.
 export function watchAccountSession(onError: (error: unknown) => void) {
   let checking = false;
   let stopped = false;

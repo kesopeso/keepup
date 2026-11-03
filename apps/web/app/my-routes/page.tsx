@@ -13,7 +13,7 @@ import { Brand, NotificationStack, type NotificationItem } from "../components/u
 import styles from "./routes.module.css";
 
 export default function MyRoutes() {
-  return <RouteAccount destination="/my-routes">{session => session ? <RouteList session={session} /> : <main className="route-form"><Brand /><h1>My routes</h1><p>Account sign-in is not enabled on this server yet.</p><a href="/routes/new">Create a route</a></main>}</RouteAccount>;
+  return <RouteAccount destination="/my-routes">{session => <RouteList session={session} />}</RouteAccount>;
 }
 
 function RouteList({ session }: { session: AccountSession }) {

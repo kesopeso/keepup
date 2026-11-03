@@ -7,7 +7,6 @@ status: deferred
 
 ## High Priority
 
-- [Remove the authentication feature flags](remove-auth-feature-flag.md), selected as the next implementation task. Make account mode unconditional across the API, web and Android, including removal of the anonymous fallback and obsolete configuration.
 - Optional path snapping / map matching
   - Keep raw accepted points as source of truth
   - Generate snapped geometry as derived data

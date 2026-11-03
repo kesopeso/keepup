@@ -96,7 +96,7 @@ func accountHTTPTest(t *testing.T) accountHTTPFixture {
 	}
 	cfg := config.AuthConfig{Origins: []string{"https://keepup.example"}, Policy: policy, SocketTicketTTL: 30 * time.Second}
 	app := config.AppConfig{Env: "production", WebSocketPingInterval: 50 * time.Millisecond, WebSocketPingTimeout: time.Second, TrackingStaleAfter: time.Hour, TrackingOfflineAfter: time.Hour, SpectatorOfflineAfter: time.Millisecond}
-	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), app, pool, routes.NewService(routes.NewPostgresRepository(pool), 10), WithAccountRoutes(accountRoutes, accounts, cfg))
+	handler := NewHandler(slog.New(slog.NewTextHandler(io.Discard, nil)), app, pool, accountRoutes, accounts, cfg)
 	return accountHTTPFixture{pool, accounts, accountRoutes, handler}
 }
 func (f accountHTTPFixture) user(t *testing.T, name string, verified bool) auth.Result {

@@ -33,7 +33,7 @@ func TestRecoveryConfiguration(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for key, value := range map[string]string{
-				"AUTH_ENABLED": "true", "AUTH_ALLOWED_ORIGINS": "https://keepup.example", "AUTH_PUBLIC_URL": "https://keepup.example",
+				"AUTH_ALLOWED_ORIGINS": "https://keepup.example", "AUTH_PUBLIC_URL": "https://keepup.example",
 				"AUTH_OUTBOX_KEY": base64.StdEncoding.EncodeToString(make([]byte, 32)), "EMAIL_PROVIDER": "",
 				"SMTP_HOST": "smtp.example", "SMTP_PORT": "587", "SMTP_FROM": "keepup@example.com", "SMTP_TLS_MODE": "starttls", "SMTP_USERNAME": "", "SMTP_PASSWORD": "",
 			} {
@@ -71,7 +71,6 @@ func TestEmailProviderSelection(t *testing.T) {
 		{"unknown provider", "development", "unknown", "", "", "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("AUTH_ENABLED", "true")
 			t.Setenv("AUTH_ALLOWED_ORIGINS", "https://keepup.example")
 			t.Setenv("AUTH_PUBLIC_URL", "https://keepup.example")
 			t.Setenv("AUTH_OUTBOX_KEY", base64.StdEncoding.EncodeToString(make([]byte, 32)))

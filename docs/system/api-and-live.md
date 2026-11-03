@@ -5,7 +5,7 @@ status: active
 
 # API and live protocol
 
-The [account API contract](authentication-contract.md) owns implemented account-mode route REST, My routes, socket tickets, multiple viewers, exclusive sender generations and synchronous revocation cleanup. `AUTH_ENABLED=true` requires verified account sessions and replaces the entire route/socket HTTP surface. The behavior below describes legacy mode used by existing clients while the flag is false. Legacy mode cannot access/join account-owned routes; account mode hides legacy-only routes.
+The [account API contract](authentication-contract.md) owns the current REST/live protocol. Every route endpoint requires verified account sessions; sockets use one-use tickets and sharing generations. The older protocol below is retained as a reference for internal regression helpers, not as a selectable server mode. Legacy-only routes are hidden and old member/owner tokens grant no access.
 
 ## Service Responsibilities
 

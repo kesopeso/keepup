@@ -52,7 +52,7 @@ async function sendAuthRequest<T>(path: string, method: string, body?: object): 
   if (!response.ok) {
     const value = await response.json().catch(() => ({}));
     const retry = Number(response.headers.get("Retry-After"));
-    throw new AuthError(value.error ?? (response.status === 404 ? "auth_unavailable" : "internal_error"), response.status, Number.isFinite(retry) ? Math.max(0, retry) : 0);
+    throw new AuthError(value.error ?? "internal_error", response.status, Number.isFinite(retry) ? Math.max(0, retry) : 0);
   }
   return response.status === 204 ? undefined as T : response.json();
 }
@@ -82,7 +82,6 @@ const messages: Record<string, string> = {
   invalid_google_credential: "Google sign-in could not be verified. Start again.",
   identity_conflict: "This Google identity is already linked to another account.",
   rate_limited: "Too many attempts. Wait before trying again.",
-  auth_unavailable: "Account sign-in is not enabled on this server yet.",
 };
 export function authMessage(error: unknown): string {
   return error instanceof AuthError ? messages[error.code] ?? "Something went wrong. Try again." : "Something went wrong. Try again.";

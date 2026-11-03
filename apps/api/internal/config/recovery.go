@@ -98,22 +98,18 @@ func loadRecovery(c *AuthConfig, env string) error {
 			return fmt.Errorf("fake mail provider is only allowed in test environments")
 		}
 	case "":
-		if c.Enabled {
-			return fmt.Errorf("SMTP configuration or EMAIL_PROVIDER is required when AUTH_ENABLED is true")
-		}
+		return fmt.Errorf("SMTP configuration or EMAIL_PROVIDER is required")
 	default:
 		return fmt.Errorf("unsupported EMAIL_PROVIDER")
 	}
 	if p.Retention < c.Policy.AttemptWindow || p.Retention < p.MailWindow || p.Retention < p.ConfirmWindow || p.Retention < p.ResendCooldown {
 		return fmt.Errorf("AUTH_RETENTION must cover rate-limit windows")
 	}
-	if c.Enabled {
-		if err := c.Recovery.Validate(); err != nil {
-			return err
-		}
-		if env != "development" && !strings.HasPrefix(c.Recovery.PublicURL, "https://") {
-			return fmt.Errorf("AUTH_PUBLIC_URL requires HTTPS outside development")
-		}
+	if err := c.Recovery.Validate(); err != nil {
+		return err
+	}
+	if env != "development" && !strings.HasPrefix(c.Recovery.PublicURL, "https://") {
+		return fmt.Errorf("AUTH_PUBLIC_URL requires HTTPS outside development")
 	}
 	return nil
 }

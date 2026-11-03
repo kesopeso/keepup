@@ -9,15 +9,15 @@ Current progress and material validation limits. Read only for task selection, d
 
 ## Immediate next step
 
-The next implementation task is [removing the authentication feature flags](remove-auth-feature-flag.md). Make account mode unconditional across the API, web and Android, remove the anonymous fallback and update configuration, setup and tests. This is a local planned issue; application changes have not started. R1 is complete for the agreed log-email scope on owner acceptance. [R2 is discarded](authentication-tasks.md#r2-fresh-start-rollout-and-documentation) because the HTTPS deployment is staging and the owner will reset its disposable data for day zero. Other features remain in the [backlog](backlog.md#high-priority).
+[Authentication flag removal](remove-auth-feature-flag.md) is complete. Accounts are required across API, web and Android. The next high-priority feature is optional path snapping/map matching in the [backlog](backlog.md#high-priority); its provider and detailed scope have not been selected. R1 is complete for the agreed log-email scope on owner acceptance. [R2 is discarded](authentication-tasks.md#r2-fresh-start-rollout-and-documentation) because the HTTPS deployment is staging and the owner will reset its disposable data for day zero. Other features remain in the [backlog](backlog.md#high-priority).
 
 [Local Google/emulator checks](validation-history.md#r1-local-google-and-emulator-acceptance-on-2026-11-03), [production HTTPS/APK checks](validation-history.md#r1-production-endpoint-and-phone-apk-preparation-on-2026-11-03) and [physical-phone acceptance](validation-history.md#r1-physical-phone-feedback-and-sharing-fix-on-2026-11-03) record sign-in, route restoration, app links, sharing, revocation, network/Location recovery, autofill and email/account-linking results. The owner accepted the third-party Google email challenge as working without supplying further execution details. Real inbox delivery remains deferred; device/OS and detailed duration/battery measurements were not supplied.
 
-Account authentication B1–B6, W1/W2 web account/route integration and A1/A2 Android account/route integration are implemented. The [task handoff](authentication-tasks.md) records R1 acceptance and the discarded R2. Authentication remains disabled by default. W2 has real backend browser checks in a disposable schema, 28 passing web regression tests, a production build, responsive review and zero dashboard accessibility violations. W1 browser-restart restoration remains verified. A1/A2 native evidence and limits are recorded below. R1 acceptance is complete for the agreed log-email scope.
+Account authentication B1–B6, W1/W2 web account/route integration and A1/A2 Android account/route integration are implemented. The [task handoff](authentication-tasks.md) records R1 acceptance and the discarded R2. Authentication is unconditional. W2 has real backend browser checks in a disposable schema, 28 passing web regression tests, a production build, responsive review and zero dashboard accessibility violations. W1 browser-restart restoration remains verified. A1/A2 native evidence and limits are recorded below. R1 acceptance is complete for the agreed log-email scope.
 
 Account mode requires verified sessions and implements multiple viewers, exclusive sharing generations, synchronous revocation cleanup and startup recovery. Its process-local live hub requires one API runtime per database/schema. Backend tests use isolated databases/schemas through migration 0007, locally signed Google proofs and local TLS SMTP. The agent did not migrate/reset or deploy staging; its database state was not inspected. The owner's planned day-zero reset has not been reported complete.
 
-Account-mode Android owner edit/close/delete controls are included in A2. Equivalent legacy-shell controls remain deferred during the account transition. See the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
+Android owner edit/close/delete controls are included in A2. The anonymous app entry has been removed. See the [Android implementation sequence](roadmap.md#phase-9-mobile-client-android-first).
 
 ## Mobile foundation
 
@@ -27,7 +27,7 @@ The owner reported successful outdoor testing of foreground and screen-off track
 
 Route creation and the drawer layout have Docker TypeScript/regression checks and emulator review recorded on 2026-10-08. The owner confirmed emulator pinch zoom; physical-phone review of creation and the later drawer/gesture changes remains unverified. Dated evidence is separate for [creation](validation-history.md#android-route-creation-validation-on-2026-10-08) and [drawer layout](validation-history.md#android-route-map-layout-implemented-on-2026-10-08).
 
-A1 has Docker TypeScript/regression checks, a compiled Android APK, real B2–B4 native requests, and emulator account/link/restart/cancellation checks. A2 adds native My routes, account memberships, lifecycle controls and ticket/generation live authority, with 111 passing mobile tests and real B5/B6 and emulator checks. Account mode remains opt-in. The owner-reported production phone checks cover sign-in, route-link dispatch, screen-off sharing, network recovery, revocation cleanup, permission loss and password-manager autofill. R1 phone/provider acceptance is complete on owner reports and acceptance; real inbox delivery remains deferred. See [native account boundaries](../system/mobile.md#account-routes-and-live-authority) and [A2 evidence](validation-history.md#android-account-routes-a2-on-2026-10-22).
+A1 has Docker TypeScript/regression checks, a compiled Android APK, real B2–B4 native requests, and emulator account/link/restart/cancellation checks. A2 adds native My routes, account memberships, lifecycle controls and ticket/generation live authority, with 111 passing mobile tests and real B5/B6 and emulator checks. The Android entry always opens the account application. The owner-reported production phone checks cover sign-in, route-link dispatch, screen-off sharing, network recovery, revocation cleanup, permission loss and password-manager autofill. R1 phone/provider acceptance is complete on owner reports and acceptance; real inbox delivery remains deferred. See [native account boundaries](../system/mobile.md#account-routes-and-live-authority) and [A2 evidence](validation-history.md#android-account-routes-a2-on-2026-10-22).
 
 ## Android implementation checkpoints
 
@@ -40,7 +40,7 @@ A1 has Docker TypeScript/regression checks, a compiled Android APK, real B2–B4
 | Native map and Peek/Full drawer | Complete; emulator reviewed | Physical-phone gesture review remains unverified |
 | Account authentication/settings | Implemented; emulator and B2–B4 checked | Owner-accepted R1 checks passed; real inbox delivery remains deferred |
 | Account My routes/live integration | Implemented; B5/B6 and emulator checked | Owner-reported screen-off/network/revocation checks passed; detailed device/duration evidence was not supplied |
-| Android owner controls | Implemented in account mode | Legacy shell still lacks owner controls; detailed phone owner-control review was not separately reported |
+| Android owner controls | Implemented in account mode | Detailed phone owner-control review was not separately reported |
 
 ## UI redesign
 
@@ -68,9 +68,9 @@ The development-only legacy copy fallback has desktop browser validation and own
 
 ## Specification versus implementation
 
-Legacy mode rejects new memberships on closed routes despite the [archive access requirement](../product/routes.md#route-access). Existing members can read archive snapshots. The current legacy Android client reports this limitation. Account mode supports explicit archive rejoin, including password gates, and W2 uses it. Android owner edit/close/delete controls remain unimplemented.
+Account routes support explicit archive rejoin, including password gates, on web and Android. Android owner edit/close/delete and membership leave are implemented in A2. Removed anonymous clients no longer define delivery gaps.
 
-Metadata editing exists in the API but lacks current client controls. W2 exposes account membership leave; legacy web and current Android clients do not; see [web boundaries](../system/frontend.md#current-frontend-foundation) and [mobile saved access](../system/mobile.md#saved-membership). This gap does not change the selected next task.
+Metadata editing exists in the API and Android account controls; web metadata editing remains unavailable. Web and Android expose account membership leave; see [web boundaries](../system/frontend.md#current-frontend-foundation) and [native account routes](../system/mobile.md#account-routes-and-live-authority).
 
 Shared GPS validation is implemented. API race/PostGIS integration tests, Go vet, and lint passed in the recorded 2026-10-03 checks; presence recovery also has recorded 2026-10-07 verification. These are prior results, not fresh validation of the current checkout. See [GPS evidence](validation-history.md#gps-validation) and [mobile evidence](validation-history.md#mobile-validation).
 

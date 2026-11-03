@@ -193,7 +193,7 @@ func TestHealthAndLivenessHandlers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler := NewHandler(
+			handler := legacyTestHandler(
 				slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 				config.AppConfig{Env: "test", Port: "8080"},
 				stubHealthChecker{err: tc.healthErr},
@@ -219,7 +219,7 @@ func TestHealthAndLivenessHandlers(t *testing.T) {
 func TestRootHandler(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
@@ -243,7 +243,7 @@ func TestRootHandler(t *testing.T) {
 func TestCreateRouteHandler(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
@@ -303,7 +303,7 @@ func TestCreateRouteHandler(t *testing.T) {
 func TestRouteAccessHandler(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
@@ -341,7 +341,7 @@ func TestRouteAccessHandler(t *testing.T) {
 func TestRouteHandlerRequiresBearerToken(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
@@ -362,7 +362,7 @@ func TestRouteHandler(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC()
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
@@ -427,7 +427,7 @@ func TestRouteHandler(t *testing.T) {
 func TestCreateRouteMemberHandler(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
@@ -487,7 +487,7 @@ func TestCreateRouteMemberHandler(t *testing.T) {
 func TestUpdateRouteHandler(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
@@ -538,7 +538,7 @@ func TestUpdateRouteHandler(t *testing.T) {
 func TestLeaveRouteHandler(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
@@ -578,7 +578,7 @@ func TestLeaveRouteHandler(t *testing.T) {
 func TestDeleteRouteHandler(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080"},
 		stubHealthChecker{},
@@ -607,7 +607,7 @@ func TestDeleteRouteHandler(t *testing.T) {
 func TestWebSocketAuthenticatesFirstMessage(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
 		stubHealthChecker{},
@@ -678,7 +678,7 @@ func TestWebSocketReceivesMemberJoinedBroadcast(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now().UTC()
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
 		stubHealthChecker{},
@@ -799,7 +799,7 @@ func TestWebSocketRecordsAndBroadcastsPositionUpdate(t *testing.T) {
 	recordedAt := time.Now().UTC()
 	clientRecordedAt := recordedAt.Add(-2 * time.Second).UTC()
 	accuracy := 8.5
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
 		stubHealthChecker{},
@@ -924,7 +924,7 @@ func TestWebSocketRecordsAndBroadcastsPositionUpdate(t *testing.T) {
 func TestWebSocketRejectsInvalidPositionUpdate(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
 		stubHealthChecker{},
@@ -997,7 +997,7 @@ func TestWebSocketRejectsInvalidPositionUpdate(t *testing.T) {
 func TestWebSocketRejectsInvalidFirstMessageToken(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{Env: "test", Port: "8080", WebSocketAuthTimeout: time.Second},
 		stubHealthChecker{},
@@ -1053,7 +1053,7 @@ func TestWebSocketBroadcastsTrackingStaleAndOfflineTransitions(t *testing.T) {
 		JoinedAt:      time.Now().UTC(),
 	}
 
-	handler := NewHandler(
+	handler := legacyTestHandler(
 		slog.New(slog.NewTextHandler(testWriter{t: t}, nil)),
 		config.AppConfig{
 			Env:                   "test",

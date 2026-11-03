@@ -61,3 +61,14 @@ test("temporary connection failures retain the known account but never grant fre
   assert.equal(currentSession()?.user.id, account.user.id);
   setAccountSession(null, false);
 });
+
+test("a missing authentication endpoint uses the standard server error without granting anonymous authority", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => new Response("Not Found", { status: 404 }));
+  setAccountSession(null, false);
+  await assert.rejects(refreshAccountSession(), { code: "internal_error", status: 404 });
+  assert.equal(currentSession(), null);
+  setAccountSession(account, false);
+  await assert.rejects(refreshAccountSession(), { code: "internal_error", status: 404 });
+  assert.equal(currentSession()?.user.id, account.user.id);
+  setAccountSession(null, false);
+});

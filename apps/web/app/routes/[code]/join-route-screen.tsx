@@ -7,9 +7,6 @@ import { createBrowserId } from "../../../lib/browser-id";
 import {
   clearRouteAuth,
   getProfile,
-  getRouteAuth,
-  saveProfile,
-  saveRouteAuth,
   type TransportMode,
 } from "../../../lib/identity-storage";
 import {
@@ -65,7 +62,7 @@ import type { AccountSession } from "../../../lib/auth-api";
 export function JoinRouteScreen({ code }: { code: string }) {
   return <RouteAccount destination={`/routes/${code}`}>{session => <JoinScreen code={code} session={session} />}</RouteAccount>;
 }
-function JoinScreen({ code, session }: { code: string; session: AccountSession | null }) {
+function JoinScreen({ code, session }: { code: string; session: AccountSession }) {
   const router = useRouter();
   const [access, setAccess] = useState<RouteAccess | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -82,74 +79,23 @@ function JoinScreen({ code, session }: { code: string; session: AccountSession |
     let isMounted = true;
 
     const profile = getProfile();
-    setDisplayName(session?.user.username ?? profile.displayName);
+    setDisplayName(session.user.username);
     setTransportMode(profile.transportMode);
 
-    if (session) {
-      setMemberToken(accountAuthority);
-      setOwnerToken(accountAuthority);
-      getRouteSnapshot(code, accountAuthority).then(value => {
-        if (isMounted) { setSnapshot(value); setIsLoading(false); }
-      }).catch(async caught => {
-        if (!isMounted) return;
-        if (caught instanceof ApiError && caught.status === 403) {
-          try { const value = await getRouteAccess(code, true); if (isMounted) setAccess(value); }
-          catch (error) { if (isMounted) setError(error instanceof Error ? error.message : "Could not load route."); }
-        } else setError(caught instanceof Error ? caught.message : "Could not load route.");
-        if (isMounted) setIsLoading(false);
-      });
-      return () => { isMounted = false; };
-    }
-    const routeAuth = getRouteAuth(code);
-    setOwnerToken(routeAuth?.ownerToken ?? "");
-    if (routeAuth?.memberToken) {
-      setMemberToken(routeAuth.memberToken);
-      getRouteSnapshot(code, routeAuth.memberToken)
-        .then((routeSnapshot) => {
-          if (!isMounted) {
-            return;
-          }
-
-          setSnapshot(routeSnapshot);
-          setIsLoading(false);
-        })
-        .catch((caughtError) => {
-          if (!isMounted) {
-            return;
-          }
-
-          if (
-            caughtError instanceof ApiError &&
-            caughtError.code === "unauthorized"
-          ) {
-            clearRouteAuth(code);
-            setMemberToken("");
-            loadRouteAccess(
-              code,
-              () => isMounted,
-              setAccess,
-              setError,
-              setIsLoading,
-            );
-            return;
-          }
-
-          setError(
-            caughtError instanceof Error
-              ? caughtError.message
-              : "Could not load this route.",
-          );
-          setIsLoading(false);
-        });
-      return;
-    }
-
-    loadRouteAccess(code, () => isMounted, setAccess, setError, setIsLoading);
-
-    return () => {
-      isMounted = false;
-    };
-  }, [code]);
+    setMemberToken(accountAuthority);
+    setOwnerToken(accountAuthority);
+    getRouteSnapshot(code, accountAuthority).then(value => {
+      if (isMounted) { setSnapshot(value); setIsLoading(false); }
+    }).catch(async caught => {
+      if (!isMounted) return;
+      if (caught instanceof ApiError && caught.status === 403) {
+        try { const value = await getRouteAccess(code, true); if (isMounted) setAccess(value); }
+        catch (error) { if (isMounted) setError(error instanceof Error ? error.message : "Could not load route."); }
+      } else setError(caught instanceof Error ? caught.message : "Could not load route.");
+      if (isMounted) setIsLoading(false);
+    });
+    return () => { isMounted = false; };
+  }, [code, session.user.username]);
 
   const canJoin = useMemo(
     () =>
@@ -171,25 +117,17 @@ function JoinScreen({ code, session }: { code: string; session: AccountSession |
     setIsJoining(true);
 
     try {
-      const profile = session ? { clientId: "", displayName: session.user.username, transportMode } : saveProfile({
-        displayName,
-        transportMode,
-      });
-
       const result = await joinRoute(code, {
-        clientId: profile.clientId,
-        displayName: profile.displayName,
-        transportMode: profile.transportMode,
+        clientId: "",
+        displayName: session.user.username,
+        transportMode,
         password,
-      }, !!session);
+      }, true);
 
-      if (!session) saveRouteAuth(result.route.code, {
-        memberToken: result.memberToken,
-      });
-      setMemberToken(session ? accountAuthority : result.memberToken);
+      setMemberToken(accountAuthority);
       const routeSnapshot = await getRouteSnapshot(
         result.route.code,
-        session ? accountAuthority : result.memberToken,
+        accountAuthority,
       );
       setSnapshot(routeSnapshot);
     } catch (caughtError) {
@@ -220,7 +158,7 @@ function JoinScreen({ code, session }: { code: string; session: AccountSession |
         code={code}
         memberToken={memberToken}
         ownerToken={ownerToken}
-        onDeleted={() => router.replace(session ? "/my-routes" : "/routes/new")}
+        onDeleted={() => router.replace("/my-routes")}
         onSnapshotChange={setSnapshot}
         onAccessLost={async () => {
           setSnapshot(null); setAccess(null);
@@ -267,7 +205,7 @@ function JoinScreen({ code, session }: { code: string; session: AccountSession |
         <label className="field">
           <span>Your name</span>
           <input
-            readOnly={!!session}
+            readOnly
             autoComplete="name"
             name="displayName"
             onChange={(event) => setDisplayName(event.target.value)}
@@ -312,36 +250,6 @@ function JoinScreen({ code, session }: { code: string; session: AccountSession |
       </p>
     </form>
   );
-}
-
-function loadRouteAccess(
-  code: string,
-  shouldUpdate: () => boolean,
-  setAccess: (access: RouteAccess) => void,
-  setError: (error: string) => void,
-  setIsLoading: (isLoading: boolean) => void,
-) {
-  getRouteAccess(code)
-    .then((routeAccess) => {
-      if (!shouldUpdate()) {
-        return;
-      }
-
-      setAccess(routeAccess);
-      setIsLoading(false);
-    })
-    .catch((caughtError) => {
-      if (!shouldUpdate()) {
-        return;
-      }
-
-      setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Could not load this route.",
-      );
-      setIsLoading(false);
-    });
 }
 
 function RouteSnapshotShell({

@@ -9,7 +9,7 @@ B4 implements Google ID-token verification, account linking and username/passwor
 
 ## Enablement
 
-Apply migration [0005](../../db/migrations/0005_google_authentication.up.sql) after 0003/0004 using the manual migration helper. The API does not migrate at startup. Authentication still requires `AUTH_ENABLED=true` and the [account/email settings](authentication-email.md). Google remains unavailable for a transport until its audience list is configured. Password authentication can run without Google configuration.
+Apply migration [0005](../../db/migrations/0005_google_authentication.up.sql) after 0003/0004 using the manual migration helper. The API does not migrate at startup. Authentication requires the [account/email settings](authentication-email.md) on every startup. Google remains unavailable for a transport until its audience list is configured. Password authentication can run without Google configuration.
 
 | Environment variable | Default | Meaning |
 |---|---|---|

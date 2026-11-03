@@ -5,11 +5,11 @@ status: active
 
 # Authentication email and recovery configuration
 
-B3 adds verification, password recovery/change, SMTP delivery and the transactional mail queue; B4 reuses it for [Google email challenges](authentication-google.md). The [account contract](../system/authentication-contract.md) owns endpoint behavior; the [task handoff](../planning/authentication-tasks.md) owns release state. Authentication remains disabled by default. Account-bound routes/My routes and immediate live revocation cleanup are implemented. W1 supplies web link pages and A1 supplies native app-link handling.
+B3 adds verification, password recovery/change, SMTP delivery and the transactional mail queue; B4 reuses it for [Google email challenges](authentication-google.md). The [account contract](../system/authentication-contract.md) owns endpoint behavior; the [task handoff](../planning/authentication-tasks.md) owns release state. Authentication is always required. Account-bound routes/My routes and immediate live revocation cleanup are implemented. W1 supplies web link pages and A1 supplies native app-link handling.
 
 ## Enablement and secrets
 
-Apply migrations through 0007 manually to the intended development database before setting `AUTH_ENABLED=true`. This implementation session did not migrate/reset application tables. The API starts its mail/cleanup worker only when authentication is enabled; shutdown cancels and joins it before closing the database pool. Startup also registers route socket-ticket cleanup with this worker. The separate live runtime owns sharing deadlines and startup recovery; see [development configuration](development.md#staged-account-api).
+Apply migrations through 0007 manually to the intended development database before starting the API. This implementation session did not migrate/reset application tables. The API always starts its mail/cleanup worker; shutdown cancels and joins it before closing the database pool. Startup also registers route socket-ticket cleanup with this worker. The separate live runtime owns sharing deadlines and startup recovery; see [development configuration](development.md#staged-account-api).
 
 Supply `AUTH_ALLOWED_ORIGINS`, `AUTH_PUBLIC_URL`, `AUTH_OUTBOX_KEY`, and a delivery provider alongside the [base account settings](development.md#staged-account-api). Origins are exact scheme/host/port values without paths, query strings or credentials. HTTPS is required outside `APP_ENV=development`. The public origin is trusted deployment configuration; links never use an inbound Host header.
 
@@ -24,8 +24,8 @@ The provider boundary is [maildelivery.Sender](../../apps/api/internal/maildeliv
 | Setting | Default | Use |
 |---|---|---|
 | `EMAIL_PROVIDER` | auto-select SMTP from host | `smtp`, `log`, or test-only `fake` |
-| `AUTH_PUBLIC_URL` | required when enabled | Public origin for `/auth/verify#token=...` and `/auth/reset-password#token=...` |
-| `AUTH_OUTBOX_KEY` | required when enabled | Base64 encoding of a persistent 32-byte encryption key |
+| `AUTH_PUBLIC_URL` | required | Public origin for `/auth/verify#token=...` and `/auth/reset-password#token=...` |
+| `AUTH_OUTBOX_KEY` | required | Base64 encoding of a persistent 32-byte encryption key |
 | `SMTP_HOST` | required for SMTP | Server hostname or IPv4 address |
 | `SMTP_PORT` | `587` | 1–65535 |
 | `SMTP_FROM` | required for SMTP | Bare sender address |
@@ -36,9 +36,9 @@ TLS certificate verification is mandatory, with TLS 1.2 or later. STARTTLS absen
 
 ### Email log previews
 
-Set `EMAIL_PROVIDER=log` in the API environment. This provider works with any `APP_ENV` value. No SMTP settings are required. Authentication still requires `AUTH_ENABLED=true`, allowed origins, a public URL, an outbox key and the manually applied migrations described above. Selecting the provider does not enable authentication.
+Set `EMAIL_PROVIDER=log` in the API environment. This provider works with any `APP_ENV` value. No SMTP settings are required. Authentication requires allowed origins, a public URL, an outbox key and the manually applied migrations described above.
 
-The development Compose API service forwards `EMAIL_PROVIDER`, account enablement, origins, public URL, outbox key, session idle duration, trusted proxy CIDRs, Google allowlists and SMTP settings from the shell or root `.env` file. Set `EMAIL_PROVIDER=log` there and recreate the API container after changing it. The [environment example](../../.env.example) lists these settings; other optional queue/policy settings need a Compose override or container environment. Follow [release acceptance](authentication-release.md) for setup and remaining gates.
+The development Compose API service forwards `EMAIL_PROVIDER`, origins, public URL, outbox key, session idle duration, trusted proxy CIDRs, Google allowlists and SMTP settings from the shell or root `.env` file. Set `EMAIL_PROVIDER=log` there and recreate the API container after changing it. The [environment example](../../.env.example) lists these settings; other optional queue/policy settings need a Compose override or container environment. Follow [release acceptance](authentication-release.md) for setup and remaining gates.
 
 The [log provider](../../apps/api/internal/maildelivery/log.go) writes one structured `email preview` record at INFO level with `provider`, `message_id`, `to`, `subject` and `body` fields. The body contains the complete text and usable verification/reset/Google challenge link. It sends no network email and treats the preview as successful delivery through the normal outbox worker, including its token checks and quotas. JSON logs escape body newlines. Inspect records with `docker compose logs -f api`.
 

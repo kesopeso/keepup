@@ -4,8 +4,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getProfile,
-  saveProfile,
-  saveRouteAuth,
   type TransportMode,
 } from "../../../lib/identity-storage";
 import { createRoute, type SharingPolicy } from "../../../lib/routes-api";
@@ -34,7 +32,7 @@ import type { AccountSession } from "../../../lib/auth-api";
 export function CreateRouteForm() {
   return <RouteAccount destination="/routes/new">{session => <CreateForm session={session} />}</RouteAccount>;
 }
-function CreateForm({ session }: { session: AccountSession | null }) {
+function CreateForm({ session }: { session: AccountSession }) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [transportMode, setTransportMode] = useState<TransportMode>("car");
@@ -48,7 +46,7 @@ function CreateForm({ session }: { session: AccountSession | null }) {
 
   useEffect(() => {
     const profile = getProfile();
-    setDisplayName(session?.user.username ?? profile.displayName);
+    setDisplayName(session.user.username);
     setTransportMode(profile.transportMode);
   }, []);
 
@@ -69,25 +67,15 @@ function CreateForm({ session }: { session: AccountSession | null }) {
     setIsSubmitting(true);
 
     try {
-      const profile = session ? { clientId: "", displayName: session.user.username, transportMode } : saveProfile({
-        displayName,
-        transportMode,
-      });
-
       const result = await createRoute({
-        clientId: profile.clientId,
-        displayName: profile.displayName,
-        transportMode: profile.transportMode,
+        clientId: "",
+        displayName: session.user.username,
+        transportMode,
         name: routeName,
         description,
         password,
         sharingPolicy,
-      }, !!session);
-
-      if (!session) saveRouteAuth(result.route.code, {
-        memberToken: result.memberToken,
-        ownerToken: result.ownerToken,
-      });
+      }, true);
 
       router.push(`/routes/${result.route.code}`);
     } catch (caughtError) {
@@ -107,7 +95,7 @@ function CreateForm({ session }: { session: AccountSession | null }) {
       aria-busy={isSubmitting}
     >
       <Brand />
-      {session ? <a href="/my-routes">My routes</a> : null}
+      <a href="/my-routes">My routes</a>
       <div className="form-header">
         <p className="eyebrow">Live route sharing</p>
         <h1>Start a route together.</h1>
@@ -132,7 +120,7 @@ function CreateForm({ session }: { session: AccountSession | null }) {
         <label className="field">
           <span>Your name</span>
           <input
-            readOnly={!!session}
+            readOnly
             autoComplete="name"
             name="displayName"
             onChange={(event) => setDisplayName(event.target.value)}
