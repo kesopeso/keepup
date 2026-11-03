@@ -5,7 +5,7 @@ status: active
 
 # Account release acceptance
 
-R1 configuration and acceptance procedure. [Task status](../planning/authentication-tasks.md#r1-configuration-and-cross-client-acceptance) owns completion; [validation history](../planning/validation-history.md#r1-local-acceptance-on-2026-10-28) records evidence. R2 owns production rollout and its explicit authorization.
+Account configuration and acceptance procedure. [Task status](../planning/authentication-tasks.md#r1-configuration-and-cross-client-acceptance) owns completion; [validation history](../planning/validation-history.md#r1-local-acceptance-on-2026-10-28) records evidence. The owner treats the current HTTPS deployment as disposable staging and will reset it for day zero. The separate R2 rollout task was [discarded](../planning/authentication-tasks.md#r2-fresh-start-rollout-and-documentation); configuration and manual migration requirements below still apply.
 
 ## Local account configuration
 
