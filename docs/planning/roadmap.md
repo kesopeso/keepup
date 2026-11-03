@@ -7,6 +7,10 @@ status: planned
 
 These are planning phases, not completion checkboxes. See [current status](status.md) before selecting work.
 
+## Current priority
+
+[UI/UX improvements and bug fixes](ui-ux-improvements.md) come next, before path snapping/map matching or other backlog features. The owner will define the work items in that local issue before implementation starts.
+
 ## Phase 1: Repository and Local Dev
 
 1. Create monorepo structure:
@@ -108,4 +112,4 @@ The implementation checkpoints are:
 
 Each task is a separate implementation and validation checkpoint. Legacy live viewing and tracking have owner-reported outdoor success. Account-mode native route integration and lifecycle controls are implemented in A2. [R1](authentication-tasks.md#r1-configuration-and-cross-client-acceptance) is complete for the agreed log-email scope on owner acceptance. The owner selected a day-zero staging reset and discarded the separate rollout task; see the [decision](authentication-tasks.md#r2-fresh-start-rollout-and-documentation).
 
-[Authentication flag removal](remove-auth-feature-flag.md) is complete, making account mode unconditional across API, web and Android. Optional path snapping/map matching is the next high-priority feature in the [backlog](backlog.md); provider and detailed scope selection remain open.
+[Authentication flag removal](remove-auth-feature-flag.md) is complete, making account mode unconditional across API, web and Android. [UI/UX improvements and bug fixes](ui-ux-improvements.md) take priority over optional path snapping/map matching and other [backlog](backlog.md) features. Map-matching provider and detailed scope selection remain open.

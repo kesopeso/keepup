@@ -7,6 +7,7 @@ status: deferred
 
 ## High Priority
 
+- [UI/UX improvements and bug fixes](ui-ux-improvements.md), highest priority. The owner will define work items in the local issue before implementation starts. Complete this work before continuing with the features below.
 - Optional path snapping / map matching
   - Keep raw accepted points as source of truth
   - Generate snapped geometry as derived data

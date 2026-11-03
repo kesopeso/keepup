@@ -9,7 +9,9 @@ Current progress and material validation limits. Read only for task selection, d
 
 ## Immediate next step
 
-[Authentication flag removal](remove-auth-feature-flag.md) is complete. Accounts are required across API, web and Android. The next high-priority feature is optional path snapping/map matching in the [backlog](backlog.md#high-priority); its provider and detailed scope have not been selected. R1 is complete for the agreed log-email scope on owner acceptance. [R2 is discarded](authentication-tasks.md#r2-fresh-start-rollout-and-documentation) because the HTTPS deployment is staging and the owner will reset its disposable data for day zero. Other features remain in the [backlog](backlog.md#high-priority).
+[UI/UX improvements and bug fixes](ui-ux-improvements.md) are the highest implementation priority. The local issue is open; the owner will define specific work items there before implementation starts. Path snapping/map matching and other backlog features follow this work.
+
+[Authentication flag removal](remove-auth-feature-flag.md) is complete. Accounts are required across API, web and Android. R1 is complete for the agreed log-email scope on owner acceptance. [R2 is discarded](authentication-tasks.md#r2-fresh-start-rollout-and-documentation) because the HTTPS deployment is staging and the owner will reset its disposable data for day zero. Other features remain in the [backlog](backlog.md#high-priority).
 
 [Local Google/emulator checks](validation-history.md#r1-local-google-and-emulator-acceptance-on-2026-11-03), [production HTTPS/APK checks](validation-history.md#r1-production-endpoint-and-phone-apk-preparation-on-2026-11-03) and [physical-phone acceptance](validation-history.md#r1-physical-phone-feedback-and-sharing-fix-on-2026-11-03) record sign-in, route restoration, app links, sharing, revocation, network/Location recovery, autofill and email/account-linking results. The owner accepted the third-party Google email challenge as working without supplying further execution details. Real inbox delivery remains deferred; device/OS and detailed duration/battery measurements were not supplied.
 
